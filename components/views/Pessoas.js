@@ -1,44 +1,20 @@
 'use client';
-
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
 import { calcularSaldos } from '../../lib/settle';
 import { valorEmBRL, fmtBRL } from '../../lib/format';
-
 export default function Pessoas() {
   const { viagem, gastos, divisoes, perfis, perfil, adicionarPessoa, atualizarNomePessoa, removerPessoa } = useData();
-  const cotacao = Number(viagem.cotacao_usd);
-  const saldos = calcularSaldos(gastos, divisoes, perfis, cotacao);
-
-  const dados = perfis.map((p) => ({
-    ...p,
-    pago: gastos.filter((g) => g.pago_por === p.id).reduce((s, g) => s + valorEmBRL(g, cotacao), 0),
-    saldo: saldos[p.id] || 0,
-    ehVoce: perfil && p.id === perfil.id,
-  }));
-
-  function novaPessoa() {
-    const nome = window.prompt('Nome da pessoa (ex.: Sogro)');
-    if (nome && nome.trim()) adicionarPessoa(nome);
-  }
-  function editar(p) {
-    const nome = window.prompt('Editar nome', p.nome);
-    if (nome && nome.trim()) atualizarNomePessoa(p.id, nome);
-  }
-  async function remover(p) {
-    if (!window.confirm(`Remover "${p.nome}"?`)) return;
-    const erro = await removerPessoa(p.id);
-    if (erro) window.alert('Não dá pra remover: essa pessoa já tem gastos ligados a ela. Apague os gastos dela primeiro.');
-  }
-
+  const cambio = Number(viagem.cotacao_usd);
+  const saldos = calcularSaldos(gastos, divisoes, perfis, cambio);
+  const dados = perfis.map((p) => ({ ...p, pago: gastos.filter((g) => g.pago_por === p.id).reduce((s, g) => s + valorEmBRL(g, cambio), 0), saldo: saldos[p.id] || 0, ehVoce: perfil && p.id === perfil.id }));
+  function novaPessoa() { const nome = window.prompt('Nome da pessoa (ex.: Sogro)'); if (nome && nome.trim()) adicionarPessoa(nome); }
+  function editar(p) { const nome = window.prompt('Editar nome', p.nome); if (nome && nome.trim()) atualizarNomePessoa(p.id, nome); }
+  async function remover(p) { if (!window.confirm(`Remover "${p.nome}"?`)) return; const erro = await removerPessoa(p.id); if (erro) window.alert('Não dá pra remover: essa pessoa já tem gastos ligados a ela. Apague os gastos dela primeiro.'); }
   return (
     <div className="screen">
-      <p style={{ fontSize: 13, color: 'var(--muted)', margin: '8px 0 14px' }}>
-        Adicione todos que vão participar dos gastos. Cada um pode ter (ou não) login próprio.
-      </p>
-
+      <p style={{ fontSize: 13, color: 'var(--muted)', margin: '8px 0 14px' }}>Adicione todos que vão participar dos gastos. Cada um pode ter (ou não) login próprio.</p>
       <button className="btn-outline" style={{ marginBottom: 16 }} onClick={novaPessoa}>+ Adicionar pessoa</button>
-
       {dados.map((p) => {
         const s = Math.round(p.saldo);
         return (
@@ -60,10 +36,7 @@ export default function Pessoas() {
           </div>
         );
       })}
-
-      <div style={{ textAlign: 'center', marginTop: 16 }}>
-        <button className="btn-ghost" onClick={() => supabase.auth.signOut()}>Sair da conta</button>
-      </div>
+      <div style={{ textAlign: 'center', marginTop: 16 }}><button className="btn-ghost" onClick={() => supabase.auth.signOut()}>Sair da conta</button></div>
     </div>
   );
 }
