@@ -18,31 +18,26 @@ export function DataProvider({ session, children }) {
   const carregar = useCallback(async () => {
     const uid = session.user.id;
 
-    // Garante que o perfil do usuário logado existe
-    let { data: meu } = await supabase.from('perfis').select('*').eq('id', uid).maybeSingle();
+    // Perfil do usuário logado (procura pelo login). Cria no primeiro acesso.
+    let { data: meu } = await supabase.from('perfis').select('*').eq('user_id', uid).maybeSingle();
     if (!meu) {
       const nome = session.user.user_metadata?.nome || session.user.email.split('@')[0];
-      const cor = corAleatoria();
-      await supabase.from('perfis').insert({ id: uid, nome, cor });
-      const r = await supabase.from('perfis').select('*').eq('id', uid).maybeSingle();
+      await supabase.from('perfis').insert({ user_id: uid, nome, cor: corAleatoria() });
+      const r = await supabase.from('perfis').select('*').eq('user_id', uid).maybeSingle();
       meu = r.data;
     }
     setPerfil(meu);
 
-    // Pega a viagem (a família compartilha uma só). Cria uma padrão se não houver.
+    // Viagem (a família compartilha uma só). Cria padrão se não houver.
     let { data: v } = await supabase.from('viagens').select('*').order('criado_em').limit(1).maybeSingle();
     if (!v) {
-      const r = await supabase
-        .from('viagens')
-        .insert({ nome: 'Viagem EUA', orcamento_brl: 35000, cotacao_usd: 5.4 })
-        .select()
-        .single();
+      const r = await supabase.from('viagens').insert({ nome: 'Viagem EUA', orcamento_brl: 35000, cotacao_usd: 5.4 }).select().single();
       v = r.data;
     }
     setViagem(v);
 
     const [{ data: ps }, { data: pts }, { data: gs }] = await Promise.all([
-      supabase.from('perfis').select('*'),
+      supabase.from('perfis').select('*').order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
       supabase.from('gastos').select('*').eq('viagem_id', v.id).order('data', { ascending: false }),
     ]);
@@ -63,21 +58,17 @@ export function DataProvider({ session, children }) {
 
   useEffect(() => {
     carregar();
-    // Tempo real: qualquer mudança recarrega os dados
     const canal = supabase
       .channel('viagem-mudancas')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos' }, carregar)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'gasto_divisao' }, carregar)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'viagens' }, carregar)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'perfis' }, carregar)
       .subscribe();
-    return () => {
-      supabase.removeChannel(canal);
-    };
+    return () => { supabase.removeChannel(canal); };
   }, [carregar]);
 
-  // --- Ações ---
-
-  async function salvarGasto({ descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes }) {
+  async function salvarGasto({ descricao, valor, moeda, cotacao, categoria, pagoPor, pontoId, data, participantes }) {
     const { data: novo, error } = await supabase
       .from('gastos')
       .insert({
@@ -85,6 +76,7 @@ export function DataProvider({ session, children }) {
         descricao,
         valor,
         moeda,
+        cotacao: moeda === 'USD' ? cotacao : null,
         categoria,
         pago_por: pagoPor,
         ponto_id: pontoId || null,
@@ -94,13 +86,25 @@ export function DataProvider({ session, children }) {
       .single();
     if (error) throw error;
 
-    const linhas = participantes.map((p) => ({
-      gasto_id: novo.id,
-      perfil_id: p.id,
-      partes: p.partes,
-    }));
+    const linhas = participantes.map((p) => ({ gasto_id: novo.id, perfil_id: p.id, partes: p.partes }));
     await supabase.from('gasto_divisao').insert(linhas);
     await carregar();
+  }
+
+  async function adicionarPessoa(nome) {
+    await supabase.from('perfis').insert({ nome: nome.trim(), cor: corAleatoria() });
+    await carregar();
+  }
+
+  async function atualizarNomePessoa(id, nome) {
+    await supabase.from('perfis').update({ nome: nome.trim() }).eq('id', id);
+    await carregar();
+  }
+
+  async function removerPessoa(id) {
+    const { error } = await supabase.from('perfis').delete().eq('id', id);
+    await carregar();
+    return error;
   }
 
   async function atualizarCotacao(cotacao) {
@@ -119,18 +123,9 @@ export function DataProvider({ session, children }) {
   }
 
   const value = {
-    perfil,
-    viagem,
-    perfis,
-    pontos,
-    gastos,
-    divisoes,
-    carregando,
-    salvarGasto,
-    atualizarCotacao,
-    atualizarOrcamento,
-    removerGasto,
-    recarregar: carregar,
+    perfil, viagem, perfis, pontos, gastos, divisoes, carregando,
+    salvarGasto, adicionarPessoa, atualizarNomePessoa, removerPessoa,
+    atualizarCotacao, atualizarOrcamento, removerGasto, recarregar: carregar,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

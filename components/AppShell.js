@@ -12,22 +12,12 @@ import Acerto from './views/Acerto';
 import Roteiro from './views/Roteiro';
 
 export default function AppShell() {
-  const { carregando, viagem, perfil, recarregar } = useData();
+  const { carregando, viagem } = useData();
   const [view, setView] = useState('resumo');
 
-  if (carregando) {
-    return <div className="center-msg">Carregando a viagem…</div>;
-  }
+  if (carregando) return <div className="center-msg">Carregando a viagem…</div>;
 
   const irPara = (v) => setView(v);
-
-  async function editarNome() {
-    const novo = window.prompt('Como você quer aparecer no app?', perfil?.nome || '');
-    if (novo && novo.trim()) {
-      await supabase.from('perfis').update({ nome: novo.trim() }).eq('id', perfil.id);
-      await recarregar();
-    }
-  }
 
   return (
     <div className="app">
@@ -36,11 +26,7 @@ export default function AppShell() {
           <span className="mark" aria-hidden="true">✈</span>
           {viagem?.nome || 'Viagem'}
         </div>
-        <button
-          className="rate"
-          onClick={() => setView('resumo')}
-          style={{ border: 0, cursor: 'pointer' }}
-        >
+        <button className="rate" onClick={() => setView('resumo')} style={{ border: 0, cursor: 'pointer' }}>
           USD {Number(viagem?.cotacao_usd || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </button>
       </div>
@@ -53,13 +39,6 @@ export default function AppShell() {
       {view === 'roteiro' && <Roteiro ir={irPara} />}
 
       {view !== 'novo' && view !== 'roteiro' && <Nav view={view} setView={setView} />}
-
-      {view === 'pessoas' && (
-        <div style={{ textAlign: 'center', paddingBottom: 10, display: 'flex', gap: 8, justifyContent: 'center' }}>
-          <button className="btn-ghost" onClick={editarNome}>Editar meu nome</button>
-          <button className="btn-ghost" onClick={() => supabase.auth.signOut()}>Sair da conta</button>
-        </div>
-      )}
     </div>
   );
 }

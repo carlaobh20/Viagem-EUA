@@ -10,21 +10,14 @@ export default function Acerto() {
   const saldos = calcularSaldos(gastos, divisoes, perfis, cotacao);
   const transferencias = quemDeveParaQuem(saldos);
 
-  const nome = (id) => {
-    const p = perfis.find((x) => x.id === id);
-    return p ? p.nome : '—';
-  };
-  const cor = (id) => {
-    const p = perfis.find((x) => x.id === id);
-    return p ? p.cor : '#999';
-  };
+  const nome = (id) => { const p = perfis.find((x) => x.id === id); return p ? p.nome : '—'; };
+  const cor = (id) => { const p = perfis.find((x) => x.id === id); return p ? p.cor : '#999'; };
 
   return (
     <div className="screen">
       <p style={{ fontSize: 13, color: 'var(--muted)', margin: '8px 0 16px' }}>
         Quem precisa pagar quem para todo mundo ficar quite — no menor número de transferências.
       </p>
-
       {transferencias.length === 0 ? (
         <div className="card"><div className="empty">Tudo certo! Ninguém deve nada por enquanto. ✅</div></div>
       ) : (
@@ -41,9 +34,8 @@ export default function Acerto() {
           ))}
         </div>
       )}
-
       <p style={{ fontSize: 11, color: 'var(--faint)', textAlign: 'center', marginTop: 14 }}>
-        Os valores em dólar entram convertidos pela cotação atual (R$ {cotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).
+        Cada compra em dólar entra convertida pela cotação que você registrou nela (ou a cotação geral, quando não informada).
       </p>
     </div>
   );
