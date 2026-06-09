@@ -12,7 +12,7 @@ import Acerto from './views/Acerto';
 import Roteiro from './views/Roteiro';
 
 export default function AppShell() {
-  const { carregando, viagem } = useData();
+  const { carregando, viagem, perfil, recarregar } = useData();
   const [view, setView] = useState('resumo');
 
   if (carregando) {
@@ -20,6 +20,14 @@ export default function AppShell() {
   }
 
   const irPara = (v) => setView(v);
+
+  async function editarNome() {
+    const novo = window.prompt('Como você quer aparecer no app?', perfil?.nome || '');
+    if (novo && novo.trim()) {
+      await supabase.from('perfis').update({ nome: novo.trim() }).eq('id', perfil.id);
+      await recarregar();
+    }
+  }
 
   return (
     <div className="app">
@@ -46,8 +54,9 @@ export default function AppShell() {
 
       {view !== 'novo' && view !== 'roteiro' && <Nav view={view} setView={setView} />}
 
-      {(view === 'pessoas') && (
-        <div style={{ textAlign: 'center', paddingBottom: 10 }}>
+      {view === 'pessoas' && (
+        <div style={{ textAlign: 'center', paddingBottom: 10, display: 'flex', gap: 8, justifyContent: 'center' }}>
+          <button className="btn-ghost" onClick={editarNome}>Editar meu nome</button>
           <button className="btn-ghost" onClick={() => supabase.auth.signOut()}>Sair da conta</button>
         </div>
       )}
