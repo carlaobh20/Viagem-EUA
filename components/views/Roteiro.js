@@ -7,12 +7,32 @@ export default function Roteiro({ ir }) {
   const { viagem, pontos, gastos, recarregar } = useData();
   const cambio = Number(viagem.cotacao_usd);
   const gastoDoPonto = (id) => gastos.filter((g) => g.ponto_id === id).reduce((s, g) => s + valorEmBRL(g, cambio), 0);
+
   async function adicionarParada() {
-    const nome = window.prompt('Nome da parada (ex.: Orlando)'); if (!nome) return;
+    const nome = window.prompt('Nome da parada (ex.: Orlando)');
+    if (!nome || !nome.trim()) return;
     const inicio = window.prompt('Data de início (AAAA-MM-DD), ou deixe em branco', '');
-    await supabase.from('pontos_roteiro').insert({ viagem_id: viagem.id, nome, data_inicio: inicio || null, ordem: pontos.length });
+    await supabase.from('pontos_roteiro').insert({ viagem_id: viagem.id, nome: nome.trim(), data_inicio: inicio || null, ordem: pontos.length });
     await recarregar();
   }
+
+  async function editarParada(p) {
+    const nome = window.prompt('Nome da parada', p.nome);
+    if (nome === null) return;
+    const inicio = window.prompt('Data de início (AAAA-MM-DD), ou deixe em branco', p.data_inicio || '');
+    if (inicio === null) return;
+    await supabase.from('pontos_roteiro').update({ nome: (nome.trim() || p.nome), data_inicio: inicio || null }).eq('id', p.id);
+    await recarregar();
+  }
+
+  async function apagarParada(p) {
+    const total = gastos.filter((g) => g.ponto_id === p.id).length;
+    const aviso = total > 0 ? `\n\n${total} gasto(s) estão marcados nessa parada. Eles NÃO serão apagados, só deixam de ficar ligados a ela.` : '';
+    if (!window.confirm(`Apagar a parada "${p.nome}"?${aviso}`)) return;
+    await supabase.from('pontos_roteiro').delete().eq('id', p.id);
+    await recarregar();
+  }
+
   return (
     <div className="app">
       <div className="screen" style={{ paddingTop: 18 }}>
@@ -23,7 +43,15 @@ export default function Roteiro({ ir }) {
             {pontos.map((p, i) => (
               <div className="stop" key={p.id}>
                 <span className="dot" style={{ background: CORES[i % CORES.length] }} />
-                <div><div className="t">{p.nome}</div><div className="d">{periodo(p)}</div><div className="g">Gasto: {fmtBRL(gastoDoPonto(p.id))}</div></div>
+                <div style={{ flex: 1 }}>
+                  <div className="t">{p.nome}</div>
+                  <div className="d">{periodo(p)}</div>
+                  <div className="g">Gasto: {fmtBRL(gastoDoPonto(p.id))}</div>
+                  <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>
+                    <button className="btn-ghost" style={{ padding: 0, fontSize: 13 }} onClick={() => editarParada(p)}>Editar</button>
+                    <button className="btn-ghost" style={{ padding: 0, fontSize: 13, color: 'var(--debit)' }} onClick={() => apagarParada(p)}>Apagar</button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
