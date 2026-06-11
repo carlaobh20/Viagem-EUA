@@ -17,9 +17,7 @@ export default function AppShell() {
     <div className="app">
       <div className="topbar">
         <div className="brand"><span className="mark" aria-hidden="true">✈</span>{viagem?.nome || 'Viagem'}</div>
-        <button className="rate" onClick={() => setView('acerto')} style={{ border: 0, cursor: 'pointer' }}>
-          Câmbio R$ {Number(viagem?.cotacao_usd || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-        </button>
+        <button className="rate" onClick={() => setView('acerto')} style={{ border: 0, cursor: 'pointer' }}>Câmbio R$ {Number(viagem?.cotacao_usd || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</button>
       </div>
       {view === 'resumo' && <Resumo ir={irPara} />}
       {view === 'gastos' && <Gastos ir={irPara} />}

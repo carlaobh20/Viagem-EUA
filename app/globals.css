@@ -15,18 +15,6 @@ input, select { font-family: inherit; }
 .topbar .brand .mark { width: 28px; height: 28px; border-radius: 8px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px; }
 .topbar .rate { font-size: 12px; color: var(--gold); background: var(--gold-soft); padding: 4px 10px; border-radius: 20px; border: 0.5px solid rgba(186,117,23,0.25); }
 .screen { padding: 4px 20px 20px; }
-.pass { background: var(--brand); color: #fff; border-radius: var(--radius); padding: 20px 20px 18px; position: relative; overflow: hidden; }
-.pass .label { font-size: 12px; opacity: 0.8; letter-spacing: 0.04em; text-transform: uppercase; }
-.pass .total { font-size: 34px; font-weight: 700; margin: 4px 0 2px; }
-.pass .sub { font-size: 13px; opacity: 0.85; }
-.pass .perf { border-top: 2px dashed rgba(255,255,255,0.35); margin: 16px -20px 14px; height: 0; }
-.pass .split { display: flex; gap: 18px; }
-.pass .split .col .k { font-size: 11px; opacity: 0.8; }
-.pass .split .col .v { font-size: 17px; font-weight: 600; }
-.budget { margin-top: 14px; }
-.budget .track { height: 8px; border-radius: 6px; background: rgba(255,255,255,0.25); overflow: hidden; }
-.budget .fill { height: 100%; background: #fff; }
-.budget .meta { font-size: 11px; opacity: 0.85; margin-top: 6px; }
 .section-title { font-size: 13px; font-weight: 600; color: var(--muted); margin: 22px 0 10px; }
 .card { background: var(--surface); border: 0.5px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
 .row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 0.5px solid var(--line); }
@@ -38,20 +26,12 @@ input, select { font-family: inherit; }
 .row .amt { font-size: 14px; font-weight: 600; white-space: nowrap; text-align: right; }
 .row .amt .conv { display: block; font-size: 10px; color: var(--faint); font-weight: 400; }
 .row .del { background: none; border: none; color: var(--faint); font-size: 17px; padding: 6px 4px 6px 8px; flex: 0 0 auto; line-height: 1; }
-.person { display: flex; align-items: center; gap: 11px; margin-bottom: 12px; }
 .avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff; flex: 0 0 auto; }
-.bar-wrap { flex: 1; }
-.bar { height: 6px; border-radius: 4px; background: var(--line); overflow: hidden; }
-.bar i { display: block; height: 100%; }
-.person .val { font-size: 12px; color: var(--muted); width: 78px; text-align: right; }
 .badge { font-size: 12px; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
 .badge.credit { background: var(--brand-soft); color: var(--credit); }
 .badge.debit { background: var(--debit-soft); color: var(--debit); }
 .badge.quite { background: #F1EFE8; color: var(--muted); }
 .settle { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
-.settle .arrow { color: var(--faint); font-size: 18px; }
-.settle .who { font-size: 14px; }
-.settle .v { margin-left: auto; font-weight: 600; }
 .timeline { position: relative; padding-left: 8px; }
 .timeline::before { content: ''; position: absolute; left: 15px; top: 8px; bottom: 8px; width: 2px; background: var(--line-strong); }
 .stop { display: flex; gap: 14px; margin-bottom: 18px; position: relative; }

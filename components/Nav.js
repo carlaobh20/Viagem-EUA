@@ -7,7 +7,7 @@ export default function Nav({ view, setView }) {
   );
   return (
     <nav className="nav">
-      {item('resumo', 'Resumo', '◈')}
+      {item('resumo', 'Início', '◈')}
       {item('gastos', 'Gastos', '☰')}
       <button className="add" onClick={() => setView('novo')} aria-label="Novo gasto">＋</button>
       {item('pessoas', 'Pessoas', '👥')}

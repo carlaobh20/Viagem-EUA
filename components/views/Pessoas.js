@@ -4,9 +4,9 @@ import { supabase } from '../../lib/supabaseClient';
 import { calcularSaldos } from '../../lib/settle';
 import { valorEmBRL, fmtBRL } from '../../lib/format';
 export default function Pessoas() {
-  const { viagem, gastos, divisoes, perfis, perfil, adicionarPessoa, atualizarNomePessoa, removerPessoa } = useData();
+  const { viagem, gastos, divisoes, perfis, perfil, acertos, adicionarPessoa, atualizarNomePessoa, removerPessoa } = useData();
   const cambio = Number(viagem.cotacao_usd);
-  const saldos = calcularSaldos(gastos, divisoes, perfis, cambio);
+  const saldos = calcularSaldos(gastos, divisoes, perfis, cambio, acertos);
   const dados = perfis.map((p) => ({ ...p, pago: gastos.filter((g) => g.pago_por === p.id).reduce((s, g) => s + valorEmBRL(g, cambio), 0), saldo: saldos[p.id] || 0, ehVoce: perfil && p.id === perfil.id }));
   function novaPessoa() { const nome = window.prompt('Nome da pessoa (ex.: Sogro)'); if (nome && nome.trim()) adicionarPessoa(nome); }
   function editar(p) { const nome = window.prompt('Editar nome', p.nome); if (nome && nome.trim()) atualizarNomePessoa(p.id, nome); }
