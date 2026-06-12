@@ -1,13 +1,20 @@
 'use client';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
-import { calcularSaldos } from '../../lib/settle';
+import { calcularSaldos, calcularConsumo } from '../../lib/settle';
 import { valorEmBRL, fmtBRL } from '../../lib/format';
 export default function Pessoas() {
   const { viagem, gastos, divisoes, perfis, perfil, acertos, adicionarPessoa, atualizarNomePessoa, removerPessoa } = useData();
   const cambio = Number(viagem.cotacao_usd);
   const saldos = calcularSaldos(gastos, divisoes, perfis, cambio, acertos);
-  const dados = perfis.map((p) => ({ ...p, pago: gastos.filter((g) => g.pago_por === p.id).reduce((s, g) => s + valorEmBRL(g, cambio), 0), saldo: saldos[p.id] || 0, ehVoce: perfil && p.id === perfil.id }));
+  const consumo = calcularConsumo(gastos, divisoes, perfis, cambio);
+  const dados = perfis.map((p) => ({
+    ...p,
+    pago: gastos.filter((g) => g.pago_por === p.id).reduce((s, g) => s + valorEmBRL(g, cambio), 0),
+    gastou: consumo[p.id] || 0,
+    saldo: saldos[p.id] || 0,
+    ehVoce: perfil && p.id === perfil.id,
+  }));
   function novaPessoa() { const nome = window.prompt('Nome da pessoa (ex.: Sogro)'); if (nome && nome.trim()) adicionarPessoa(nome); }
   function editar(p) { const nome = window.prompt('Editar nome', p.nome); if (nome && nome.trim()) atualizarNomePessoa(p.id, nome); }
   async function remover(p) { if (!window.confirm(`Remover "${p.nome}"?`)) return; const erro = await removerPessoa(p.id); if (erro) window.alert('Não dá pra remover: essa pessoa já tem gastos ligados a ela. Apague os gastos dela primeiro.'); }
@@ -21,9 +28,10 @@ export default function Pessoas() {
           <div className="card" key={p.id} style={{ marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
               <span className="avatar" style={{ background: p.cor, width: 36, height: 36, fontSize: 12 }}>{p.nome.slice(0, 2).toUpperCase()}</span>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{p.nome}{p.ehVoce && <span style={{ fontSize: 11, color: 'var(--faint)', fontWeight: 400 }}> (você)</span>}</div>
-                <div style={{ fontSize: 11, color: 'var(--faint)' }}>Pagou {fmtBRL(p.pago)}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink)' }}>Gastou (sua parte) <b>{fmtBRL(p.gastou)}</b></div>
+                <div style={{ fontSize: 11, color: 'var(--faint)' }}>Pagou do bolso {fmtBRL(p.pago)}</div>
               </div>
               {s > 1 && <span className="badge credit">a receber {fmtBRL(s)}</span>}
               {s < -1 && <span className="badge debit">deve {fmtBRL(-s)}</span>}
@@ -36,6 +44,7 @@ export default function Pessoas() {
           </div>
         );
       })}
+      <p style={{ fontSize: 11, color: 'var(--faint)', marginTop: 8 }}>"Gastou" é a parte de cada um nas despesas (o que cada um consumiu). "Pagou do bolso" é quem adiantou o dinheiro. O acerto usa a diferença entre os dois.</p>
       <div style={{ textAlign: 'center', marginTop: 16 }}><button className="btn-ghost" onClick={() => supabase.auth.signOut()}>Sair da conta</button></div>
     </div>
   );

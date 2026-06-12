@@ -1,7 +1,7 @@
 'use client';
 
 import { useData } from '../DataProvider';
-import { calcularSaldos, quemDeveParaQuem } from '../../lib/settle';
+import { calcularSaldos, calcularConsumo, quemDeveParaQuem } from '../../lib/settle';
 import { valorEmBRL, fmtBRL, fmtUSD, emojiCategoria, nomeCategoria } from '../../lib/format';
 
 const SLICE_CORES = ['#0F6E56', '#1D9E75', '#5DCAA5', '#C9E9DD'];
@@ -17,9 +17,14 @@ export default function Resumo({ ir }) {
   const pct = orcamento > 0 ? Math.min(100, Math.round((totalBRL / orcamento) * 100)) : 0;
   const restante = orcamento - totalBRL;
 
+  const consumo = calcularConsumo(gastos, divisoes, perfis, cambio);
   const porPessoa = perfis
-    .map((p) => ({ ...p, total: gastos.filter((g) => g.pago_por === p.id).reduce((s, g) => s + valorEmBRL(g, cambio), 0) }))
-    .sort((a, b) => b.total - a.total);
+    .map((p) => ({
+      ...p,
+      pago: gastos.filter((g) => g.pago_por === p.id).reduce((s, g) => s + valorEmBRL(g, cambio), 0),
+      gastou: consumo[p.id] || 0,
+    }))
+    .sort((a, b) => b.gastou - a.gastou);
 
   const mapa = {};
   gastos.forEach((g) => { mapa[g.categoria] = (mapa[g.categoria] || 0) + valorEmBRL(g, cambio); });
@@ -113,14 +118,15 @@ export default function Resumo({ ir }) {
       )}
 
       <div style={{ marginTop: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>Pessoas</div>
+        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>Quanto cada um gastou</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {porPessoa.map((p) => (
             <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 9, background: '#F4F2EC', borderRadius: 14, padding: '9px 11px' }}>
               <span style={{ width: 28, height: 28, borderRadius: '50%', background: p.cor, color: '#fff', fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>{p.nome.slice(0, 2).toUpperCase()}</span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.nome}</div>
-                <div style={{ fontSize: 11, color: '#8A938F' }}>{fmtBRL(p.total)}</div>
+                <div style={{ fontSize: 12, fontWeight: 600 }}>{fmtBRL(p.gastou)}</div>
+                <div style={{ fontSize: 10, color: '#8A938F' }}>pagou {fmtBRL(p.pago)}</div>
               </div>
             </div>
           ))}
