@@ -86,8 +86,8 @@ export function DataProvider({ session, children }) {
     await carregar();
   }
 
-  async function registrarAcerto({ de, para, valor }) {
-    await supabase.from('acertos').insert({ viagem_id: viagem.id, de, para, valor, data: new Date().toISOString().slice(0, 10) });
+  async function registrarAcerto({ de, para, valor, moeda }) {
+    await supabase.from('acertos').insert({ viagem_id: viagem.id, de, para, valor, moeda: moeda || 'BRL', data: new Date().toISOString().slice(0, 10) });
     await carregar();
   }
   async function removerAcerto(id) { await supabase.from('acertos').delete().eq('id', id); await carregar(); }
