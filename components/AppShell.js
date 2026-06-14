@@ -25,7 +25,7 @@ export default function AppShell() {
       {view === 'pessoas' && <Pessoas ir={irPara} />}
       {view === 'acerto' && <Acerto ir={irPara} />}
       {view === 'roteiro' && <Roteiro ir={irPara} />}
-      {view !== 'novo' && view !== 'roteiro' && <Nav view={view} setView={setView} />}
+      {view !== 'novo' && <Nav view={view} setView={setView} />}
     </div>
   );
 }
