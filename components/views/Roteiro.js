@@ -14,6 +14,7 @@ const TIPOS = [
   { id: 'outro', nome: 'Outro', cor: '#5F5E5A' },
 ];
 const STATUS = ['Confirmado', 'Reserva', 'A definir'];
+const CORES_DIA = ['#0F6E56', '#185FA5', '#534AB7', '#BA7517', '#1D9E75', '#D4537E', '#993C1D'];
 const corTipo = (t) => (TIPOS.find((x) => x.id === t) || TIPOS[6]).cor;
 const nomeTipo = (t) => (TIPOS.find((x) => x.id === t) || TIPOS[6]).nome;
 const hoje = () => new Date().toISOString().slice(0, 10);
@@ -123,55 +124,60 @@ export default function Roteiro({ ir }) {
           </div>
         ) : (
           <>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 6 }}>Toda a viagem dia a dia, com horários, tipo e status de cada parada.</p>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>Toda a viagem dia a dia, com horários, tipo e status de cada parada.</p>
             {grupos.length === 0 && <div className="card"><div className="empty">Nenhuma parada ainda. Toque em “Adicionar parada”.</div></div>}
-            {grupos.map((g, gi) => (
-              <div key={g.key}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '18px 0 10px' }}>
-                  <span style={{ fontSize: 15, fontWeight: 600 }}>{g.data ? `Dia ${gi + 1}` : 'Sem data'}</span>
-                  <span style={{ fontSize: 12, color: 'var(--faint)' }}>{fmtDiaData(g.data)}</span>
-                </div>
-                <div style={{ position: 'relative', paddingLeft: 24 }}>
-                  <div style={{ position: 'absolute', left: 6, top: 6, bottom: 8, width: 2, background: 'var(--line-strong)' }} />
-                  {g.stops.map((p, i) => (
-                    <div key={p.id} style={{ position: 'relative', marginBottom: 16 }}>
-                      <div style={{ position: 'absolute', left: -24, top: 4, width: 14, height: 14, borderRadius: '50%', background: corTipo(p.tipo), border: '3px solid var(--bg)' }} />
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
-                        <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>{p.nome}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '0 0 auto' }}><StatusBadge st={p.status} />{p.hora && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{p.hora}</span>}</div>
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 1 }}>{nomeTipo(p.tipo)}{gastoDoPonto(p.id) > 0 ? ` · gasto ${fmtBRL(gastoDoPonto(p.id))}` : ''}</div>
 
-                      {notaEdit === p.id ? (
-                        <div style={{ marginTop: 6 }}>
-                          <textarea className="input" style={{ height: 60, padding: 8 }} value={notaTxt} onChange={(e) => setNotaTxt(e.target.value)} placeholder="Escreva um comentário…" />
-                          <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>
-                            <button className="btn-ghost" style={{ padding: 0, fontSize: 13 }} onClick={() => salvarNota(p)}>Salvar comentário</button>
-                            <button className="btn-ghost" style={{ padding: 0, fontSize: 13, color: 'var(--faint)' }} onClick={() => setNotaEdit(null)}>Cancelar</button>
+            {grupos.map((g, gi) => {
+              const cor = g.data ? CORES_DIA[gi % CORES_DIA.length] : '#5F5E5A';
+              return (
+                <div key={g.key} style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 14, overflow: 'hidden', marginBottom: 14 }}>
+                  <div style={{ background: cor, color: '#fff', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 14, fontWeight: 600 }}>{g.data ? `Dia ${gi + 1}` : 'Sem data'} <span style={{ opacity: 0.85, fontWeight: 400 }}>· {fmtDiaData(g.data)}</span></span>
+                    <span style={{ fontSize: 11, opacity: 0.85 }}>{g.stops.length} {g.stops.length === 1 ? 'parada' : 'paradas'}</span>
+                  </div>
+                  <div style={{ padding: '6px 14px 12px' }}>
+                    {g.stops.map((p, i) => (
+                      <div key={p.id} style={{ display: 'flex', gap: 10, paddingTop: 12, borderTop: i > 0 ? '0.5px solid var(--line)' : 'none', marginTop: i > 0 ? 12 : 0 }}>
+                        <div style={{ width: 11, height: 11, borderRadius: '50%', background: corTipo(p.tipo), marginTop: 5, flex: '0 0 auto' }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>{p.nome}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '0 0 auto' }}><StatusBadge st={p.status} />{p.hora && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{p.hora}</span>}</div>
                           </div>
-                        </div>
-                      ) : p.nota ? (
-                        <div onClick={() => abrirNota(p)} style={{ marginTop: 6, background: 'var(--bg)', border: '0.5px solid var(--line)', borderRadius: 8, padding: '7px 10px', fontSize: 13, color: 'var(--ink)', cursor: 'pointer' }}>
-                          <span style={{ color: 'var(--faint)', fontSize: 11, display: 'block', marginBottom: 2 }}>comentário (toque para editar)</span>{p.nota}
-                        </div>
-                      ) : null}
+                          <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 1 }}>{nomeTipo(p.tipo)}{gastoDoPonto(p.id) > 0 ? ` · gasto ${fmtBRL(gastoDoPonto(p.id))}` : ''}</div>
 
-                      <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center' }}>
-                        <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13 }} onClick={() => abrirEdicao(p)}>Editar</button>
-                        {!p.nota && notaEdit !== p.id && <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13 }} onClick={() => abrirNota(p)}>+ comentário</button>}
-                        <button aria-label="Subir" className="btn-ghost" style={{ padding: '2px 6px', fontSize: 15 }} onClick={() => mover(g, i, -1)}>↑</button>
-                        <button aria-label="Descer" className="btn-ghost" style={{ padding: '2px 6px', fontSize: 15 }} onClick={() => mover(g, i, 1)}>↓</button>
-                        <span style={{ flex: 1 }} />
-                        <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13, color: 'var(--debit)' }} onClick={() => excluir(p)}>Excluir</button>
+                          {notaEdit === p.id ? (
+                            <div style={{ marginTop: 6 }}>
+                              <textarea className="input" style={{ height: 60, padding: 8 }} value={notaTxt} onChange={(e) => setNotaTxt(e.target.value)} placeholder="Escreva um comentário…" />
+                              <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>
+                                <button className="btn-ghost" style={{ padding: 0, fontSize: 13 }} onClick={() => salvarNota(p)}>Salvar comentário</button>
+                                <button className="btn-ghost" style={{ padding: 0, fontSize: 13, color: 'var(--faint)' }} onClick={() => setNotaEdit(null)}>Cancelar</button>
+                              </div>
+                            </div>
+                          ) : p.nota ? (
+                            <div onClick={() => abrirNota(p)} style={{ marginTop: 6, background: 'var(--bg)', border: '0.5px solid var(--line)', borderRadius: 8, padding: '7px 10px', fontSize: 13, color: 'var(--ink)', cursor: 'pointer' }}>
+                              <span style={{ color: 'var(--faint)', fontSize: 11, display: 'block', marginBottom: 2 }}>comentário (toque para editar)</span>{p.nota}
+                            </div>
+                          ) : null}
+
+                          <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13 }} onClick={() => abrirEdicao(p)}>Editar</button>
+                            {!p.nota && notaEdit !== p.id && <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13 }} onClick={() => abrirNota(p)}>+ comentário</button>}
+                            <button aria-label="Subir" className="btn-ghost" style={{ padding: '2px 6px', fontSize: 15 }} onClick={() => mover(g, i, -1)}>↑</button>
+                            <button aria-label="Descer" className="btn-ghost" style={{ padding: '2px 6px', fontSize: 15 }} onClick={() => mover(g, i, 1)}>↓</button>
+                            <span style={{ flex: 1 }} />
+                            <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13, color: 'var(--debit)' }} onClick={() => excluir(p)}>Excluir</button>
+                          </div>
+                          <div onClick={() => abrirNovo(g.data, p.id)} style={{ fontSize: 11, color: 'var(--brand)', cursor: 'pointer', marginTop: 8 }}>+ inserir parada aqui</div>
+                        </div>
                       </div>
-
-                      <div onClick={() => abrirNovo(g.data, p.id)} style={{ fontSize: 11, color: 'var(--brand)', cursor: 'pointer', marginTop: 8 }}>+ inserir parada aqui</div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-            <button className="btn-outline" style={{ marginTop: 8 }} onClick={() => abrirNovo(ultimaData(), null)}>+ Adicionar parada</button>
+              );
+            })}
+
+            <button className="btn-outline" style={{ marginTop: 2 }} onClick={() => abrirNovo(ultimaData(), null)}>+ Adicionar parada</button>
           </>
         )}
       </div>
