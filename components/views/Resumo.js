@@ -101,6 +101,15 @@ export default function Resumo({ ir }) {
         {transferencias.length > 0 && <div style={{ fontSize: 15, fontWeight: 500, color: '#0F6E56' }}>{fmtBRL(transferencias[0].valor)}</div>}
       </div>
 
+      <div onClick={() => ir('roteiro')} style={{ marginTop: 10, background: '#FAEEDA', borderRadius: 16, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer' }}>
+        <span style={{ width: 32, height: 32, borderRadius: 10, background: '#BA7517', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🧭</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, color: '#8A6A1E' }}>Roteiro</div>
+          <div style={{ fontSize: 13, color: '#3A2E12' }}>Ver a viagem dia a dia</div>
+        </div>
+        <span style={{ color: '#BA7517', fontSize: 18 }}>›</span>
+      </div>
+
       {fatias.length > 0 && (
         <div style={{ marginTop: 16, border: '0.5px solid #ECEAE3', borderRadius: 18, padding: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>Por categoria</div>
@@ -160,10 +169,6 @@ export default function Resumo({ ir }) {
         </div>
         <p style={{ fontSize: 10, color: '#A7AEAA', marginTop: 6 }}>US$/R$ mostra separado por moeda. R$ ou US$ converte tudo pelo câmbio da aba Acerto. Quem pagou do bolso aparece na aba Pessoas.</p>
       </div>
-
-      <button onClick={() => ir('roteiro')} style={{ width: '100%', textAlign: 'left', marginTop: 16, background: '#fff', border: '0.5px solid #ECEAE3', borderRadius: 16, padding: '13px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14 }}>
-        <span>Roteiro da viagem</span><span style={{ color: '#A7AEAA' }}>›</span>
-      </button>
 
       <div style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
