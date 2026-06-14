@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
 import { valorEmBRL, fmtBRL } from '../../lib/format';
@@ -34,6 +34,7 @@ function fmtDiaData(d) {
   return `${wd}, ${String(dt.getDate()).padStart(2, '0')} ${m}`;
 }
 function diffDias(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
+function fmtDur(min) { if (min < 60) return `${min} min`; const h = Math.floor(min / 60); const m = min % 60; return m ? `${h} h ${m} min` : `${h} h`; }
 
 export default function Roteiro({ ir }) {
   const { viagem, pontos, gastos, recarregar } = useData();
@@ -44,6 +45,8 @@ export default function Roteiro({ ir }) {
   const [editDatas, setEditDatas] = useState(false);
   const [dIda, setDIda] = useState('');
   const [dVolta, setDVolta] = useState('');
+  const [rotas, setRotas] = useState({});
+  const [geoMsg, setGeoMsg] = useState('');
 
   const gastoDoPonto = (id) => gastos.filter((g) => g.ponto_id === id).reduce((s, g) => s + valorEmBRL(g, cambio), 0);
 
@@ -62,16 +65,16 @@ export default function Roteiro({ ir }) {
   const ultimaData = () => (grupos.length ? grupos[grupos.length - 1].data : '') || hoje();
 
   function abrirNovo(dataPadrao, inserirApos) {
-    setForm({ id: null, nome: '', data: dataPadrao || ultimaData(), hora: '', tipo: 'passeio', status: '', nota: '', inserirApos: inserirApos || null });
+    setGeoMsg(''); setForm({ id: null, nome: '', data: dataPadrao || ultimaData(), hora: '', tipo: 'passeio', status: '', nota: '', local: '', lat: null, lng: null, inserirApos: inserirApos || null });
   }
   function abrirEdicao(p) {
-    setForm({ id: p.id, nome: p.nome, data: p.data_inicio || '', hora: p.hora || '', tipo: p.tipo || 'outro', status: p.status || '', nota: p.nota || '', inserirApos: null });
+    setGeoMsg(p.lat != null ? '📍 local salvo' : ''); setForm({ id: p.id, nome: p.nome, data: p.data_inicio || '', hora: p.hora || '', tipo: p.tipo || 'outro', status: p.status || '', nota: p.nota || '', local: p.local || '', lat: p.lat ?? null, lng: p.lng ?? null, inserirApos: null });
   }
 
   async function salvarForm() {
     const f = form;
     if (!f.nome.trim()) { window.alert('Dê um nome para a parada.'); return; }
-    const campos = { nome: f.nome.trim(), data_inicio: f.data || null, hora: f.hora || null, tipo: f.tipo, status: f.status || null, nota: f.nota.trim() || null };
+    const campos = { nome: f.nome.trim(), data_inicio: f.data || null, hora: f.hora || null, tipo: f.tipo, status: f.status || null, nota: f.nota.trim() || null, local: f.local ? f.local.trim() : null, lat: f.lat ?? null, lng: f.lng ?? null };
     if (f.id) {
       await supabase.from('pontos_roteiro').update(campos).eq('id', f.id);
     } else {
@@ -117,6 +120,44 @@ export default function Roteiro({ ir }) {
     await recarregar();
   }
 
+  async function buscarLocal() {
+    const q = (form.local || '').trim();
+    if (!q) { setGeoMsg('digite um local primeiro'); return; }
+    setGeoMsg('buscando…');
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`, { headers: { Accept: 'application/json' } });
+      const j = await r.json();
+      if (j && j[0]) { setForm((f) => ({ ...f, lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) })); setGeoMsg('📍 local encontrado'); }
+      else setGeoMsg('não encontrei esse local — tente ser mais específico');
+    } catch (e) { setGeoMsg('erro ao buscar (sem internet?)'); }
+  }
+
+  useEffect(() => {
+    const pares = [];
+    for (let i = 0; i < ordenados.length - 1; i++) {
+      const a = ordenados[i], b = ordenados[i + 1];
+      if (a.lat != null && a.lng != null && b.lat != null && b.lng != null) {
+        const key = `${a.id}_${b.id}`;
+        if (!(key in rotas)) pares.push({ key, a, b });
+      }
+    }
+    if (pares.length === 0) return;
+    let cancel = false;
+    (async () => {
+      const novos = {};
+      for (const pr of pares) {
+        try {
+          const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${pr.a.lng},${pr.a.lat};${pr.b.lng},${pr.b.lat}?overview=false`);
+          const j = await r.json();
+          if (j.routes && j.routes[0]) novos[pr.key] = { km: j.routes[0].distance / 1000, min: Math.round(j.routes[0].duration / 60) };
+          else novos[pr.key] = 'erro';
+        } catch (e) { novos[pr.key] = 'erro'; }
+      }
+      if (!cancel) setRotas((prev) => ({ ...prev, ...novos }));
+    })();
+    return () => { cancel = true; };
+  }, [pontos]);
+
   const ida = viagem.data_ida, volta = viagem.data_volta;
   let prog = null;
   if (ida && volta) {
@@ -141,6 +182,13 @@ export default function Roteiro({ ir }) {
             <div className="field"><label>Tipo</label><select className="select" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>{TIPOS.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}</select></div>
             <div className="field"><label>Status</label><select className="select" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="">—</option>{STATUS.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
             <div className="field"><label>Comentário (opcional)</label><textarea className="input" style={{ height: 64, padding: 8 }} value={form.nota} onChange={(e) => setForm({ ...form, nota: e.target.value })} placeholder="Anotações, links, lembretes…" /></div>
+            <div className="field"><label>Local (para distância/tempo — opcional)</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input className="input" value={form.local} onChange={(e) => setForm({ ...form, local: e.target.value, lat: null, lng: null })} placeholder="Ex.: Magic Kingdom, Orlando" style={{ flex: 1 }} />
+                <button type="button" className="btn-outline" style={{ width: 100, height: 44 }} onClick={buscarLocal}>Buscar</button>
+              </div>
+              {geoMsg && <div style={{ fontSize: 11, color: form.lat != null ? 'var(--brand)' : 'var(--muted)', marginTop: 4 }}>{geoMsg}{form.lat != null ? ` (${form.lat.toFixed(3)}, ${form.lng.toFixed(3)})` : ''}</div>}
+            </div>
             <button className="btn-primary" onClick={salvarForm}>{form.id ? 'Salvar alterações' : 'Adicionar parada'}</button>
             <button className="btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => setForm(null)}>Cancelar</button>
           </div>
@@ -198,6 +246,17 @@ export default function Roteiro({ ir }) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '0 0 auto' }}><StatusBadge st={p.status} />{p.hora && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{p.hora}</span>}</div>
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 1 }}>{nomeTipo(p.tipo)}{gastoDoPonto(p.id) > 0 ? ` · gasto ${fmtBRL(gastoDoPonto(p.id))}` : ''}</div>
+                          {(() => {
+                            const gx = ordenados.findIndex((s) => s.id === p.id);
+                            const nx = ordenados[gx + 1];
+                            if (!nx || p.lat == null || p.lng == null || nx.lat == null || nx.lng == null) return null;
+                            const rota = rotas[`${p.id}_${nx.id}`];
+                            return (
+                              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
+                                ↘ {rota === undefined ? 'calculando…' : rota === 'erro' ? 'distância indisponível' : `≈ ${rota.km.toFixed(0)} km · ${fmtDur(rota.min)} de carro até ${nx.nome}`}
+                              </div>
+                            );
+                          })()}
 
                           {notaEdit === p.id ? (
                             <div style={{ marginTop: 6 }}>
