@@ -130,7 +130,7 @@ export default function Roteiro({ ir }) {
   return (
     <div className="app">
       <div className="screen" style={{ paddingTop: 18 }}>
-        <div className="fab-back"><button onClick={() => ir('resumo')} aria-label="Voltar">←</button><span className="ttl">Roteiro</span></div>
+        <div className="fab-back"><button onClick={() => ir('resumo')} aria-label="Voltar">←</button></div>
 
         {form ? (
           <div className="card" style={{ marginBottom: 16 }}>
@@ -160,31 +160,30 @@ export default function Roteiro({ ir }) {
                 <button className="btn-outline" onClick={abrirDatas}>Definir datas da viagem</button>
               </div>
             ) : (
-              <div className="card" style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ fontSize: 15, fontWeight: 600 }}>
-                    {prog.estado === 'antes' && `Faltam ${prog.faltam} ${prog.faltam === 1 ? 'dia' : 'dias'} para a viagem`}
+              <div style={{ marginTop: 2, marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.5px' }}>
+                    {prog.estado === 'antes' && `Faltam ${prog.faltam} ${prog.faltam === 1 ? 'dia' : 'dias'}`}
                     {prog.estado === 'durante' && `Dia ${prog.n} de ${prog.total}`}
                     {prog.estado === 'fim' && 'Viagem concluída ✅'}
                   </span>
                   <button onClick={abrirDatas} className="btn-ghost" style={{ padding: 0, fontSize: 12 }}>editar datas</button>
                 </div>
-                <div style={{ height: 8, borderRadius: 6, background: 'var(--bg)', overflow: 'hidden', margin: '10px 0 6px' }}>
-                  <div style={{ width: (prog.estado === 'antes' ? 0 : prog.estado === 'fim' ? 100 : prog.pct) + '%', height: '100%', background: 'var(--brand)' }} />
+                <div style={{ height: 9, borderRadius: 8, background: '#E7E4DB', overflow: 'hidden', margin: '12px 0 8px' }}>
+                  <div style={{ width: (prog.estado === 'antes' ? 0 : prog.estado === 'fim' ? 100 : prog.pct) + '%', height: '100%', borderRadius: 8, background: 'var(--brand)' }} />
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--faint)' }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                   {fmtDiaData(ida)} → {fmtDiaData(volta)} · {prog.total} dias
                   {prog.estado === 'durante' && ` · faltam ${prog.faltam} ${prog.faltam === 1 ? 'dia' : 'dias'}`}
                 </div>
               </div>
             )}
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>Toda a viagem dia a dia, com horários, tipo e status de cada parada.</p>
             {grupos.length === 0 && <div className="card"><div className="empty">Nenhuma parada ainda. Toque em “Adicionar parada”.</div></div>}
 
             {grupos.map((g, gi) => {
               const cor = g.data ? CORES_DIA[gi % CORES_DIA.length] : '#5F5E5A';
               return (
-                <div key={g.key} style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 14, overflow: 'hidden', marginBottom: 14 }}>
+                <div key={g.key} style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 18, overflow: 'hidden', marginBottom: 14, boxShadow: '0 2px 12px rgba(27,42,47,0.06)' }}>
                   <div style={{ background: cor, color: '#fff', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 14, fontWeight: 600 }}>{g.data ? `Dia ${gi + 1}` : 'Sem data'} <span style={{ opacity: 0.85, fontWeight: 400 }}>· {fmtDiaData(g.data)}</span></span>
                     <span style={{ fontSize: 11, opacity: 0.85 }}>{g.stops.length} {g.stops.length === 1 ? 'parada' : 'paradas'}</span>
