@@ -120,15 +120,36 @@ export default function Roteiro({ ir }) {
     await recarregar();
   }
 
+  async function geocodar(termo) {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(termo)}`, { headers: { Accept: 'application/json' } });
+    const j = await r.json();
+    return j && j[0] ? { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) } : null;
+  }
+
   async function buscarLocal() {
     const q = (form.local || '').trim();
     if (!q) { setGeoMsg('digite um local primeiro'); return; }
     setGeoMsg('buscando…');
+    // monta variações: se a busca exata falhar, tenta a cidade e depois só o ponto
+    const tentativas = [q];
+    if (q.includes(',')) {
+      const partes = q.split(',').map((s) => s.trim()).filter(Boolean);
+      const cidade = partes[partes.length - 1];
+      const ponto = partes[0];
+      if (cidade && !tentativas.includes(cidade)) tentativas.push(cidade);
+      if (ponto && !tentativas.includes(ponto)) tentativas.push(ponto);
+    }
     try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`, { headers: { Accept: 'application/json' } });
-      const j = await r.json();
-      if (j && j[0]) { setForm((f) => ({ ...f, lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) })); setGeoMsg('📍 local encontrado'); }
-      else setGeoMsg('não encontrei esse local — tente ser mais específico');
+      for (let i = 0; i < tentativas.length; i++) {
+        const termo = tentativas[i];
+        const hit = await geocodar(termo);
+        if (hit) {
+          setForm((f) => ({ ...f, lat: hit.lat, lng: hit.lng }));
+          setGeoMsg(i === 0 ? '📍 local encontrado' : `📍 achei por “${termo}”`);
+          return;
+        }
+      }
+      setGeoMsg('não encontrei — tente a cidade ou um ponto famoso (ex.: Walt Disney World)');
     } catch (e) { setGeoMsg('erro ao buscar (sem internet?)'); }
   }
 
@@ -184,10 +205,11 @@ export default function Roteiro({ ir }) {
             <div className="field"><label>Comentário (opcional)</label><textarea className="input" style={{ height: 64, padding: 8 }} value={form.nota} onChange={(e) => setForm({ ...form, nota: e.target.value })} placeholder="Anotações, links, lembretes…" /></div>
             <div className="field"><label>Local (para distância/tempo — opcional)</label>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input className="input" value={form.local} onChange={(e) => setForm({ ...form, local: e.target.value, lat: null, lng: null })} placeholder="Ex.: Magic Kingdom, Orlando" style={{ flex: 1 }} />
+                <input className="input" value={form.local} onChange={(e) => setForm({ ...form, local: e.target.value, lat: null, lng: null })} placeholder="Ex.: Walt Disney World" style={{ flex: 1 }} />
                 <button type="button" className="btn-outline" style={{ width: 100, height: 44 }} onClick={buscarLocal}>Buscar</button>
               </div>
               {geoMsg && <div style={{ fontSize: 11, color: form.lat != null ? 'var(--brand)' : 'var(--muted)', marginTop: 4 }}>{geoMsg}{form.lat != null ? ` (${form.lat.toFixed(3)}, ${form.lng.toFixed(3)})` : ''}</div>}
+              <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 4 }}>Dica: se não achar, use o nome da cidade ou um ponto famoso (ex.: Walt Disney World).</div>
             </div>
             <button className="btn-primary" onClick={salvarForm}>{form.id ? 'Salvar alterações' : 'Adicionar parada'}</button>
             <button className="btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => setForm(null)}>Cancelar</button>
