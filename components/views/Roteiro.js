@@ -33,6 +33,7 @@ function fmtDiaData(d) {
   const m = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][dt.getMonth()];
   return `${wd}, ${String(dt.getDate()).padStart(2, '0')} ${m}`;
 }
+function diffDias(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
 
 export default function Roteiro({ ir }) {
   const { viagem, pontos, gastos, recarregar } = useData();
@@ -40,6 +41,9 @@ export default function Roteiro({ ir }) {
   const [form, setForm] = useState(null);
   const [notaEdit, setNotaEdit] = useState(null);
   const [notaTxt, setNotaTxt] = useState('');
+  const [editDatas, setEditDatas] = useState(false);
+  const [dIda, setDIda] = useState('');
+  const [dVolta, setDVolta] = useState('');
 
   const gastoDoPonto = (id) => gastos.filter((g) => g.ponto_id === id).reduce((s, g) => s + valorEmBRL(g, cambio), 0);
 
@@ -105,6 +109,24 @@ export default function Roteiro({ ir }) {
   function abrirNota(p) { setNotaEdit(p.id); setNotaTxt(p.nota || ''); }
   async function salvarNota(p) { await supabase.from('pontos_roteiro').update({ nota: notaTxt.trim() || null }).eq('id', p.id); setNotaEdit(null); await recarregar(); }
 
+  function abrirDatas() { setDIda(viagem.data_ida || ''); setDVolta(viagem.data_volta || ''); setEditDatas(true); }
+  async function salvarDatas() {
+    if (dIda && dVolta && dVolta < dIda) { window.alert('A volta não pode ser antes da ida.'); return; }
+    await supabase.from('viagens').update({ data_ida: dIda || null, data_volta: dVolta || null }).eq('id', viagem.id);
+    setEditDatas(false);
+    await recarregar();
+  }
+
+  const ida = viagem.data_ida, volta = viagem.data_volta;
+  let prog = null;
+  if (ida && volta) {
+    const total = diffDias(ida, volta) + 1;
+    const hojeS = hoje();
+    if (hojeS < ida) prog = { estado: 'antes', faltam: diffDias(hojeS, ida), total };
+    else if (hojeS > volta) prog = { estado: 'fim', total };
+    else { const n = diffDias(ida, hojeS) + 1; prog = { estado: 'durante', n, total, faltam: diffDias(hojeS, volta), pct: Math.max(2, Math.min(100, Math.round((n / total) * 100))) }; }
+  }
+
   return (
     <div className="app">
       <div className="screen" style={{ paddingTop: 18 }}>
@@ -124,6 +146,38 @@ export default function Roteiro({ ir }) {
           </div>
         ) : (
           <>
+            {editDatas ? (
+              <div className="card" style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Datas da viagem</div>
+                <div className="field"><label>Ida</label><input className="input" type="date" value={dIda} onChange={(e) => setDIda(e.target.value)} /></div>
+                <div className="field"><label>Volta</label><input className="input" type="date" value={dVolta} onChange={(e) => setDVolta(e.target.value)} /></div>
+                <button className="btn-primary" onClick={salvarDatas}>Salvar datas</button>
+                <button className="btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => setEditDatas(false)}>Cancelar</button>
+              </div>
+            ) : !prog ? (
+              <div className="card" style={{ marginBottom: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10 }}>Defina a ida e a volta para ver a contagem dos dias.</div>
+                <button className="btn-outline" onClick={abrirDatas}>Definir datas da viagem</button>
+              </div>
+            ) : (
+              <div className="card" style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span style={{ fontSize: 15, fontWeight: 600 }}>
+                    {prog.estado === 'antes' && `Faltam ${prog.faltam} ${prog.faltam === 1 ? 'dia' : 'dias'} para a viagem`}
+                    {prog.estado === 'durante' && `Dia ${prog.n} de ${prog.total}`}
+                    {prog.estado === 'fim' && 'Viagem concluída ✅'}
+                  </span>
+                  <button onClick={abrirDatas} className="btn-ghost" style={{ padding: 0, fontSize: 12 }}>editar datas</button>
+                </div>
+                <div style={{ height: 8, borderRadius: 6, background: 'var(--bg)', overflow: 'hidden', margin: '10px 0 6px' }}>
+                  <div style={{ width: (prog.estado === 'antes' ? 0 : prog.estado === 'fim' ? 100 : prog.pct) + '%', height: '100%', background: 'var(--brand)' }} />
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--faint)' }}>
+                  {fmtDiaData(ida)} → {fmtDiaData(volta)} · {prog.total} dias
+                  {prog.estado === 'durante' && ` · faltam ${prog.faltam} ${prog.faltam === 1 ? 'dia' : 'dias'}`}
+                </div>
+              </div>
+            )}
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>Toda a viagem dia a dia, com horários, tipo e status de cada parada.</p>
             {grupos.length === 0 && <div className="card"><div className="empty">Nenhuma parada ainda. Toque em “Adicionar parada”.</div></div>}
 
