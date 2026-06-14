@@ -10,8 +10,8 @@ export default function Nav({ view, setView }) {
       {item('resumo', 'Início', '◈')}
       {item('gastos', 'Gastos', '☰')}
       <button className="add" onClick={() => setView('novo')} aria-label="Novo gasto">＋</button>
+      {item('roteiro', 'Roteiro', '🧭')}
       {item('pessoas', 'Pessoas', '👥')}
-      {item('acerto', 'Acerto', '⇄')}
     </nav>
   );
 }
