@@ -3,11 +3,24 @@ import { useState } from 'react';
 import { useData } from '../DataProvider';
 import { calcularSaldos, quemDeveParaQuem } from '../../lib/settle';
 import { fmtBRL, fmtUSD } from '../../lib/format';
-export default function Acerto() {
+export default function Acerto({ ir }) {
   const { viagem, gastos, divisoes, perfis, acertos, atualizarCotacao, registrarAcerto, removerAcerto } = useData();
   const cambio = Number(viagem.cotacao_usd);
   const cambioOk = cambio > 0;
   const [cambioStr, setCambioStr] = useState(String(cambio).replace('.', ','));
+  const [buscando, setBuscando] = useState(false);
+  const [cotMsg, setCotMsg] = useState('');
+  async function buscarCotacao() {
+    setBuscando(true); setCotMsg('');
+    try {
+      const r = await fetch('https://economia.awesomeapi.com.br/last/USD-BRL');
+      const j = await r.json();
+      const bid = j && j.USDBRL && parseFloat(j.USDBRL.bid);
+      if (bid > 0) { setCambioStr(bid.toFixed(4).replace('.', ',')); setCotMsg(`Dólar comercial de hoje: R$ ${bid.toFixed(4).replace('.', ',')}. Confira e toque em Aplicar.`); }
+      else setCotMsg('Não consegui buscar agora. Digite à mão.');
+    } catch (e) { setCotMsg('Sem internet para buscar a cotação. Digite à mão.'); }
+    finally { setBuscando(false); }
+  }
   const [moedaView, setMoedaView] = useState('BRL');
   const temDolar = gastos.some((g) => g.moeda === 'USD');
   const saldos = calcularSaldos(gastos, divisoes, perfis, cambio, acertos);
@@ -25,7 +38,8 @@ export default function Acerto() {
   }
   function desfazer(a) { if (window.confirm('Desfazer este acerto? A dívida volta a aparecer.')) removerAcerto(a.id); }
   return (
-    <div className="screen">
+    <div className="screen" style={{ paddingTop: 18 }}>
+      <div className="fab-back"><button onClick={() => ir('resumo')} aria-label="Voltar">←</button><span className="ttl">Acerto</span></div>
       <p style={{ fontSize: 13, color: 'var(--muted)', margin: '8px 0 14px' }}>Quem precisa pagar quem para todo mundo ficar quite. As dívidas já vêm com tudo abatido (uma compra compensa a outra).</p>
 
       <div className="toggle" style={{ width: 170, marginBottom: 14 }}>
@@ -40,6 +54,8 @@ export default function Acerto() {
             <input className="input" inputMode="decimal" value={cambioStr} onChange={(e) => setCambioStr(e.target.value)} onBlur={aplicar} onKeyDown={(e) => e.key === 'Enter' && aplicar()} placeholder="5,40" style={{ flex: 1 }} />
             <button className="btn-outline" style={{ width: 110, height: 44 }} onClick={aplicar}>Aplicar</button>
           </div>
+          <button className="btn-ghost" style={{ marginTop: 8, fontSize: 13 }} onClick={buscarCotacao} disabled={buscando}>{buscando ? 'Buscando…' : '↻ Buscar cotação de hoje'}</button>
+          {cotMsg && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{cotMsg}</div>}
         </div>
       )}
 

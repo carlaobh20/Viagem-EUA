@@ -11,10 +11,13 @@ export function DataProvider({ session, children }) {
   const [gastos, setGastos] = useState([]);
   const [divisoes, setDivisoes] = useState([]);
   const [acertos, setAcertos] = useState([]);
+  const [registrosKm, setRegistrosKm] = useState([]);
   const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState(null);
   const [gastoEditando, setGastoEditando] = useState(null);
 
   const carregar = useCallback(async () => {
+    try {
     const uid = session.user.id;
     let { data: meu } = await supabase.from('perfis').select('*').eq('user_id', uid).maybeSingle();
     if (!meu) {
@@ -30,37 +33,49 @@ export function DataProvider({ session, children }) {
       v = r.data;
     }
     setViagem(v);
-    const [{ data: ps }, { data: pts }, { data: gs }, { data: acs }] = await Promise.all([
+    const [{ data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }] = await Promise.all([
       supabase.from('perfis').select('*').order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
       supabase.from('gastos').select('*').eq('viagem_id', v.id).order('data', { ascending: false }),
       supabase.from('acertos').select('*').eq('viagem_id', v.id).order('criado_em', { ascending: false }),
+      supabase.from('registros_km').select('*').eq('viagem_id', v.id).order('data', { ascending: false }),
     ]);
-    setPerfis(ps || []); setPontos(pts || []); setGastos(gs || []); setAcertos(acs || []);
+    setPerfis(ps || []); setPontos(pts || []); setGastos(gs || []); setAcertos(acs || []); setRegistrosKm(rk || []);
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) { const { data: dv } = await supabase.from('gasto_divisao').select('*').in('gasto_id', ids); setDivisoes(dv || []); }
     else setDivisoes([]);
-    setCarregando(false);
+    setErro(null);
+    } catch (e) { setErro((e && e.message) || 'Falha ao carregar a viagem.'); }
+    finally { setCarregando(false); }
   }, [session]);
 
   useEffect(() => {
     carregar();
+    let t;
+    const deb = () => { clearTimeout(t); t = setTimeout(() => carregar(), 400); };
     const canal = supabase.channel('viagem-mudancas')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos' }, carregar)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'gasto_divisao' }, carregar)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'viagens' }, carregar)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'perfis' }, carregar)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'acertos' }, carregar)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gasto_divisao' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'viagens' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'perfis' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'acertos' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'registros_km' }, deb)
       .subscribe();
-    return () => { supabase.removeChannel(canal); };
+    return () => { clearTimeout(t); supabase.removeChannel(canal); };
   }, [carregar]);
 
   async function subirRecibo(file) {
     const path = `${viagem.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
     const { error } = await supabase.storage.from('recibos').upload(path, file, { contentType: 'image/jpeg', upsert: false });
     if (error) return null;
-    const { data } = supabase.storage.from('recibos').getPublicUrl(path);
-    return data.publicUrl;
+    return path; // guarda o caminho; a URL é assinada na hora de ver
+  }
+
+  async function urlRecibo(ref) {
+    if (!ref) return null;
+    if (ref.startsWith('http')) return ref; // recibos antigos (URL pública)
+    const { data } = await supabase.storage.from('recibos').createSignedUrl(ref, 3600);
+    return (data && data.signedUrl) || null;
   }
 
   async function salvarGasto({ descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile }) {
@@ -98,8 +113,10 @@ export function DataProvider({ session, children }) {
   async function atualizarCotacao(cotacao) { await supabase.from('viagens').update({ cotacao_usd: cotacao }).eq('id', viagem.id); await carregar(); }
   async function atualizarOrcamento(orcamento) { await supabase.from('viagens').update({ orcamento_brl: orcamento }).eq('id', viagem.id); await carregar(); }
   async function removerGasto(id) { await supabase.from('gastos').delete().eq('id', id); await carregar(); }
+  async function adicionarKm({ km, valorOrigem, unidade, data, origem, destino, nota }) { await supabase.from('registros_km').insert({ viagem_id: viagem.id, km, valor_origem: valorOrigem, unidade, data: data || null, origem: origem || null, destino: destino || null, nota: nota || null }); await carregar(); }
+  async function removerKm(id) { await supabase.from('registros_km').delete().eq('id', id); await carregar(); }
 
-  const value = { perfil, viagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, recarregar: carregar };
+  const value = { perfil, viagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, urlRecibo, erro, recarregar: carregar };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }

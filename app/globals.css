@@ -76,3 +76,29 @@ input, select { font-family: inherit; }
 .auth .err { background: var(--debit-soft); color: var(--debit); font-size: 13px; padding: 10px 12px; border-radius: 10px; margin-bottom: 14px; }
 .center-msg { display: flex; align-items: center; justify-content: center; min-height: 60vh; color: var(--muted); font-size: 14px; }
 .empty { text-align: center; color: var(--faint); font-size: 14px; padding: 30px 10px; }
+
+/* ===== Tema "fintech" (V2+) — paleta única para as telas repaginadas ===== */
+:root{
+  --ui-bg:#F5F8FC;
+  --ui-card:#FFFFFF;
+  --ui-ink:#16233A;
+  --ui-muted:#8A94A6;
+  --ui-faint:#AEB6C4;
+  --ui-line:#EEF1F6;
+  --ui-teal:#12B8A6;
+  --ui-blue:#2F6FE4;
+  --ui-shadow:0 4px 14px rgba(20,28,40,.05);
+}
+
+/* Wrapper que reaproveita as classes antigas com a paleta nova (reskin sem reescrever) */
+.ui-theme{
+  --bg: var(--ui-bg);
+  --surface: var(--ui-card);
+  --ink: var(--ui-ink);
+  --muted: var(--ui-muted);
+  --faint: var(--ui-faint);
+  --line: var(--ui-line);
+  --brand: var(--ui-teal);
+  --brand-soft: #DCF7EF;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
+}

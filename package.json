@@ -1,6 +1,6 @@
 {
   "name": "viagem-eua",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "description": "App da família para controlar gastos de viagem em dólar e real",
   "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "lint": "next lint" },

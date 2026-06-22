@@ -1,17 +1,29 @@
 'use client';
+
+const PATHS = {
+  resumo: <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></>,
+  gastos: <><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></>,
+  roteiro: <><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" /><line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" /></>,
+  pessoas: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
+};
+
 export default function Nav({ view, setView }) {
-  const item = (id, label, icone) => (
-    <button className={view === id ? 'on' : ''} onClick={() => setView(id)} aria-label={label}>
-      <span className="gi" aria-hidden="true">{icone}</span>{label}
+  const item = (id, label) => (
+    <button onClick={() => setView(id)} aria-label={label} style={{ color: view === id ? 'var(--ui-teal)' : 'var(--ui-faint)' }}>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{PATHS[id]}</svg>
+      <span style={{ fontSize: 10, fontWeight: 600 }}>{label}</span>
     </button>
   );
   return (
     <nav className="nav">
-      {item('resumo', 'Início', '◈')}
-      {item('gastos', 'Gastos', '☰')}
-      <button className="add" onClick={() => setView('novo')} aria-label="Novo gasto">＋</button>
-      {item('pessoas', 'Pessoas', '👥')}
-      {item('acerto', 'Acerto', '⇄')}
+      {item('resumo', 'Início')}
+      {item('gastos', 'Gastos')}
+      <button onClick={() => setView('novo')} aria-label="Novo gasto"
+        style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg,#10B981,#0EA5E9)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: -26, boxShadow: '0 8px 20px rgba(14,165,180,.45)', border: 'none' }}>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+      </button>
+      {item('roteiro', 'Roteiro')}
+      {item('pessoas', 'Pessoas')}
     </nav>
   );
 }
