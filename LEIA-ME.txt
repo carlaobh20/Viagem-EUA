@@ -1,0 +1,19 @@
+FATIA 2 - Mudar senha na tela Minha Conta
+==========================================
+
+O QUE MUDA: so 1 arquivo -> components/views/Conta.js
+
+COMO INSTALAR:
+1. Descompacte este zip
+2. Copie a pasta "components" por cima da sua pasta do projeto
+   (so o Conta.js vai ser substituido, mais nada e tocado)
+3. No PowerShell:
+     cd "C:\MEUS PROJETOS\Viagem-EUA"
+     npm run dev
+4. Abra localhost:3000, clique na engrenagem, teste mudar a senha
+5. Se subir sem erro vermelho e funcionar, faca o push:
+     git add .
+     git commit -m "V5.1 - mudar senha na tela Minha Conta"
+     git push
+
+NAO use git push --force em hipotese nenhuma.
