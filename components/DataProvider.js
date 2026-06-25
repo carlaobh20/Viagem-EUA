@@ -144,9 +144,9 @@ export function DataProvider({ session, children }) {
     await carregar();
     return nv;
   }
-  async function gerarConvite() {
+  async function gerarConvite(viagemId) {
     const codigo = Math.random().toString(36).slice(2, 8).toUpperCase();
-    const { error } = await supabase.from('convites').insert({ viagem_id: viagem.id, codigo, criado_por: session.user.id });
+    const { error } = await supabase.from('convites').insert({ viagem_id: viagemId || viagem.id, codigo, criado_por: session.user.id });
     if (error) return null;
     return codigo;
   }

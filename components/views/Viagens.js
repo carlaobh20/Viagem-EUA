@@ -17,7 +17,6 @@ const GRADS = [
 export default function Viagens({ ir }) {
   const { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem } = useData();
   const [totais, setTotais] = useState({});
-  const [link, setLink] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const hoje = new Date().toISOString().slice(0, 10);
@@ -47,11 +46,17 @@ export default function Viagens({ ir }) {
 
   function abrir(v) { trocarViagem(v.id); ir('resumo'); }
   async function criar() { const nome = window.prompt('Nome da nova viagem (ex.: Europa 2027)'); if (!nome || !nome.trim()) return; setBusy(true); try { await criarViagem(nome); setMsg('Viagem criada!'); } catch (e) { setMsg('Não consegui criar.'); } setBusy(false); }
-  async function convidar() { setBusy(true); setLink(''); setMsg(''); const cod = await gerarConvite(); setBusy(false); if (!cod) { setMsg('Não consegui gerar o convite.'); return; } const base = typeof window !== 'undefined' ? window.location.origin : ''; setLink(`${base}/?convite=${cod}`); }
-  function copiar() { if (link && navigator.clipboard) { navigator.clipboard.writeText(link); setMsg('Link copiado!'); } }
-  async function entrar() { const cod = window.prompt('Cole o código ou o link do convite'); if (!cod) return; const codigo = cod.includes('convite=') ? cod.split('convite=')[1] : cod; setBusy(true); const r = await entrarPorConvite(codigo); setBusy(false); setMsg(r.ok ? 'Você entrou na viagem!' : (r.erro || 'Falhou.')); if (r.ok) ir('resumo'); }
   async function apagar(v, e) { e.stopPropagation(); if (!window.confirm(`Apagar "${v.nome}"? Remove a viagem e todos os dados dela para todos. Não dá pra desfazer.`)) return; const r = await apagarViagem(v.id); setMsg(r.ok ? 'Viagem apagada.' : (r.erro || 'Falhou.')); }
   async function trocarFoto(v, e) { e.stopPropagation(); const url = window.prompt('Cole o link de uma foto (URL de imagem) para a capa da viagem. Deixe em branco para remover.', v.foto || ''); if (url === null) return; await definirFotoViagem(v.id, url.trim()); }
+  async function convidarCard(v, e) {
+    e.stopPropagation(); setMsg('');
+    const cod = await gerarConvite(v.id);
+    if (!cod) { setMsg('Não consegui gerar o convite.'); return; }
+    const base = typeof window !== 'undefined' ? window.location.origin : '';
+    const url = `${base}/?convite=${cod}`;
+    if (navigator.clipboard) { try { await navigator.clipboard.writeText(url); setMsg(`Link de "${v.nome}" copiado! Cole no WhatsApp pra convidar.`); return; } catch (er) {} }
+    window.prompt('Copie o link de convite:', url);
+  }
 
   function Sky() {
     return (
@@ -76,6 +81,7 @@ export default function Viagens({ ir }) {
           <span style={{ fontSize: 12, fontWeight: 700, background: 'rgba(0,0,0,.22)', backdropFilter: 'blur(3px)', padding: '6px 13px', borderRadius: 20 }}>{i.tag}</span>
           {ehDono(v) && (
             <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={(e) => convidarCard(v, e)} aria-label="Convidar" style={rb}>🔗</button>
               <button onClick={(e) => trocarFoto(v, e)} aria-label="Trocar foto" style={rb}>📷</button>
               <button onClick={(e) => apagar(v, e)} aria-label="Apagar" style={rb}>🗑</button>
             </div>
@@ -111,26 +117,6 @@ export default function Viagens({ ir }) {
 
         {passadas.length > 0 && <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: '#7B8794', margin: '24px 4px 12px' }}>PASSADAS</div>}
         {passadas.map((v, i) => <Card key={v.id} v={v} idx={i + proximas.length} />)}
-
-        {/* compartilhar */}
-        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: '#00A99B', margin: '24px 4px 12px' }}>COMPARTILHAR A VIAGEM ATIVA</div>
-        <div style={{ background: '#fff', borderRadius: 18, boxShadow: '0 6px 16px rgba(20,40,50,.06)', padding: 16 }}>
-          <div style={{ fontSize: 13, color: '#6B7B85', marginBottom: 12, lineHeight: 1.4 }}>Gere um link de <b style={{ color: '#16242C' }}>{viagem?.nome || '—'}</b> e mande pra quem vai junto. Quem abrir e logar entra automaticamente.</div>
-          <button onClick={convidar} disabled={busy} style={{ width: '100%', border: 'none', borderRadius: 12, padding: '12px', background: 'linear-gradient(135deg,#00C7B1,#0E9F97)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{busy ? '...' : '🔗 Gerar link de convite'}</button>
-          {link && (<div style={{ marginTop: 12 }}><div style={{ fontSize: 12, wordBreak: 'break-all', background: '#F4F8FB', padding: '10px 12px', borderRadius: 10 }}>{link}</div><button onClick={copiar} style={{ width: '100%', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px', background: '#fff', color: '#00A99B', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 8 }}>Copiar link</button></div>)}
-          <button onClick={entrar} disabled={busy} style={{ width: '100%', border: 'none', background: 'none', color: '#6B7B85', fontSize: 13, cursor: 'pointer', marginTop: 12 }}>Tenho um convite — entrar por código</button>
-        </div>
-
-        {/* dicas */}
-        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: '#00A99B', margin: '24px 4px 12px' }}>DICAS PARA SUA VIAGEM</div>
-        <div onClick={() => viagem && ir('resumo')} style={{ background: '#fff', borderRadius: 18, padding: 15, display: 'flex', gap: 13, alignItems: 'center', boxShadow: '0 6px 16px rgba(20,40,50,.06)', cursor: 'pointer' }}>
-          <span style={{ width: 46, height: 46, borderRadius: 14, background: 'rgba(0,199,177,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flex: '0 0 auto' }}>🧳</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14.5, fontWeight: 700 }}>Mantenha tudo atualizado</div>
-            <div style={{ fontSize: 12.5, color: '#6B7B85', marginTop: 2, lineHeight: 1.35 }}>Adicione voos, hospedagens e atividades para ter tudo em um só lugar.</div>
-          </div>
-          <span style={{ color: '#C0CCD4', fontSize: 20 }}>›</span>
-        </div>
 
         {msg && <div style={{ fontSize: 12.5, color: '#00A99B', textAlign: 'center', marginTop: 14 }}>{msg}</div>}
       </div>
