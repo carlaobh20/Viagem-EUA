@@ -8,15 +8,15 @@ export default function Welcome({ onComecar, onEntrar }) {
     ['👥', 'Compartilhar com quem vai', 'Convide e mantenha todos na mesma viagem.'],
   ];
   return (
-    <div style={{ minHeight: '100vh', background: '#fff', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif', color: INK, maxWidth: 460, margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: '#fff', overflowX: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif', color: INK, maxWidth: 460, margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
       <style>{`
         @keyframes wlFade { from { opacity:0; transform:translateY(10px);} to { opacity:1; transform:none;} }
         @keyframes wlRise { from { opacity:0; transform:translateY(16px) scale(.98);} to { opacity:1; transform:none;} }
         .wl-b { opacity:0; animation: wlFade .5s ease forwards; }
       `}</style>
 
-      {/* HERO: imagem ao fundo + texto por cima */}
-      <div style={{ background: 'linear-gradient(180deg,#E9F6FB 0%,#E4F3F9 100%)', paddingTop: 48, animation: 'wlRise .7s ease' }}>
+      {/* HERO: imagem ao fundo + texto por cima (full-bleed, cobre 100% da largura) */}
+      <div style={{ width: '100vw', marginLeft: 'calc(-50vw + 50%)', background: 'linear-gradient(180deg,#E9F6FB 0%,#E4F3F9 100%)', paddingTop: 48, animation: 'wlRise .7s ease' }}>
         <div style={{ textAlign: 'center', padding: '0 34px 4px', maxWidth: 340, margin: '0 auto' }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: INK }}>Bem-vindo ao</div>
           <div style={{ fontSize: 31, fontWeight: 800, letterSpacing: '-0.8px', lineHeight: 1.05, marginTop: 2 }}><span style={{ color: T }}>Encorpei</span> na Trip ✈️</div>
