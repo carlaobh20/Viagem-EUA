@@ -134,6 +134,7 @@ export function DataProvider({ session, children }) {
   async function semearChecklist(itens) { if (!itens || !itens.length) return; await supabase.from('checklist_itens').insert(itens.map((it) => ({ ...it, viagem_id: viagem.id }))); await supabase.from('viagens').update({ checklist_seed: true }).eq('id', viagem.id); await carregar(); }
 
   function trocarViagem(id) { if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', id); carregar(); }
+  async function definirFotoViagem(id, url) { await supabase.from('viagens').update({ foto: url || null }).eq('id', id); await carregar(); }
   async function criarViagem(nome) {
     const uid = session.user.id;
     const { data: nv, error } = await supabase.from('viagens').insert({ nome: (nome || 'Nova viagem').trim(), orcamento_brl: 0, cotacao_usd: 5.4, owner_id: uid }).select().single();
@@ -182,7 +183,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, urlRecibo, erro, recarregar: carregar };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, urlRecibo, erro, recarregar: carregar };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }
