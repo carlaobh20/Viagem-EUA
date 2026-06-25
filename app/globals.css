@@ -79,13 +79,14 @@ input, select { font-family: inherit; }
 
 /* ===== Tema "fintech" (V2+) — paleta única para as telas repaginadas ===== */
 :root{
-  --ui-bg:#F5F8FC;
+  --ui-bg:#F7F8FA;
   --ui-card:#FFFFFF;
-  --ui-ink:#16233A;
-  --ui-muted:#8A94A6;
+  --ui-ink:#1A1A1A;
+  --ui-muted:#7B8794;
   --ui-faint:#AEB6C4;
-  --ui-line:#EEF1F6;
-  --ui-teal:#12B8A6;
+  --ui-line:#E8EDF2;
+  --ui-teal:#00C7B1;
+  --ui-dark:#002B36;
   --ui-blue:#2F6FE4;
   --ui-shadow:0 4px 14px rgba(20,28,40,.05);
 }

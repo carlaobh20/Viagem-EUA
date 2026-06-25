@@ -1,8 +1,21 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
 import { valorEmBRL, fmtBRL } from '../../lib/format';
+
+function iconeClima(code) {
+  if (code == null) return '🌥️';
+  if (code === 0) return '☀️';
+  if (code <= 2) return '🌤️';
+  if (code === 3) return '☁️';
+  if (code === 45 || code === 48) return '🌫️';
+  if (code >= 71 && code <= 77) return '❄️';
+  if (code >= 95) return '⛈️';
+  if (code >= 80 && code <= 82) return '🌦️';
+  if (code >= 51 && code <= 67) return '🌧️';
+  return '🌥️';
+}
 
 const TIPOS = [
   { id: 'voo', nome: 'Voo', cor: '#185FA5' },
@@ -54,6 +67,28 @@ export default function Roteiro({ ir }) {
     if (!mesmaData[0] || mesmaData[0].id !== p.id) return 0;
     return gastos.filter((g) => g.data === p.data_inicio).reduce((s, g) => s + valorEmBRL(g, cambio), 0);
   };
+
+  const [clima, setClima] = useState({});
+  const climaRef = useRef(new Set());
+  useEffect(() => {
+    const hoje = new Date(); const lim = new Date(); lim.setDate(hoje.getDate() + 16);
+    const hojeISO = hoje.toISOString().slice(0, 10); const limISO = lim.toISOString().slice(0, 10);
+    (pontos || []).forEach(async (p) => {
+      if (p.lat == null || p.lng == null || !p.data_inicio) return;
+      if (p.data_inicio < hojeISO || p.data_inicio > limISO) return;
+      const key = p.id + ':' + p.data_inicio;
+      if (climaRef.current.has(key)) return;
+      climaRef.current.add(key);
+      try {
+        const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lng}&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&start_date=${p.data_inicio}&end_date=${p.data_inicio}`);
+        const j = await r.json();
+        const d = j && j.daily;
+        if (d && d.time && d.time.length) {
+          setClima((c) => ({ ...c, [p.id]: { code: d.weathercode[0], max: Math.round(d.temperature_2m_max[0]), min: Math.round(d.temperature_2m_min[0]), chuva: d.precipitation_probability_max ? d.precipitation_probability_max[0] : null } }));
+        }
+      } catch (e) { /* sem internet ou fora do alcance: ignora */ }
+    });
+  }, [pontos]);
 
   const ordenados = [...pontos].sort((a, b) => {
     const da = a.data_inicio || '9999-12-31', db = b.data_inicio || '9999-12-31';
@@ -272,7 +307,7 @@ export default function Roteiro({ ir }) {
                             <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>{p.nome}</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '0 0 auto' }}><StatusBadge st={p.status} />{p.hora && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{p.hora}</span>}{gastoDoDia(p) > 0 && <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>{fmtBRL(gastoDoDia(p))}</span>}</div>
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 1 }}>{nomeTipo(p.tipo)}</div>
+                          <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 1 }}>{nomeTipo(p.tipo)}{clima[p.id] ? ` · ${iconeClima(clima[p.id].code)} ${clima[p.id].max}°/${clima[p.id].min}°${clima[p.id].chuva != null ? ` · 🌧 ${clima[p.id].chuva}%` : ''}` : ''}</div>
                           {(() => {
                             const gx = ordenados.findIndex((s) => s.id === p.id);
                             const nx = ordenados[gx + 1];

@@ -10,6 +10,7 @@ import Acerto from './views/Acerto';
 import Roteiro from './views/Roteiro';
 import Mapa from './views/Mapa';
 import Motorhome from './views/Motorhome';
+import Checklist from './views/Checklist';
 export default function AppShell() {
   const { carregando, viagem, erro, recarregar } = useData();
   const [view, setView] = useState('resumo');
@@ -32,6 +33,7 @@ export default function AppShell() {
       {view === 'roteiro' && <Roteiro ir={irPara} />}
       {view === 'mapa' && <Mapa ir={irPara} />}
       {view === 'motorhome' && <Motorhome ir={irPara} />}
+      {view === 'checklist' && <Checklist ir={irPara} />}
       {view !== 'novo' && <Nav view={view} setView={setView} />}
     </div>
   );

@@ -12,6 +12,7 @@ export function DataProvider({ session, children }) {
   const [divisoes, setDivisoes] = useState([]);
   const [acertos, setAcertos] = useState([]);
   const [registrosKm, setRegistrosKm] = useState([]);
+  const [checklist, setChecklist] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
   const [gastoEditando, setGastoEditando] = useState(null);
@@ -33,14 +34,15 @@ export function DataProvider({ session, children }) {
       v = r.data;
     }
     setViagem(v);
-    const [{ data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }] = await Promise.all([
+    const [{ data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }, { data: ck }] = await Promise.all([
       supabase.from('perfis').select('*').order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
       supabase.from('gastos').select('*').eq('viagem_id', v.id).order('data', { ascending: false }),
       supabase.from('acertos').select('*').eq('viagem_id', v.id).order('criado_em', { ascending: false }),
       supabase.from('registros_km').select('*').eq('viagem_id', v.id).order('data', { ascending: false }),
+      supabase.from('checklist_itens').select('*').eq('viagem_id', v.id).order('ordem'),
     ]);
-    setPerfis(ps || []); setPontos(pts || []); setGastos(gs || []); setAcertos(acs || []); setRegistrosKm(rk || []);
+    setPerfis(ps || []); setPontos(pts || []); setGastos(gs || []); setAcertos(acs || []); setRegistrosKm(rk || []); setChecklist(ck || []);
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) { const { data: dv } = await supabase.from('gasto_divisao').select('*').in('gasto_id', ids); setDivisoes(dv || []); }
     else setDivisoes([]);
@@ -60,6 +62,7 @@ export function DataProvider({ session, children }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'perfis' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'acertos' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registros_km' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens' }, deb)
       .subscribe();
     return () => { clearTimeout(t); supabase.removeChannel(canal); };
   }, [carregar]);
@@ -115,8 +118,13 @@ export function DataProvider({ session, children }) {
   async function removerGasto(id) { await supabase.from('gastos').delete().eq('id', id); await carregar(); }
   async function adicionarKm({ km, valorOrigem, unidade, data, origem, destino, nota }) { await supabase.from('registros_km').insert({ viagem_id: viagem.id, km, valor_origem: valorOrigem, unidade, data: data || null, origem: origem || null, destino: destino || null, nota: nota || null }); await carregar(); }
   async function removerKm(id) { await supabase.from('registros_km').delete().eq('id', id); await carregar(); }
+  async function adicionarChecklist({ texto, tema, prazo, ordem }) { await supabase.from('checklist_itens').insert({ viagem_id: viagem.id, texto, tema: tema || 'Geral', prazo: prazo || null, ordem: ordem || 0 }); await carregar(); }
+  async function alternarChecklist(id, feito) { await supabase.from('checklist_itens').update({ feito }).eq('id', id); await carregar(); }
+  async function editarChecklist(id, texto) { await supabase.from('checklist_itens').update({ texto }).eq('id', id); await carregar(); }
+  async function removerChecklist(id) { await supabase.from('checklist_itens').delete().eq('id', id); await carregar(); }
+  async function semearChecklist(itens) { if (!itens || !itens.length) return; await supabase.from('checklist_itens').insert(itens.map((it) => ({ ...it, viagem_id: viagem.id }))); await supabase.from('viagens').update({ checklist_seed: true }).eq('id', viagem.id); await carregar(); }
 
-  const value = { perfil, viagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, urlRecibo, erro, recarregar: carregar };
+  const value = { perfil, viagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, urlRecibo, erro, recarregar: carregar };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }
