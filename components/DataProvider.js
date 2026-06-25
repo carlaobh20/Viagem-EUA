@@ -6,6 +6,7 @@ export const useData = () => useContext(DataContext);
 export function DataProvider({ session, children }) {
   const [perfil, setPerfil] = useState(null);
   const [viagem, setViagem] = useState(null);
+  const [viagens, setViagens] = useState([]);
   const [perfis, setPerfis] = useState([]);
   const [pontos, setPontos] = useState([]);
   const [gastos, setGastos] = useState([]);
@@ -28,12 +29,20 @@ export function DataProvider({ session, children }) {
       meu = r.data;
     }
     setPerfil(meu);
-    let { data: v } = await supabase.from('viagens').select('*').order('criado_em').limit(1).maybeSingle();
-    if (!v) {
-      const r = await supabase.from('viagens').insert({ nome: 'Viagem EUA', orcamento_brl: 35000, cotacao_usd: 5.4 }).select().single();
-      v = r.data;
+    // viagens das quais sou membro
+    const { data: ms } = await supabase.from('viagem_membros').select('viagem_id').eq('user_id', uid);
+    const vids = (ms || []).map((m) => m.viagem_id);
+    let vs = [];
+    if (vids.length) { const r = await supabase.from('viagens').select('*').in('id', vids).order('criado_em'); vs = r.data || []; }
+    if (!vs.length) {
+      const r = await supabase.from('viagens').insert({ nome: 'Minha viagem', orcamento_brl: 0, cotacao_usd: 5.4, owner_id: uid }).select().single();
+      if (r.data) { await supabase.from('viagem_membros').insert({ viagem_id: r.data.id, user_id: uid, papel: 'dono' }); vs = [r.data]; }
     }
+    setViagens(vs);
+    const savedId = (typeof window !== 'undefined' && window.localStorage.getItem('viagemAtiva')) || null;
+    const v = vs.find((x) => x.id === savedId) || vs[0];
     setViagem(v);
+    if (!v) { setErro('Você ainda não está em nenhuma viagem.'); setCarregando(false); return; }
     const [{ data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }, { data: ck }] = await Promise.all([
       supabase.from('perfis').select('*').order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
@@ -124,7 +133,34 @@ export function DataProvider({ session, children }) {
   async function removerChecklist(id) { await supabase.from('checklist_itens').delete().eq('id', id); await carregar(); }
   async function semearChecklist(itens) { if (!itens || !itens.length) return; await supabase.from('checklist_itens').insert(itens.map((it) => ({ ...it, viagem_id: viagem.id }))); await supabase.from('viagens').update({ checklist_seed: true }).eq('id', viagem.id); await carregar(); }
 
-  const value = { perfil, viagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, urlRecibo, erro, recarregar: carregar };
+  function trocarViagem(id) { if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', id); carregar(); }
+  async function criarViagem(nome) {
+    const uid = session.user.id;
+    const { data: nv, error } = await supabase.from('viagens').insert({ nome: (nome || 'Nova viagem').trim(), orcamento_brl: 0, cotacao_usd: 5.4, owner_id: uid }).select().single();
+    if (error) throw error;
+    await supabase.from('viagem_membros').insert({ viagem_id: nv.id, user_id: uid, papel: 'dono' });
+    if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', nv.id);
+    await carregar();
+    return nv;
+  }
+  async function gerarConvite() {
+    const codigo = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const { error } = await supabase.from('convites').insert({ viagem_id: viagem.id, codigo, criado_por: session.user.id });
+    if (error) return null;
+    return codigo;
+  }
+  async function entrarPorConvite(codigo) {
+    const cod = (codigo || '').trim().toUpperCase();
+    if (!cod) return { erro: 'Informe o código.' };
+    const { data: c } = await supabase.from('convites').select('*').eq('codigo', cod).eq('ativo', true).maybeSingle();
+    if (!c) return { erro: 'Convite inválido ou expirado.' };
+    await supabase.from('viagem_membros').upsert({ viagem_id: c.viagem_id, user_id: session.user.id, papel: 'membro' }, { onConflict: 'viagem_id,user_id' });
+    if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', c.viagem_id);
+    await carregar();
+    return { ok: true };
+  }
+
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, urlRecibo, erro, recarregar: carregar };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }

@@ -63,7 +63,7 @@ export default function Resumo({ ir }) {
       {/* header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 2px 16px' }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.6px', display: 'flex', alignItems: 'center', gap: 7 }}><span>🇺🇸</span>{viagem?.nome || 'Viagem EUA'}</div>
+          <div onClick={() => ir('viagens')} style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.6px', display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}><span>🇺🇸</span>{viagem?.nome || 'Viagem EUA'}<span style={{ fontSize: 14, color: 'var(--ui-faint)', fontWeight: 600 }}>⌄</span></div>
           <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 3 }}>{ini ? `${fmtDia(ini)} → ${fmtDia(fim)}` : 'Defina as datas no roteiro'}{totalDias ? ` · ${totalDias} dias` : ''}</div>
         </div>
         <button onClick={() => ir('acerto')} style={{ fontSize: 12, fontWeight: 600, color: 'var(--ui-teal)', background: 'rgba(0,199,177,.12)', padding: '7px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', flex: '0 0 auto' }}>R$ {cambio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</button>

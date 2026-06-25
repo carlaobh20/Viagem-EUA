@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from './DataProvider';
 import Nav from './Nav';
 import Resumo from './views/Resumo';
@@ -11,9 +11,18 @@ import Roteiro from './views/Roteiro';
 import Mapa from './views/Mapa';
 import Motorhome from './views/Motorhome';
 import Checklist from './views/Checklist';
+import Viagens from './views/Viagens';
 export default function AppShell() {
-  const { carregando, viagem, erro, recarregar } = useData();
+  const { carregando, viagem, erro, recarregar, entrarPorConvite } = useData();
   const [view, setView] = useState('resumo');
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const cod = new URLSearchParams(window.location.search).get('convite');
+    if (cod && entrarPorConvite) {
+      entrarPorConvite(cod).finally(() => window.history.replaceState({}, '', window.location.pathname));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   if (carregando) return <div className="center-msg">Carregando a viagem…</div>;
   if (erro || !viagem) return (
     <div className="center-msg" style={{ flexDirection: 'column', gap: 14, textAlign: 'center', padding: 24 }}>
@@ -34,6 +43,7 @@ export default function AppShell() {
       {view === 'mapa' && <Mapa ir={irPara} />}
       {view === 'motorhome' && <Motorhome ir={irPara} />}
       {view === 'checklist' && <Checklist ir={irPara} />}
+      {view === 'viagens' && <Viagens ir={irPara} />}
       {view !== 'novo' && <Nav view={view} setView={setView} />}
     </div>
   );
