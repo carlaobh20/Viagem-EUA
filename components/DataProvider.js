@@ -21,14 +21,6 @@ export function DataProvider({ session, children }) {
   const carregar = useCallback(async () => {
     try {
     const uid = session.user.id;
-    let { data: meu } = await supabase.from('perfis').select('*').eq('user_id', uid).maybeSingle();
-    if (!meu) {
-      const nome = session.user.user_metadata?.nome || session.user.email.split('@')[0];
-      await supabase.from('perfis').insert({ user_id: uid, nome, cor: corAleatoria() });
-      const r = await supabase.from('perfis').select('*').eq('user_id', uid).maybeSingle();
-      meu = r.data;
-    }
-    setPerfil(meu);
     // viagens das quais sou membro
     const { data: ms } = await supabase.from('viagem_membros').select('viagem_id').eq('user_id', uid);
     const vids = (ms || []).map((m) => m.viagem_id);
@@ -43,8 +35,16 @@ export function DataProvider({ session, children }) {
     const v = vs.find((x) => x.id === savedId) || vs[0];
     setViagem(v);
     if (!v) { setErro('Você ainda não está em nenhuma viagem.'); setCarregando(false); return; }
+    // garante o meu perfil nesta viagem
+    let { data: meu } = await supabase.from('perfis').select('*').eq('user_id', uid).eq('viagem_id', v.id).maybeSingle();
+    if (!meu) {
+      const nome = session.user.user_metadata?.nome || session.user.email.split('@')[0];
+      const rp = await supabase.from('perfis').insert({ user_id: uid, nome, cor: corAleatoria(), viagem_id: v.id }).select().single();
+      meu = rp.data;
+    }
+    setPerfil(meu);
     const [{ data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }, { data: ck }] = await Promise.all([
-      supabase.from('perfis').select('*').order('criado_em'),
+      supabase.from('perfis').select('*').eq('viagem_id', v.id).order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
       supabase.from('gastos').select('*').eq('viagem_id', v.id).order('data', { ascending: false }),
       supabase.from('acertos').select('*').eq('viagem_id', v.id).order('criado_em', { ascending: false }),
@@ -119,7 +119,7 @@ export function DataProvider({ session, children }) {
   }
   async function removerAcerto(id) { await supabase.from('acertos').delete().eq('id', id); await carregar(); }
 
-  async function adicionarPessoa(nome) { await supabase.from('perfis').insert({ nome: nome.trim(), cor: corAleatoria() }); await carregar(); }
+  async function adicionarPessoa(nome) { await supabase.from('perfis').insert({ nome: nome.trim(), cor: corAleatoria(), viagem_id: viagem.id }); await carregar(); }
   async function atualizarNomePessoa(id, nome) { await supabase.from('perfis').update({ nome: nome.trim() }).eq('id', id); await carregar(); }
   async function removerPessoa(id) { const { error } = await supabase.from('perfis').delete().eq('id', id); await carregar(); return error; }
   async function atualizarCotacao(cotacao) { await supabase.from('viagens').update({ cotacao_usd: cotacao }).eq('id', viagem.id); await carregar(); }
