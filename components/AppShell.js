@@ -12,6 +12,7 @@ import Mapa from './views/Mapa';
 import Motorhome from './views/Motorhome';
 import Checklist from './views/Checklist';
 import Viagens from './views/Viagens';
+import Conta from './views/Conta';
 export default function AppShell() {
   const { carregando, viagem, erro, recarregar, entrarPorConvite } = useData();
   const [view, setView] = useState('viagens');
@@ -44,7 +45,8 @@ export default function AppShell() {
       {view === 'motorhome' && <Motorhome ir={irPara} />}
       {view === 'checklist' && <Checklist ir={irPara} />}
       {view === 'viagens' && <Viagens ir={irPara} />}
-      {view !== 'novo' && view !== 'viagens' && <Nav view={view} setView={setView} />}
+      {view === 'conta' && <Conta ir={irPara} />}
+      {view !== 'novo' && view !== 'viagens' && view !== 'conta' && <Nav view={view} setView={setView} />}
     </div>
   );
 }
