@@ -14,12 +14,12 @@ import Checklist from './views/Checklist';
 import Viagens from './views/Viagens';
 export default function AppShell() {
   const { carregando, viagem, erro, recarregar, entrarPorConvite } = useData();
-  const [view, setView] = useState('resumo');
+  const [view, setView] = useState('viagens');
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const cod = new URLSearchParams(window.location.search).get('convite');
     if (cod && entrarPorConvite) {
-      entrarPorConvite(cod).finally(() => window.history.replaceState({}, '', window.location.pathname));
+      entrarPorConvite(cod).then((r) => { if (r && r.ok) setView('resumo'); }).finally(() => window.history.replaceState({}, '', window.location.pathname));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -44,7 +44,7 @@ export default function AppShell() {
       {view === 'motorhome' && <Motorhome ir={irPara} />}
       {view === 'checklist' && <Checklist ir={irPara} />}
       {view === 'viagens' && <Viagens ir={irPara} />}
-      {view !== 'novo' && <Nav view={view} setView={setView} />}
+      {view !== 'novo' && view !== 'viagens' && <Nav view={view} setView={setView} />}
     </div>
   );
 }

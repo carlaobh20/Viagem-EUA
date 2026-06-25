@@ -159,8 +159,30 @@ export function DataProvider({ session, children }) {
     await carregar();
     return { ok: true };
   }
+  async function apagarViagem(id) {
+    const alvo = (viagens || []).find((v) => v.id === id);
+    if (!alvo) return { erro: 'Viagem não encontrada.' };
+    if (alvo.owner_id !== session.user.id) return { erro: 'Só o dono pode apagar esta viagem.' };
+    try {
+      const { data: gs } = await supabase.from('gastos').select('id').eq('viagem_id', id);
+      const gids = (gs || []).map((g) => g.id);
+      if (gids.length) await supabase.from('gasto_divisao').delete().in('gasto_id', gids);
+      await supabase.from('gastos').delete().eq('viagem_id', id);
+      await supabase.from('pontos_roteiro').delete().eq('viagem_id', id);
+      await supabase.from('acertos').delete().eq('viagem_id', id);
+      await supabase.from('registros_km').delete().eq('viagem_id', id);
+      await supabase.from('checklist_itens').delete().eq('viagem_id', id);
+      await supabase.from('convites').delete().eq('viagem_id', id);
+      await supabase.from('viagem_membros').delete().eq('viagem_id', id);
+      const { error } = await supabase.from('viagens').delete().eq('id', id);
+      if (error) return { erro: 'Não consegui apagar a viagem.' };
+    } catch (e) { return { erro: 'Não consegui apagar a viagem.' }; }
+    if (typeof window !== 'undefined' && window.localStorage.getItem('viagemAtiva') === id) window.localStorage.removeItem('viagemAtiva');
+    await carregar();
+    return { ok: true };
+  }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, urlRecibo, erro, recarregar: carregar };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, urlRecibo, erro, recarregar: carregar };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }
