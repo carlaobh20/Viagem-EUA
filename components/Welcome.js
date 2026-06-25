@@ -38,8 +38,8 @@ export default function Welcome({ onComecar, onEntrar }) {
           </div>
         ))}
 
-        <button onClick={onComecar} style={{ width: '100%', height: 48, borderRadius: 15, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg, ${T} 0%, ${TD} 100%)`, color: '#fff', fontSize: 14.5, fontWeight: 700, boxShadow: '0 9px 20px rgba(0,199,177,.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 6, animation: 'wlRise .6s ease .3s both' }}>Começar agora <span style={{ fontSize: 16 }}>→</span></button>
-        <div style={{ textAlign: 'center', marginTop: 11, fontSize: 12.5, color: SUB }}>Já tem uma conta? <span onClick={onEntrar} style={{ color: T, fontWeight: 700, cursor: 'pointer' }}>Entrar</span></div>
+        <button onClick={onEntrar} style={{ width: '100%', height: 48, borderRadius: 15, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg, ${T} 0%, ${TD} 100%)`, color: '#fff', fontSize: 14.5, fontWeight: 700, boxShadow: '0 9px 20px rgba(0,199,177,.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 6, animation: 'wlRise .6s ease .3s both' }}>Entrar <span style={{ fontSize: 16 }}>→</span></button>
+        <div style={{ textAlign: 'center', marginTop: 11, fontSize: 12.5, color: SUB }}>Não tem conta? <span onClick={onComecar} style={{ color: T, fontWeight: 700, cursor: 'pointer' }}>Abrir sua conta</span></div>
       </div>
     </div>
   );
