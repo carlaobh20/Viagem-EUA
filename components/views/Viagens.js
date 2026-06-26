@@ -50,6 +50,16 @@ export default function Viagens({ ir }) {
     })();
   }, [viagens]);
 
+  // pre-carrega as fotos das viagens no cache do navegador, pra que
+  // quando o card re-renderizar (ao chegar o total) a imagem ja esteja
+  // pronta e nao pisque
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    (viagens || []).forEach((v) => {
+      if (v.foto) { const img = new window.Image(); img.src = v.foto; }
+    });
+  }, [viagens]);
+
   function info(v) {
     if (v.data_volta && v.data_volta < hoje) return { tag: 'Concluída', passada: true };
     if (v.data_ida && v.data_ida > hoje) { const d = Math.ceil((new Date(v.data_ida + 'T00:00:00') - new Date(hoje + 'T00:00:00')) / 86400000); return { tag: `Faltam ${d} dias`, passada: false }; }

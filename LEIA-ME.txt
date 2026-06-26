@@ -1,26 +1,28 @@
-FATIA 3 - Nome no "Ola" + leitura do header da tela Viagens
-============================================================
+FATIA 4 - Corrige o card dos EUA piscando no login
+====================================================
 
 O QUE MUDA: so 1 arquivo -> components/views/Viagens.js
 
 O QUE FOI FEITO:
-- "Ola, Viajante!" agora mostra o nome da pessoa (do perfil; se nao
-  achar, usa o comeco do e-mail; se nada, volta pra "Viajante")
-- Escureci o fundo (degrade) atras do texto pra dar leitura
+- A foto do card piscava porque era rebuscada quando o total de
+  gastos chegava. Agora a foto e pre-carregada no cache do navegador
+  assim que a lista de viagens carrega, entao nao pisca mais.
+- So foi ADICIONADO um pre-carregamento. Nada do resto mudou
+  (convite, apagar, trocar foto, total - tudo igual).
 
 COMO INSTALAR:
-1. Descompacte este zip
-2. Copie a pasta "components" por cima da sua pasta do projeto
-   (so o Viagens.js vai ser substituido, mais nada e tocado)
+1. Descompacte
+2. Copie a pasta "components" por cima da sua pasta
 3. No PowerShell:
      cd "C:\MEUS PROJETOS\Viagem-EUA"
      npm run dev
-4. Abra localhost:3000 (tela que abre primeiro). Veja:
-   - aparece seu nome no "Ola, ___!" ?
-   - da pra ler bem o texto sobre a foto agora?
-5. Se subir sem erro vermelho e estiver bom, faca o push:
+4. Abra localhost:3000, faca login, e veja se o card dos EUA
+   ainda pisca. Pode precisar de Ctrl+Shift+R pra limpar o cache
+   antigo do PWA na 1a vez.
+5. Se parou de piscar e nada quebrou, push:
      git add .
-     git commit -m "V5.2 - nome no Ola e leitura do header Viagens"
+     git commit -m "V5.3 - corrige flicker do card no login"
      git push
 
-NAO use git push --force em hipotese nenhuma.
+OBS: na PRIMEIRA vez que abrir, a foto ainda pode dar uma carregada
+(porque o cache esta vazio). A partir da 2a vez, nao pisca mais.
