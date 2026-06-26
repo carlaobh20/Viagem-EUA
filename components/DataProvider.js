@@ -17,6 +17,7 @@ export function DataProvider({ session, children }) {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
   const [gastoEditando, setGastoEditando] = useState(null);
+  const [precisaNome, setPrecisaNome] = useState(false);
 
   const carregar = useCallback(async () => {
     try {
@@ -39,10 +40,12 @@ export function DataProvider({ session, children }) {
     let { data: meu } = await supabase.from('perfis').select('*').eq('user_id', uid).eq('viagem_id', v.id).maybeSingle();
     if (!meu) {
       const nome = session.user.user_metadata?.nome || session.user.email.split('@')[0];
-      const rp = await supabase.from('perfis').insert({ user_id: uid, nome, cor: corAleatoria(), viagem_id: v.id }).select().single();
+      const rp = await supabase.from('perfis').insert({ user_id: uid, nome, cor: corAleatoria(), viagem_id: v.id, nome_definido: false }).select().single();
       meu = rp.data;
     }
     setPerfil(meu);
+    // se o perfil ainda nao teve o nome escolhido pela pessoa, pede
+    setPrecisaNome(meu && meu.nome_definido === false);
     const [{ data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }, { data: ck }] = await Promise.all([
       supabase.from('perfis').select('*').eq('viagem_id', v.id).order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
@@ -119,7 +122,7 @@ export function DataProvider({ session, children }) {
   }
   async function removerAcerto(id) { await supabase.from('acertos').delete().eq('id', id); await carregar(); }
 
-  async function adicionarPessoa(nome) { await supabase.from('perfis').insert({ nome: nome.trim(), cor: corAleatoria(), viagem_id: viagem.id }); await carregar(); }
+  async function adicionarPessoa(nome) { await supabase.from('perfis').insert({ nome: nome.trim(), cor: corAleatoria(), viagem_id: viagem.id, nome_definido: true }); await carregar(); }
   async function atualizarNomePessoa(id, nome) { await supabase.from('perfis').update({ nome: nome.trim() }).eq('id', id); await carregar(); }
   async function removerPessoa(id) { const { error } = await supabase.from('perfis').delete().eq('id', id); await carregar(); return error; }
   async function atualizarCotacao(cotacao) { await supabase.from('viagens').update({ cotacao_usd: cotacao }).eq('id', viagem.id); await carregar(); }
@@ -132,6 +135,17 @@ export function DataProvider({ session, children }) {
   async function editarChecklist(id, texto) { await supabase.from('checklist_itens').update({ texto }).eq('id', id); await carregar(); }
   async function removerChecklist(id) { await supabase.from('checklist_itens').delete().eq('id', id); await carregar(); }
   async function semearChecklist(itens) { if (!itens || !itens.length) return; await supabase.from('checklist_itens').insert(itens.map((it) => ({ ...it, viagem_id: viagem.id }))); await supabase.from('viagens').update({ checklist_seed: true }).eq('id', viagem.id); await carregar(); }
+
+  // define o nome escolhido pela pessoa (tela de boas-vindas ou Minha Conta)
+  async function definirMeuNome(nome) {
+    const nm = (nome || '').trim();
+    if (!nm || !perfil) return { erro: 'Informe um nome.' };
+    const { error } = await supabase.from('perfis').update({ nome: nm, nome_definido: true }).eq('id', perfil.id);
+    if (error) return { erro: 'Não consegui salvar o nome.' };
+    setPrecisaNome(false);
+    await carregar();
+    return { ok: true };
+  }
 
   function trocarViagem(id) { if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', id); carregar(); }
   async function definirFotoViagem(id, url) { await supabase.from('viagens').update({ foto: url || null }).eq('id', id); await carregar(); }
@@ -183,7 +197,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, urlRecibo, erro, recarregar: carregar };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }

@@ -13,8 +13,9 @@ import Motorhome from './views/Motorhome';
 import Checklist from './views/Checklist';
 import Viagens from './views/Viagens';
 import Conta from './views/Conta';
+import BoasVindas from './views/BoasVindas';
 export default function AppShell() {
-  const { carregando, viagem, erro, recarregar, entrarPorConvite } = useData();
+  const { carregando, viagem, erro, recarregar, entrarPorConvite, precisaNome } = useData();
   const [view, setView] = useState('viagens');
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -32,6 +33,8 @@ export default function AppShell() {
       <button className="btn-primary" style={{ maxWidth: 220 }} onClick={() => recarregar()}>Tentar de novo</button>
     </div>
   );
+  // primeira vez da pessoa: pede o nome antes de mostrar o app
+  if (precisaNome) return <BoasVindas />;
   const irPara = (v) => setView(v);
   return (
     <div className="app ui-theme">

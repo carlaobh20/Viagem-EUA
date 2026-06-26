@@ -1,28 +1,38 @@
-FATIA 4 - Corrige o card dos EUA piscando no login
-====================================================
+FATIA 5 - Tela de boas-vindas que pergunta o nome
+==================================================
 
-O QUE MUDA: so 1 arquivo -> components/views/Viagens.js
+O QUE MUDA: 3 arquivos
+  - components/DataProvider.js  (substitui)
+  - components/AppShell.js      (substitui)
+  - components/views/BoasVindas.js  (NOVO)
 
-O QUE FOI FEITO:
-- A foto do card piscava porque era rebuscada quando o total de
-  gastos chegava. Agora a foto e pre-carregada no cache do navegador
-  assim que a lista de viagens carrega, entao nao pisca mais.
-- So foi ADICIONADO um pre-carregamento. Nada do resto mudou
-  (convite, apagar, trocar foto, total - tudo igual).
+O QUE FAZ:
+- Quando a pessoa entra e o perfil dela ainda nao tem nome escolhido
+  (nome_definido = false no banco), aparece uma tela "Bem-vindo!"
+  perguntando como ela quer ser chamada.
+- Ela digita, a gente grava em perfis.nome e marca nome_definido = true.
+- A partir dai nunca mais pergunta, e o nome dela aparece nos gastos.
+
+IMPORTANTE - voce ja preparou o banco:
+- Voce (Carlos) esta com nome_definido = true -> NAO vai ser perguntado.
+- manfrinato esta com nome_definido = false -> VAI ver a tela de
+  boas-vindas na proxima vez que abrir, e poder trocar o nome feio.
+- As proximas pessoas que entrarem por convite tambem verao a tela.
 
 COMO INSTALAR:
 1. Descompacte
 2. Copie a pasta "components" por cima da sua pasta
-3. No PowerShell:
-     cd "C:\MEUS PROJETOS\Viagem-EUA"
-     npm run dev
-4. Abra localhost:3000, faca login, e veja se o card dos EUA
-   ainda pisca. Pode precisar de Ctrl+Shift+R pra limpar o cache
-   antigo do PWA na 1a vez.
-5. Se parou de piscar e nada quebrou, push:
+3. cd "C:\MEUS PROJETOS\Viagem-EUA"
+4. npm run dev
+5. TESTE: abra com a conta "manfrinato" (a que ja entrou).
+   Deve aparecer a tela "Bem-vindo!" pedindo o nome.
+   Digite um nome, clique Continuar -> entra no app com o nome novo.
+6. Abra com SUA conta (Carlos) -> NAO deve aparecer a tela
+   (voce ja tem nome definido).
+7. Se funcionar e nada quebrou:
      git add .
-     git commit -m "V5.3 - corrige flicker do card no login"
+     git commit -m "V5.4 - boas-vindas pedindo o nome no primeiro acesso"
      git push
 
-OBS: na PRIMEIRA vez que abrir, a foto ainda pode dar uma carregada
-(porque o cache esta vazio). A partir da 2a vez, nao pisca mais.
+OBS: o DataProvider e o coracao do app. Teste o login normal,
+ver gastos, e o convite, pra confirmar que tudo continua rodando.
