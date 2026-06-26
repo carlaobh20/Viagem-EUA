@@ -34,9 +34,15 @@ export default function Gastos({ ir }) {
           <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.5px' }}>Gastos</div>
           <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 2 }}>Todos os lançamentos da viagem</div>
         </div>
-        <button onClick={() => ir('acerto')} style={{ fontSize: 12, fontWeight: 600, color: 'var(--ui-teal)', background: '#DCF7EF', padding: '7px 12px', borderRadius: 20, border: 'none', cursor: 'pointer' }}>
-          Câmbio R$ {cambio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => ir('pessoas')} aria-label="Pessoas da viagem" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--ui-muted)', background: 'var(--ui-card)', padding: '7px 12px', borderRadius: 20, border: '1px solid var(--ui-line)', cursor: 'pointer', boxShadow: 'var(--ui-shadow)' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+            Pessoas
+          </button>
+          <button onClick={() => ir('acerto')} style={{ fontSize: 12, fontWeight: 600, color: 'var(--ui-teal)', background: '#DCF7EF', padding: '7px 12px', borderRadius: 20, border: 'none', cursor: 'pointer' }}>
+            Câmbio R$ {cambio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </button>
+        </div>
       </div>
 
       {/* total */}

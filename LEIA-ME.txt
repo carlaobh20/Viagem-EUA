@@ -1,31 +1,32 @@
-FATIA 7 - Ajustes na tela Viagens
-==================================
+FATIA 8 - Motorhome na barra, Pessoas dentro de Gastos
+=======================================================
 
-O QUE MUDA: so 1 arquivo -> components/views/Viagens.js
+O QUE MUDA: 2 arquivos
+  - components/Nav.js            (substitui)
+  - components/views/Gastos.js   (substitui)
 
 O QUE FOI FEITO:
-1. Tirei o aviaozinho do lado de "Ola, Carlos!"
-2. Tirei o botao "Criar nova viagem" de baixo. Agora so existe o
-   botao + no canto superior direito - deixei ele maior e mais
-   bonito (borda branca sutil, sombra melhor).
-3. A secao de historico agora se chama "VIAGENS REALIZADAS"
-   (antes era "PASSADAS"). Ela aparece sozinha quando voce tiver
-   alguma viagem com a data de volta ja passada.
+1. Na barra de baixo, "Pessoas" virou "Motorhome". Agora e so tocar
+   em Motorhome na barra que vai direto pra aba do motorhome.
+2. "Pessoas" agora e acessada por dentro da tela Gastos: tem um
+   botao "Pessoas" no canto superior direito da tela de Gastos,
+   do lado do Cambio.
+
+NAO MEXIDO (de proposito):
+- O card azul do Motorhome no Inicio continua la. Se quiser que eu
+  tire (pra nao ter 2 caminhos pro mesmo lugar), e so pedir.
 
 COMO INSTALAR:
 1. Descompacte
 2. Copie a pasta "components" por cima da sua pasta
 3. cd "C:\MEUS PROJETOS\Viagem-EUA"
 4. npm run dev
-5. Abra localhost:3000. A tela que abre e a de Viagens. Veja:
-   - "Ola, Carlos!" sem aviao
-   - so o botao + no canto (sem o "Criar nova viagem" embaixo)
-   - clique no + pra confirmar que ainda cria viagem
+5. TESTE:
+   - barra de baixo: a ultima aba agora e "Motorhome" (icone de van).
+     Toque e veja se abre o motorhome direto.
+   - va em "Gastos": no canto superior direito tem o botao "Pessoas".
+     Toque e veja se abre a tela de Pessoas.
 6. Se ficou bom:
      git add .
-     git commit -m "V5.6 - ajustes na tela Viagens (+ no canto, historico)"
+     git commit -m "V5.7 - Motorhome na barra, Pessoas dentro de Gastos"
      git push
-
-OBS: a secao "VIAGENS REALIZADAS" so vai aparecer quando existir uma
-viagem ja concluida. Como a Viagem EUA ainda nao aconteceu, e normal
-ela nao aparecer agora.
