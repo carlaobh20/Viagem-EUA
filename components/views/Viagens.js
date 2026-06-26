@@ -19,7 +19,24 @@ export default function Viagens({ ir }) {
   const [totais, setTotais] = useState({});
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [emailUser, setEmailUser] = useState('');
   const hoje = new Date().toISOString().slice(0, 10);
+
+  // pega o e-mail como fallback para o nome
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => { setEmailUser(data?.user?.email || ''); });
+  }, []);
+
+  // primeiro nome: tenta perfil.nome -> primeiro pedaco do e-mail -> "Viajante"
+  const primeiroNome = (() => {
+    const n = (perfil && (perfil.nome || perfil.name)) ? String(perfil.nome || perfil.name).trim() : '';
+    if (n) return n.split(' ')[0];
+    if (emailUser) {
+      const base = emailUser.split('@')[0].replace(/[._\-]+/g, ' ').trim();
+      if (base) return base.charAt(0).toUpperCase() + base.slice(1).split(' ')[0].slice(1);
+    }
+    return 'Viajante';
+  })();
 
   useEffect(() => {
     const ids = (viagens || []).map((v) => v.id);
@@ -100,12 +117,12 @@ export default function Viagens({ ir }) {
     <div style={{ background: '#F4F8FB', minHeight: '100%', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif', color: '#16242C', paddingBottom: 28 }}>
       {/* HEADER com foto ao fundo + degradê dissolvendo no app */}
       <div style={{ position: 'relative', minHeight: 248, backgroundImage: "url('/header-home.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(0,30,55,.40) 0%,rgba(0,30,55,.04) 32%,rgba(244,248,251,0) 58%,rgba(244,248,251,.85) 90%,#F4F8FB 100%)' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(0,24,44,.72) 0%,rgba(0,26,48,.50) 30%,rgba(0,28,50,.20) 50%,rgba(244,248,251,.30) 74%,rgba(244,248,251,.88) 90%,#F4F8FB 100%)' }} />
         <button onClick={criar} aria-label="Nova viagem" style={{ position: 'absolute', top: 24, right: 22, width: 50, height: 50, borderRadius: '50%', background: 'linear-gradient(135deg,#00C7B1,#0E9F97)', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 8px 18px rgba(0,90,80,.5)', zIndex: 3 }}>+</button>
         <div style={{ position: 'relative', zIndex: 2, padding: '28px 22px 18px', color: '#fff' }}>
-          <div style={{ fontSize: 15, fontWeight: 600, textShadow: '0 1px 6px rgba(0,0,0,.4)' }}>Olá, Viajante! ✈️</div>
-          <div style={{ fontSize: 33, fontWeight: 800, letterSpacing: '-1px', lineHeight: 1.04, marginTop: 6, maxWidth: 250, textShadow: '0 2px 10px rgba(0,0,0,.45)' }}>Suas <span style={{ color: '#5EEAD9' }}>próximas viagens</span></div>
-          <div style={{ fontSize: 12.5, marginTop: 10, maxWidth: 230, lineHeight: 1.4, textShadow: '0 1px 6px rgba(0,0,0,.5)', opacity: 0.96 }}>Tudo organizado para você aproveitar cada destino ao máximo.</div>
+          <div style={{ fontSize: 15, fontWeight: 600, textShadow: '0 2px 8px rgba(0,0,0,.55)' }}>Olá, {primeiroNome}! ✈️</div>
+          <div style={{ fontSize: 33, fontWeight: 800, letterSpacing: '-1px', lineHeight: 1.04, marginTop: 6, maxWidth: 250, textShadow: '0 2px 12px rgba(0,0,0,.6)' }}>Suas <span style={{ color: '#5EEAD9' }}>próximas viagens</span></div>
+          <div style={{ fontSize: 12.5, marginTop: 10, maxWidth: 230, lineHeight: 1.4, textShadow: '0 2px 8px rgba(0,0,0,.6)', opacity: 0.98 }}>Tudo organizado para você aproveitar cada destino ao máximo.</div>
         </div>
       </div>
 

@@ -1,19 +1,26 @@
-FATIA 2 - Mudar senha na tela Minha Conta
-==========================================
+FATIA 3 - Nome no "Ola" + leitura do header da tela Viagens
+============================================================
 
-O QUE MUDA: so 1 arquivo -> components/views/Conta.js
+O QUE MUDA: so 1 arquivo -> components/views/Viagens.js
+
+O QUE FOI FEITO:
+- "Ola, Viajante!" agora mostra o nome da pessoa (do perfil; se nao
+  achar, usa o comeco do e-mail; se nada, volta pra "Viajante")
+- Escureci o fundo (degrade) atras do texto pra dar leitura
 
 COMO INSTALAR:
 1. Descompacte este zip
 2. Copie a pasta "components" por cima da sua pasta do projeto
-   (so o Conta.js vai ser substituido, mais nada e tocado)
+   (so o Viagens.js vai ser substituido, mais nada e tocado)
 3. No PowerShell:
      cd "C:\MEUS PROJETOS\Viagem-EUA"
      npm run dev
-4. Abra localhost:3000, clique na engrenagem, teste mudar a senha
-5. Se subir sem erro vermelho e funcionar, faca o push:
+4. Abra localhost:3000 (tela que abre primeiro). Veja:
+   - aparece seu nome no "Ola, ___!" ?
+   - da pra ler bem o texto sobre a foto agora?
+5. Se subir sem erro vermelho e estiver bom, faca o push:
      git add .
-     git commit -m "V5.1 - mudar senha na tela Minha Conta"
+     git commit -m "V5.2 - nome no Ola e leitura do header Viagens"
      git push
 
 NAO use git push --force em hipotese nenhuma.
