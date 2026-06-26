@@ -128,9 +128,9 @@ export default function Viagens({ ir }) {
       {/* HEADER com foto ao fundo + degradê dissolvendo no app */}
       <div style={{ position: 'relative', minHeight: 248, backgroundImage: "url('/header-home.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(0,24,44,.72) 0%,rgba(0,26,48,.50) 30%,rgba(0,28,50,.20) 50%,rgba(244,248,251,.30) 74%,rgba(244,248,251,.88) 90%,#F4F8FB 100%)' }} />
-        <button onClick={criar} aria-label="Nova viagem" style={{ position: 'absolute', top: 24, right: 22, width: 50, height: 50, borderRadius: '50%', background: 'linear-gradient(135deg,#00C7B1,#0E9F97)', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 8px 18px rgba(0,90,80,.5)', zIndex: 3 }}>+</button>
+        <button onClick={criar} aria-label="Criar nova viagem" style={{ position: 'absolute', top: 22, right: 20, width: 54, height: 54, borderRadius: '50%', background: 'linear-gradient(135deg,#00D4BC,#0E9F97)', color: '#fff', fontSize: 30, fontWeight: 300, lineHeight: 1, border: '2px solid rgba(255,255,255,.35)', cursor: 'pointer', boxShadow: '0 10px 24px rgba(0,90,80,.55), 0 2px 6px rgba(0,0,0,.15)', zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: 3 }}>+</button>
         <div style={{ position: 'relative', zIndex: 2, padding: '28px 22px 18px', color: '#fff' }}>
-          <div style={{ fontSize: 15, fontWeight: 600, textShadow: '0 2px 8px rgba(0,0,0,.55)' }}>Olá, {primeiroNome}! ✈️</div>
+          <div style={{ fontSize: 15, fontWeight: 600, textShadow: '0 2px 8px rgba(0,0,0,.55)' }}>Olá, {primeiroNome}!</div>
           <div style={{ fontSize: 33, fontWeight: 800, letterSpacing: '-1px', lineHeight: 1.04, marginTop: 6, maxWidth: 250, textShadow: '0 2px 12px rgba(0,0,0,.6)' }}>Suas <span style={{ color: '#5EEAD9' }}>próximas viagens</span></div>
           <div style={{ fontSize: 12.5, marginTop: 10, maxWidth: 230, lineHeight: 1.4, textShadow: '0 2px 8px rgba(0,0,0,.6)', opacity: 0.98 }}>Tudo organizado para você aproveitar cada destino ao máximo.</div>
         </div>
@@ -140,9 +140,7 @@ export default function Viagens({ ir }) {
         {proximas.length > 0 && <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: '#00A99B', margin: '16px 4px 12px' }}>PRÓXIMAS VIAGENS</div>}
         {proximas.map((v, i) => <Card key={v.id} v={v} idx={i} />)}
 
-        <button onClick={criar} disabled={busy} style={{ width: '100%', border: '1.5px dashed #BFD2DC', borderRadius: 18, padding: '16px', background: 'transparent', color: '#00A99B', fontSize: 15, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><span style={{ width: 26, height: 26, borderRadius: '50%', background: '#00C7B1', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 }}>+</span> Criar nova viagem</button>
-
-        {passadas.length > 0 && <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: '#7B8794', margin: '24px 4px 12px' }}>PASSADAS</div>}
+        {passadas.length > 0 && <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: '#7B8794', margin: '24px 4px 12px' }}>VIAGENS REALIZADAS</div>}
         {passadas.map((v, i) => <Card key={v.id} v={v} idx={i + proximas.length} />)}
 
         {msg && <div style={{ fontSize: 12.5, color: '#00A99B', textAlign: 'center', marginTop: 14 }}>{msg}</div>}

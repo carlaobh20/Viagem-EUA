@@ -1,38 +1,31 @@
-FATIA 5 - Tela de boas-vindas que pergunta o nome
-==================================================
+FATIA 7 - Ajustes na tela Viagens
+==================================
 
-O QUE MUDA: 3 arquivos
-  - components/DataProvider.js  (substitui)
-  - components/AppShell.js      (substitui)
-  - components/views/BoasVindas.js  (NOVO)
+O QUE MUDA: so 1 arquivo -> components/views/Viagens.js
 
-O QUE FAZ:
-- Quando a pessoa entra e o perfil dela ainda nao tem nome escolhido
-  (nome_definido = false no banco), aparece uma tela "Bem-vindo!"
-  perguntando como ela quer ser chamada.
-- Ela digita, a gente grava em perfis.nome e marca nome_definido = true.
-- A partir dai nunca mais pergunta, e o nome dela aparece nos gastos.
-
-IMPORTANTE - voce ja preparou o banco:
-- Voce (Carlos) esta com nome_definido = true -> NAO vai ser perguntado.
-- manfrinato esta com nome_definido = false -> VAI ver a tela de
-  boas-vindas na proxima vez que abrir, e poder trocar o nome feio.
-- As proximas pessoas que entrarem por convite tambem verao a tela.
+O QUE FOI FEITO:
+1. Tirei o aviaozinho do lado de "Ola, Carlos!"
+2. Tirei o botao "Criar nova viagem" de baixo. Agora so existe o
+   botao + no canto superior direito - deixei ele maior e mais
+   bonito (borda branca sutil, sombra melhor).
+3. A secao de historico agora se chama "VIAGENS REALIZADAS"
+   (antes era "PASSADAS"). Ela aparece sozinha quando voce tiver
+   alguma viagem com a data de volta ja passada.
 
 COMO INSTALAR:
 1. Descompacte
 2. Copie a pasta "components" por cima da sua pasta
 3. cd "C:\MEUS PROJETOS\Viagem-EUA"
 4. npm run dev
-5. TESTE: abra com a conta "manfrinato" (a que ja entrou).
-   Deve aparecer a tela "Bem-vindo!" pedindo o nome.
-   Digite um nome, clique Continuar -> entra no app com o nome novo.
-6. Abra com SUA conta (Carlos) -> NAO deve aparecer a tela
-   (voce ja tem nome definido).
-7. Se funcionar e nada quebrou:
+5. Abra localhost:3000. A tela que abre e a de Viagens. Veja:
+   - "Ola, Carlos!" sem aviao
+   - so o botao + no canto (sem o "Criar nova viagem" embaixo)
+   - clique no + pra confirmar que ainda cria viagem
+6. Se ficou bom:
      git add .
-     git commit -m "V5.4 - boas-vindas pedindo o nome no primeiro acesso"
+     git commit -m "V5.6 - ajustes na tela Viagens (+ no canto, historico)"
      git push
 
-OBS: o DataProvider e o coracao do app. Teste o login normal,
-ver gastos, e o convite, pra confirmar que tudo continua rodando.
+OBS: a secao "VIAGENS REALIZADAS" so vai aparecer quando existir uma
+viagem ja concluida. Como a Viagem EUA ainda nao aconteceu, e normal
+ela nao aparecer agora.
