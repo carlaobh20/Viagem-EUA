@@ -162,6 +162,14 @@ export default function Motorhome({ ir }) {
         <div className="fab-back">
           <button onClick={() => ir('resumo')} aria-label="Voltar">←</button>
           <span className="ttl">🚐 Motorhome</span>
+          {aba === 'custos' && totalMH > 0 && (
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: '#EFEDE6', borderRadius: 20, padding: 3, flex: '0 0 auto' }}>
+              {[['brl', 'R$'], ['usd', 'US$']].map(([id, lbl]) => (
+                <button key={id} onClick={() => setMoeda(id)} disabled={id === 'usd' && !cambioOk}
+                  style={{ border: 'none', borderRadius: 16, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: moeda === id ? 'var(--brand)' : 'transparent', color: moeda === id ? '#fff' : 'var(--muted)' }}>{lbl}</button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* abas Custos / Mercado */}
@@ -203,15 +211,6 @@ export default function Motorhome({ ir }) {
           </div>
         ) : (
           <>
-            {/* toggle de moeda */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-              <div style={{ display: 'flex', gap: 4, background: '#EFEDE6', borderRadius: 20, padding: 3 }}>
-                {[['brl', 'R$'], ['usd', 'US$']].map(([id, lbl]) => (
-                  <button key={id} onClick={() => setMoeda(id)} disabled={id === 'usd' && !cambioOk}
-                    style={{ border: 'none', borderRadius: 16, padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: moeda === id ? 'var(--brand)' : 'transparent', color: moeda === id ? '#fff' : 'var(--muted)' }}>{lbl}</button>
-                ))}
-              </div>
-            </div>
             {/* tiles */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
               <div style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 14, padding: '12px 13px', boxShadow: '0 2px 10px rgba(27,42,47,.05)' }}>
