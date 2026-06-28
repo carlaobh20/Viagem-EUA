@@ -50,7 +50,7 @@ function diffDias(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Dat
 function fmtDur(min) { if (min < 60) return `${min} min`; const h = Math.floor(min / 60); const m = min % 60; return m ? `${h} h ${m} min` : `${h} h`; }
 
 export default function Roteiro({ ir }) {
-  const { viagem, pontos, gastos, recarregar } = useData();
+  const { viagem, pontos, gastos, perfis, checklist, recarregar } = useData();
   const cambio = Number(viagem.cotacao_usd);
   const [form, setForm] = useState(null);
   const [notaEdit, setNotaEdit] = useState(null);
@@ -60,6 +60,7 @@ export default function Roteiro({ ir }) {
   const [dVolta, setDVolta] = useState('');
   const [rotas, setRotas] = useState({});
   const [geoMsg, setGeoMsg] = useState('');
+  const [menuAberto, setMenuAberto] = useState(false);
 
   const gastoDoDia = (p) => {
     if (!p.data_inicio) return 0;
@@ -229,10 +230,33 @@ export default function Roteiro({ ir }) {
     else { const n = diffDias(ida, hojeS) + 1; prog = { estado: 'durante', n, total, faltam: diffDias(hojeS, volta), pct: Math.max(2, Math.min(100, Math.round((n / total) * 100))) }; }
   }
 
+  // ----- Fatia 1: totais para os tiles e a barra de baixo -----
+  const totaisRota = Object.values(rotas).reduce((acc, r) => {
+    if (r && r !== 'erro' && typeof r === 'object') { acc.km += r.km || 0; acc.min += r.min || 0; }
+    return acc;
+  }, { km: 0, min: 0 });
+  const fmtHHMM = (min) => { const h = Math.floor(min / 60); const m = Math.round(min % 60); return `${h}:${String(m).padStart(2, '0')}`; };
+  const nParadas = pontos.length;
+  const tarefasPend = (checklist || []).filter((i) => i.tema !== 'Mercado' && !i.feito).length;
+  const nPessoas = (perfis || []).length;
+  const tileFaltam = prog
+    ? (prog.estado === 'antes' ? { v: String(prog.faltam), top: 'Faltam', sub: prog.faltam === 1 ? 'dia' : 'dias' }
+      : prog.estado === 'durante' ? { v: String(prog.n), top: 'Dia', sub: `de ${prog.total}` }
+        : { v: '✓', top: 'Viagem', sub: 'concluída' })
+    : { v: '—', top: 'Datas', sub: 'defina' };
+
   return (
     <div className="app ui-theme">
       <div className="screen" style={{ paddingTop: 18 }}>
-        <div className="fab-back" style={{ alignItems: 'center' }}><span className="ttl" style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.5px' }}>Roteiro</span><span style={{ flex: 1 }} /><button onClick={() => ir('mapa')} style={{ width: 'auto', height: 38, padding: '0 14px', borderRadius: 20, border: 'none', background: 'var(--brand-soft)', color: 'var(--brand)', fontSize: 14, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>🗺 Ver no mapa</button></div>
+        <div className="fab-back" style={{ alignItems: 'center' }}><span className="ttl" style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.5px' }}>Roteiro</span><span style={{ flex: 1 }} /><button onClick={() => ir('mapa')} style={{ width: 'auto', height: 38, padding: '0 14px', borderRadius: 20, border: 'none', background: 'var(--brand-soft)', color: 'var(--brand)', fontSize: 14, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>🗺 Ver no mapa</button><button onClick={() => setMenuAberto((v) => !v)} aria-label="Mais opções" style={{ width: 38, height: 38, borderRadius: 10, border: '0.5px solid var(--line-strong)', background: 'var(--surface)', fontSize: 18, marginLeft: 8, flex: '0 0 auto' }}>⋮</button></div>
+
+        {menuAberto && (
+          <div className="card" style={{ marginBottom: 12, padding: 6 }}>
+            <button className="btn-ghost" style={{ width: '100%', textAlign: 'left', padding: '11px 12px', fontSize: 14 }} onClick={() => { setMenuAberto(false); abrirDatas(); }}>📅 Editar datas da viagem</button>
+            <button className="btn-ghost" style={{ width: '100%', textAlign: 'left', padding: '11px 12px', fontSize: 14 }} onClick={() => { setMenuAberto(false); abrirNovo(ultimaData(), null); }}>＋ Adicionar parada</button>
+            <button className="btn-ghost" style={{ width: '100%', textAlign: 'left', padding: '11px 12px', fontSize: 14 }} onClick={() => { setMenuAberto(false); ir('mapa'); }}>🗺 Ver no mapa</button>
+          </div>
+        )}
 
         {form ? (
           <div className="card" style={{ marginBottom: 16 }}>
@@ -270,21 +294,25 @@ export default function Roteiro({ ir }) {
                 <button className="btn-outline" onClick={abrirDatas}>Definir datas da viagem</button>
               </div>
             ) : (
-              <div style={{ marginTop: 2, marginBottom: 20 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                  <span style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.5px' }}>
-                    {prog.estado === 'antes' && `Faltam ${prog.faltam} ${prog.faltam === 1 ? 'dia' : 'dias'}`}
-                    {prog.estado === 'durante' && `Dia ${prog.n} de ${prog.total}`}
-                    {prog.estado === 'fim' && 'Viagem concluída ✅'}
-                  </span>
-                  <button onClick={abrirDatas} className="btn-ghost" style={{ padding: 0, fontSize: 12 }}>editar datas</button>
+              <div style={{ marginTop: 2, marginBottom: 18 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  {[
+                    { ic: '📅', top: tileFaltam.top, v: tileFaltam.v, sub: tileFaltam.sub },
+                    { ic: '📍', top: 'Total', v: String(nParadas), sub: nParadas === 1 ? 'parada' : 'paradas' },
+                    { ic: '🕐', top: 'Tempo total', v: totaisRota.min > 0 ? fmtHHMM(totaisRota.min) : '—', sub: 'horas' },
+                    { ic: '🛣️', top: 'Distância', v: totaisRota.km > 0 ? Math.round(totaisRota.km).toLocaleString('pt-BR') : '—', sub: 'km' },
+                  ].map((t, i) => (
+                    <div key={i} style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 14, padding: '10px 8px', boxShadow: '0 2px 10px rgba(27,42,47,.05)' }}>
+                      <div style={{ fontSize: 15, marginBottom: 4 }}>{t.ic}</div>
+                      <div style={{ fontSize: 9.5, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.3px', fontWeight: 600, lineHeight: 1.1 }}>{t.top}</div>
+                      <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1.2 }}>{t.v}</div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t.sub}</div>
+                    </div>
+                  ))}
                 </div>
-                <div style={{ height: 9, borderRadius: 8, background: '#E7E4DB', overflow: 'hidden', margin: '12px 0 8px' }}>
-                  <div style={{ width: (prog.estado === 'antes' ? 0 : prog.estado === 'fim' ? 100 : prog.pct) + '%', height: '100%', borderRadius: 8, background: 'var(--brand)' }} />
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                  {fmtDiaData(ida)} → {fmtDiaData(volta)} · {prog.total} dias
-                  {prog.estado === 'durante' && ` · faltam ${prog.faltam} ${prog.faltam === 1 ? 'dia' : 'dias'}`}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginTop: 12 }}>
+                  <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{fmtDiaData(ida)} → {fmtDiaData(volta)} · {prog.total} dias</span>
+                  <button onClick={abrirDatas} className="btn-ghost" style={{ padding: 0, fontSize: 12.5, color: 'var(--brand)', fontWeight: 600 }}>editar datas</button>
                 </div>
               </div>
             )}
@@ -352,6 +380,26 @@ export default function Roteiro({ ir }) {
             })}
 
             <button className="btn-outline" style={{ marginTop: 2 }} onClick={() => abrirNovo(ultimaData(), null)}>+ Adicionar parada</button>
+
+            <div className="card" style={{ marginTop: 16, padding: 0, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
+              <div onClick={() => ir('resumo')} style={{ flex: 1, padding: '14px 8px', cursor: 'pointer', textAlign: 'center' }}>
+                <div style={{ fontSize: 9.5, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.3px', fontWeight: 600 }}>Orçamento</div>
+                <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.3px', marginTop: 3 }}>{fmtBRL(Number(viagem.orcamento_brl) || 0)}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--brand)', marginTop: 1 }}>ver resumo</div>
+              </div>
+              <div style={{ width: '0.5px', background: 'var(--line)', flex: '0 0 auto' }} />
+              <div onClick={() => ir('checklist')} style={{ flex: 1, padding: '14px 8px', cursor: 'pointer', textAlign: 'center' }}>
+                <div style={{ fontSize: 9.5, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.3px', fontWeight: 600 }}>Tarefas</div>
+                <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.3px', marginTop: 3 }}>{tarefasPend}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--brand)', marginTop: 1 }}>{tarefasPend === 1 ? 'pendente' : 'pendentes'}</div>
+              </div>
+              <div style={{ width: '0.5px', background: 'var(--line)', flex: '0 0 auto' }} />
+              <div onClick={() => ir('pessoas')} style={{ flex: 1, padding: '14px 8px', cursor: 'pointer', textAlign: 'center' }}>
+                <div style={{ fontSize: 9.5, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.3px', fontWeight: 600 }}>Pessoas</div>
+                <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.3px', marginTop: 3 }}>{nPessoas}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--brand)', marginTop: 1 }}>ver detalhes</div>
+              </div>
+            </div>
           </>
         )}
       </div>
