@@ -31,23 +31,65 @@ const TEMPLATE = [
   ['Casa fechada (luz, água, gás)', 'Antes de embarcar', '1d'],
 ];
 
+// ===== Comprar (lista de compras pré-viagem — separada do Mercado do motorhome) =====
+const COMPRAR_CATS = [
+  ['bagagem', '🧳', 'Bagagem'],
+  ['eletronicos', '🔌', 'Eletrônicos'],
+  ['roupas', '👕', 'Roupas'],
+  ['higiene', '🧴', 'Higiene'],
+  ['viagem', '✈️', 'Viagem'],
+  ['outros', '📦', 'Outros'],
+];
+const COMPRAR_LABEL = Object.fromEntries(COMPRAR_CATS.map(([id, , l]) => [id, l]));
+const COMPRAR_EMOJI = Object.fromEntries(COMPRAR_CATS.map(([id, e]) => [id, e]));
+const COMPRAR_SUG = {
+  bagagem: ['Mala', 'Mochila', 'Organizadores', 'Cadeado TSA', 'Etiqueta de mala', 'Necessaire'],
+  eletronicos: ['Adaptador de tomada', 'Power bank', 'Carregador', 'eSIM / chip', 'Fones'],
+  roupas: ['Casaco', 'Tênis confortável', 'Roupa de banho', 'Meias térmicas', 'Capa de chuva'],
+  higiene: ['Protetor solar', 'Repelente', 'Remédios', 'Primeiros socorros', 'Escova de dente'],
+  viagem: ['Seguro viagem', 'Dólar em espécie', 'Cartão internacional', 'Imprimir reservas'],
+  outros: ['Travesseiro de pescoço', 'Garrafa de água', 'Snacks de viagem'],
+};
+
 export default function Checklist({ ir }) {
   const { viagem, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist } = useData();
   const [filtro, setFiltro] = useState('todos');
   const [add, setAdd] = useState(null);
+  const [aba, setAba] = useState('tarefas'); // 'tarefas' | 'comprar'
+  const [compForm, setCompForm] = useState(null); // { texto, cat }
 
   useEffect(() => {
-    if (viagem && !viagem.checklist_seed && (checklist || []).length === 0) {
+    if (viagem && !viagem.checklist_seed && (checklist || []).filter((i) => TEMAS.includes(i.tema)).length === 0) {
       semearChecklist(TEMPLATE.map(([texto, tema, prazo], i) => ({ texto, tema, prazo, ordem: i })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viagem?.checklist_seed]);
 
-  const itens = checklist || [];
+  const itens = (checklist || []).filter((i) => TEMAS.includes(i.tema));
   const visiveis = filtro === 'todos' ? itens : itens.filter((i) => i.prazo === filtro);
   const feitos = visiveis.filter((i) => i.feito).length;
   const total = visiveis.length;
   const pct = total > 0 ? Math.round((feitos / total) * 100) : 0;
+
+  // ----- Comprar -----
+  const compras = (checklist || []).filter((i) => i.tema === 'Comprar');
+  const compFeitos = compras.filter((i) => i.feito).length;
+  const compPct = compras.length > 0 ? Math.round((compFeitos / compras.length) * 100) : 0;
+  function addCompra(texto, cat) {
+    const t = (texto || '').trim();
+    if (!t) return;
+    if (compras.some((i) => (i.texto || '').toLowerCase() === t.toLowerCase())) return;
+    adicionarChecklist({ texto: t, tema: 'Comprar', prazo: cat || 'outros', ordem: compras.length });
+  }
+  function salvarCompForm() {
+    if (!compForm || !compForm.texto.trim()) { setCompForm(null); return; }
+    addCompra(compForm.texto, compForm.cat);
+    setCompForm({ texto: '', cat: compForm.cat });
+  }
+  function limparCompradas() {
+    if (!window.confirm('Remover tudo que já foi comprado?')) return;
+    compras.filter((i) => i.feito).forEach((i) => removerChecklist(i.id));
+  }
 
   function novoItem() {
     if (!add || !add.texto.trim()) { setAdd(null); return; }
@@ -71,6 +113,14 @@ export default function Checklist({ ir }) {
         </div>
       </div>
 
+      {/* abas Tarefas / Comprar */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {[['tarefas', 'Tarefas'], ['comprar', 'Comprar']].map(([id, lbl]) => (
+          <button key={id} onClick={() => setAba(id)} style={{ flex: 1, border: 'none', borderRadius: 14, padding: '10px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer', background: aba === id ? 'var(--ui-teal)' : 'var(--ui-card)', color: aba === id ? '#fff' : 'var(--ui-muted)', boxShadow: aba === id ? 'none' : 'var(--ui-shadow)' }}>{lbl}</button>
+        ))}
+      </div>
+
+      {aba === 'tarefas' && (<>
       {/* progresso */}
       <div style={{ ...card, padding: 16, marginBottom: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 }}>
@@ -128,6 +178,79 @@ export default function Checklist({ ir }) {
       ) : (
         <button onClick={() => setAdd({ texto: '', tema: 'Documentos', prazo: '' })} style={{ width: '100%', border: '1.5px dashed var(--ui-line)', borderRadius: 14, padding: '14px', background: 'transparent', color: 'var(--ui-teal)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>+ Adicionar item</button>
       )}
+      </>)}
+
+      {aba === 'comprar' && (<>
+        {/* progresso compras */}
+        <div style={{ ...card, padding: 16, marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 }}>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>{compFeitos} de {compras.length} comprados</span>
+            <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--ui-teal)' }}>{compPct}%</span>
+          </div>
+          <div style={{ height: 8, borderRadius: 5, background: 'var(--ui-line)', overflow: 'hidden' }}><div style={{ width: compPct + '%', height: '100%', borderRadius: 5, background: 'var(--ui-teal)', transition: 'width .3s' }} /></div>
+          {compFeitos > 0 && <button onClick={limparCompradas} style={{ width: '100%', marginTop: 10, border: 'none', background: 'none', color: 'var(--ui-muted)', fontSize: 12.5, cursor: 'pointer' }}>Remover {compFeitos} comprado{compFeitos === 1 ? '' : 's'}</button>}
+        </div>
+
+        {/* seções por categoria */}
+        {COMPRAR_CATS.map(([catId]) => {
+          const lista = compras.filter((i) => (i.prazo || 'outros') === catId);
+          if (lista.length === 0) return null;
+          return (
+            <div key={catId} style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 2px 9px' }}>
+                <span style={{ fontSize: 16 }}>{COMPRAR_EMOJI[catId]}</span>
+                <span style={{ fontSize: 14.5, fontWeight: 700 }}>{COMPRAR_LABEL[catId]}</span>
+                <span style={{ fontSize: 12, color: 'var(--ui-faint)' }}>{lista.filter((i) => i.feito).length}/{lista.length}</span>
+              </div>
+              <div style={{ ...card, padding: '4px 14px' }}>
+                {lista.map((it, idx) => (
+                  <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 0', borderTop: idx > 0 ? '1px solid var(--ui-line)' : 'none' }}>
+                    <button onClick={() => alternarChecklist(it.id, !it.feito)} aria-label="Marcar" style={{ width: 24, height: 24, borderRadius: '50%', flex: '0 0 auto', cursor: 'pointer', border: it.feito ? 'none' : '2px solid var(--ui-line)', background: it.feito ? 'var(--ui-teal)' : 'transparent', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{it.feito ? '✓' : ''}</button>
+                    <span onClick={() => { const t = window.prompt('Editar item', it.texto); if (t && t.trim()) editarChecklist(it.id, t.trim()); }} style={{ flex: 1, minWidth: 0, fontSize: 14, cursor: 'text', textDecoration: it.feito ? 'line-through' : 'none', color: it.feito ? 'var(--ui-faint)' : 'var(--ui-ink)' }}>{it.texto}</span>
+                    <button onClick={() => removerChecklist(it.id)} aria-label="Apagar" style={{ border: 'none', background: 'none', color: 'var(--ui-faint)', fontSize: 14, cursor: 'pointer', flex: '0 0 auto' }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {compras.length === 0 && <div style={{ ...card, padding: 24, textAlign: 'center', color: 'var(--ui-faint)', fontSize: 13, marginBottom: 14 }}>Nada na lista ainda. Toque numa sugestão ou adicione um item.</div>}
+
+        {/* adicionar manual */}
+        {compForm ? (
+          <div style={{ ...card, padding: 16, marginBottom: 16 }}>
+            <input autoFocus value={compForm.texto} onChange={(e) => setCompForm({ ...compForm, texto: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && salvarCompForm()} placeholder="O que comprar?" style={{ width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 14, marginBottom: 9, background: 'var(--ui-bg)', color: 'var(--ui-ink)' }} />
+            <select value={compForm.cat} onChange={(e) => setCompForm({ ...compForm, cat: e.target.value })} style={{ width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '10px', fontSize: 13, background: 'var(--ui-bg)', color: 'var(--ui-ink)', marginBottom: 11 }}>{COMPRAR_CATS.map(([id, e, l]) => <option key={id} value={id}>{e} {l}</option>)}</select>
+            <button onClick={salvarCompForm} style={{ width: '100%', border: 'none', borderRadius: 12, padding: '12px', background: 'var(--ui-teal)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Adicionar</button>
+            <button onClick={() => setCompForm(null)} style={{ width: '100%', border: 'none', background: 'none', color: 'var(--ui-muted)', fontSize: 13, marginTop: 8, cursor: 'pointer' }}>Fechar</button>
+          </div>
+        ) : (
+          <button onClick={() => setCompForm({ texto: '', cat: 'bagagem' })} style={{ width: '100%', border: '1.5px dashed var(--ui-line)', borderRadius: 14, padding: '14px', background: 'transparent', color: 'var(--ui-teal)', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 16 }}>+ Adicionar item</button>
+        )}
+
+        {/* sugestões */}
+        <div style={{ fontSize: 11, color: 'var(--ui-faint)', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600, margin: '0 2px 8px' }}>Sugestões — toque para adicionar</div>
+        {COMPRAR_CATS.map(([catId, emoji, label]) => {
+          const naLista = new Set(compras.map((i) => (i.texto || '').toLowerCase()));
+          const chips = (COMPRAR_SUG[catId] || []).filter((s) => !naLista.has(s.toLowerCase()));
+          if (chips.length === 0) return null;
+          return (
+            <div key={catId} style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ui-muted)', margin: '0 2px 6px' }}>{emoji} {label}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                {chips.map((s) => (
+                  <button key={s} onClick={() => addCompra(s, catId)} style={{ border: 'none', background: 'var(--ui-card)', boxShadow: 'var(--ui-shadow)', borderRadius: 16, padding: '7px 13px', fontSize: 12.5, fontWeight: 600, color: 'var(--ui-muted)', cursor: 'pointer' }}>+ {s}</button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        <p style={{ fontSize: 11, color: 'var(--ui-faint)', lineHeight: 1.5, padding: '10px 4px 0' }}>
+          Lista do que comprar antes de viajar — equipamento, bagagem, eletrônicos. É compartilhada com o grupo. (Os mantimentos do supermercado ficam na aba Mercado, dentro do Motorhome.)
+        </p>
+      </>)}
 
     </div>
   );
