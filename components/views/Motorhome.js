@@ -6,6 +6,28 @@ import { valorEmBRL, fmtBRL, fmtUSD, nomeCategoria, emojiCategoria, CATEGORIAS_M
 
 const CORES = ['#BA7517', '#0F6E56', '#534AB7', '#185FA5', '#1D9E75', '#D4537E', '#993C1D', '#5F5E5A'];
 
+// ===== Mercado (lista de suprimentos do motorhome) =====
+// Os itens ficam na tabela checklist_itens com tema 'Mercado' (não aparecem na tela Checklist,
+// que só mostra os 5 temas de viagem). A categoria do item vai no campo "prazo".
+const MERCADO_CATS = [
+  ['comida', '🍎', 'Comida'],
+  ['bebida', '🥤', 'Bebidas'],
+  ['cozinha', '🍳', 'Cozinha'],
+  ['limpeza', '🧽', 'Limpeza'],
+  ['higiene', '🧴', 'Higiene'],
+  ['outros', '📦', 'Outros'],
+];
+const MERCADO_LABEL = Object.fromEntries(MERCADO_CATS.map(([id, , l]) => [id, l]));
+const MERCADO_EMOJI = Object.fromEntries(MERCADO_CATS.map(([id, e]) => [id, e]));
+const SUGESTOES = {
+  comida: ['Pão', 'Ovos', 'Café', 'Leite', 'Frutas', 'Arroz', 'Macarrão', 'Carne', 'Frango', 'Queijo', 'Manteiga', 'Snacks'],
+  bebida: ['Água', 'Refrigerante', 'Cerveja', 'Suco', 'Gelo'],
+  cozinha: ['Papel toalha', 'Sacos de lixo', 'Papel alumínio', 'Isqueiro', 'Filtro de café', 'Guardanapo'],
+  limpeza: ['Detergente', 'Esponja', 'Desinfetante', 'Pano', 'Álcool'],
+  higiene: ['Papel higiênico', 'Sabonete', 'Shampoo', 'Pasta de dente', 'Protetor solar', 'Repelente'],
+  outros: ['Pilhas', 'Carvão', 'Toalha', 'Lanterna'],
+};
+
 function fmtData(d) {
   if (!d) return '';
   const [, m, dia] = d.split('-');
@@ -14,10 +36,14 @@ function fmtData(d) {
 }
 
 export default function Motorhome({ ir }) {
-  const { viagem, gastos, pontos, perfis, recarregar, registrosKm, adicionarKm, removerKm } = useData();
+  const {
+    viagem, gastos, pontos, perfis, recarregar, registrosKm, adicionarKm, removerKm,
+    checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist,
+  } = useData();
   const cambio = Number(viagem.cotacao_usd);
   const [km, setKm] = useState(null); // null = calculando; 0 = sem trecho de carro
   const [moeda, setMoeda] = useState('brl'); // 'brl' | 'usd'
+  const [aba, setAba] = useState('custos'); // 'custos' | 'mercado'
   const cambioOk = cambio > 0;
   const fmtMoeda = (brl) => (moeda === 'usd' && cambioOk) ? fmtUSD(brl / cambio) : fmtBRL(brl);
   const MI = 1.60934;
@@ -34,6 +60,28 @@ export default function Motorhome({ ir }) {
   const [editPeriodo, setEditPeriodo] = useState(false);
   const [dRet, setDRet] = useState('');
   const [dEnt, setDEnt] = useState('');
+
+  // ----- estado do Mercado -----
+  const [novoMerc, setNovoMerc] = useState(null); // null ou { texto, cat }
+  const itensMerc = (checklist || []).filter((i) => i.tema === 'Mercado');
+  const mercFeitos = itensMerc.filter((i) => i.feito).length;
+  const mercPct = itensMerc.length > 0 ? Math.round((mercFeitos / itensMerc.length) * 100) : 0;
+  function addMercado(texto, cat) {
+    const t = (texto || '').trim();
+    if (!t) return;
+    const existe = itensMerc.some((i) => (i.texto || '').toLowerCase() === t.toLowerCase());
+    if (existe) return;
+    adicionarChecklist({ texto: t, tema: 'Mercado', prazo: cat || 'outros', ordem: itensMerc.length });
+  }
+  function salvarNovoMerc() {
+    if (!novoMerc || !novoMerc.texto.trim()) { setNovoMerc(null); return; }
+    addMercado(novoMerc.texto, novoMerc.cat);
+    setNovoMerc({ texto: '', cat: novoMerc.cat });
+  }
+  function limparComprados() {
+    if (!window.confirm('Remover todos os itens já comprados da lista?')) return;
+    itensMerc.filter((i) => i.feito).forEach((i) => removerChecklist(i.id));
+  }
 
   const nomeP = (id) => { const p = perfis.find((x) => x.id === id); return p ? p.nome : '—'; };
 
@@ -116,6 +164,15 @@ export default function Motorhome({ ir }) {
           <span className="ttl">🚐 Motorhome</span>
         </div>
 
+        {/* abas Custos / Mercado */}
+        <div style={{ display: 'flex', gap: 4, background: '#EFEDE6', borderRadius: 16, padding: 3, marginBottom: 14 }}>
+          {[['custos', '💵 Custos'], ['mercado', '🛒 Mercado']].map(([id, lbl]) => (
+            <button key={id} onClick={() => setAba(id)}
+              style={{ flex: 1, border: 'none', borderRadius: 13, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: aba === id ? 'var(--brand)' : 'transparent', color: aba === id ? '#fff' : 'var(--muted)' }}>{lbl}</button>
+          ))}
+        </div>
+
+        {aba === 'custos' && (<>
         {editPeriodo ? (
           <div className="card" style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Período do motorhome</div>
@@ -268,6 +325,91 @@ export default function Motorhome({ ir }) {
             </p>
           </>
         )}
+        </>)}
+
+        {aba === 'mercado' && (<>
+          {/* progresso do carrinho */}
+          <div className="card" style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 }}>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>{mercFeitos} de {itensMerc.length} no carrinho</span>
+              <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--brand)' }}>{mercPct}%</span>
+            </div>
+            <div style={{ height: 8, borderRadius: 5, background: 'var(--line)', overflow: 'hidden' }}>
+              <div style={{ width: mercPct + '%', height: '100%', borderRadius: 5, background: 'var(--brand)', transition: 'width .3s' }} />
+            </div>
+            {mercFeitos > 0 && (
+              <button className="btn-ghost" style={{ width: '100%', marginTop: 8, fontSize: 12.5 }} onClick={limparComprados}>Remover {mercFeitos} comprado{mercFeitos === 1 ? '' : 's'}</button>
+            )}
+          </div>
+
+          {/* seções por categoria */}
+          {MERCADO_CATS.map(([catId]) => {
+            const lista = itensMerc.filter((i) => (i.prazo || 'outros') === catId);
+            if (lista.length === 0) return null;
+            return (
+              <div key={catId} style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 2px 8px' }}>
+                  <span style={{ fontSize: 15 }}>{MERCADO_EMOJI[catId]}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700 }}>{MERCADO_LABEL[catId]}</span>
+                  <span style={{ fontSize: 11.5, color: 'var(--faint)' }}>{lista.filter((i) => i.feito).length}/{lista.length}</span>
+                </div>
+                <div className="card" style={{ padding: '2px 14px' }}>
+                  {lista.map((it, idx) => (
+                    <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 0', borderTop: idx > 0 ? '0.5px solid var(--line)' : 'none' }}>
+                      <button onClick={() => alternarChecklist(it.id, !it.feito)} aria-label="Marcar" style={{ width: 24, height: 24, borderRadius: '50%', flex: '0 0 auto', cursor: 'pointer', border: it.feito ? 'none' : '2px solid var(--line-strong)', background: it.feito ? 'var(--brand)' : 'transparent', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{it.feito ? '✓' : ''}</button>
+                      <span onClick={() => { const t = window.prompt('Editar item', it.texto); if (t && t.trim()) editarChecklist(it.id, t.trim()); }} style={{ flex: 1, minWidth: 0, fontSize: 14, cursor: 'text', textDecoration: it.feito ? 'line-through' : 'none', color: it.feito ? 'var(--faint)' : 'inherit' }}>{it.texto}</span>
+                      <button onClick={() => removerChecklist(it.id)} aria-label="Apagar" style={{ border: 'none', background: 'none', color: 'var(--faint)', fontSize: 14, cursor: 'pointer', flex: '0 0 auto' }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {itensMerc.length === 0 && (
+            <div className="card" style={{ textAlign: 'center', color: 'var(--faint)', fontSize: 13, marginBottom: 14 }}>
+              Lista vazia. Toque nas sugestões abaixo ou adicione um item.
+            </div>
+          )}
+
+          {/* adicionar item manual */}
+          {novoMerc ? (
+            <div className="card" style={{ marginBottom: 14 }}>
+              <input autoFocus className="input" value={novoMerc.texto} onChange={(e) => setNovoMerc({ ...novoMerc, texto: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && salvarNovoMerc()} placeholder="O que comprar?" style={{ marginBottom: 9 }} />
+              <select className="select" value={novoMerc.cat} onChange={(e) => setNovoMerc({ ...novoMerc, cat: e.target.value })} style={{ width: '100%', marginBottom: 10 }}>
+                {MERCADO_CATS.map(([id, e, l]) => <option key={id} value={id}>{e} {l}</option>)}
+              </select>
+              <button className="btn-primary" onClick={salvarNovoMerc}>Adicionar</button>
+              <button className="btn-ghost" style={{ width: '100%', marginTop: 6 }} onClick={() => setNovoMerc(null)}>Fechar</button>
+            </div>
+          ) : (
+            <button className="btn-outline" style={{ marginBottom: 14 }} onClick={() => setNovoMerc({ texto: '', cat: 'comida' })}>+ Adicionar item</button>
+          )}
+
+          {/* sugestões rápidas */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600, margin: '0 2px 8px' }}>Sugestões — toque para adicionar</div>
+            {MERCADO_CATS.map(([catId, emoji, label]) => {
+              const naLista = new Set(itensMerc.map((i) => (i.texto || '').toLowerCase()));
+              const chips = (SUGESTOES[catId] || []).filter((s) => !naLista.has(s.toLowerCase()));
+              if (chips.length === 0) return null;
+              return (
+                <div key={catId} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', margin: '0 2px 6px' }}>{emoji} {label}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                    {chips.map((s) => (
+                      <button key={s} onClick={() => addMercado(s, catId)} style={{ border: '0.5px solid var(--line-strong)', background: 'var(--surface)', borderRadius: 16, padding: '6px 12px', fontSize: 12.5, fontWeight: 600, color: 'var(--muted)', cursor: 'pointer' }}>+ {s}</button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <p style={{ fontSize: 11, color: 'var(--faint)', lineHeight: 1.5, padding: '0 4px' }}>
+            A lista é compartilhada com todo mundo da viagem e sincroniza em tempo real. Marque o item quando colocar no carrinho.
+          </p>
+        </>)}
       </div>
     </div>
   );
