@@ -26,16 +26,18 @@ export default function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (carregando) return <div className="center-msg">Carregando a viagem…</div>;
-  if (erro || !viagem) return (
+  if (erro) return (
     <div className="center-msg" style={{ flexDirection: 'column', gap: 14, textAlign: 'center', padding: 24 }}>
-      <div style={{ fontSize: 15, fontWeight: 600 }}>Não consegui carregar a viagem</div>
+      <div style={{ fontSize: 15, fontWeight: 600 }}>Não consegui carregar</div>
       <div style={{ fontSize: 13, color: 'var(--ui-muted, #667)' }}>Pode ser a internet. Tente de novo.</div>
       <button className="btn-primary" style={{ maxWidth: 220 }} onClick={() => recarregar()}>Tentar de novo</button>
     </div>
   );
-  // primeira vez da pessoa: pede o nome antes de mostrar o app
+  // primeira vez da pessoa: pede o nome antes de tudo (mesmo sem viagem)
   if (precisaNome) return <BoasVindas />;
   const irPara = (v) => setView(v);
+  // ainda sem nenhuma viagem: abre direto no lobby pra criar/entrar na primeira
+  if (!viagem) return <div className="app ui-theme"><Viagens ir={irPara} /></div>;
   return (
     <div className="app ui-theme">
       {view === 'resumo' && <Resumo ir={irPara} />}
