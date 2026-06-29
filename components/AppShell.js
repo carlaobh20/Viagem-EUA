@@ -13,7 +13,7 @@ import Motorhome from './views/Motorhome';
 import Checklist from './views/Checklist';
 import Viagens from './views/Viagens';
 import Conta from './views/Conta';
-import Menu from './views/Menu';
+import Menu from './views/menu';
 import BoasVindas from './views/BoasVindas';
 export default function AppShell() {
   const { carregando, viagem, erro, recarregar, entrarPorConvite, precisaNome } = useData();
