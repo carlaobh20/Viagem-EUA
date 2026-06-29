@@ -97,12 +97,11 @@ export default function Viagens({ ir }) {
     const i = info(v);
     const g = GRADS[idx % GRADS.length];
     const ativa = viagem && v.id === viagem.id;
-    const bg = v.foto
-      ? `linear-gradient(150deg, rgba(8,28,38,.32) 0%, rgba(8,28,38,.62) 100%), url('${v.foto}')`
-      : g.bg;
     const inkTotal = v.foto ? '#0B5563' : g.ink;
     return (
-      <div onClick={() => abrir(v)} style={{ position: 'relative', margin: '0 0 16px', borderRadius: 24, overflow: 'hidden', padding: 18, minHeight: 172, color: '#fff', cursor: 'pointer', backgroundImage: bg, backgroundSize: 'cover', backgroundPosition: 'center', boxShadow: '0 12px 26px rgba(20,40,50,.18)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', filter: i.passada ? 'saturate(.75)' : 'none', outline: ativa ? '3px solid #fff' : 'none', outlineOffset: -3 }}>
+      <div onClick={() => abrir(v)} style={{ position: 'relative', margin: '0 0 16px', borderRadius: 24, overflow: 'hidden', padding: 18, minHeight: 172, color: '#fff', cursor: 'pointer', background: v.foto ? '#0B3A47' : g.bg, boxShadow: '0 12px 26px rgba(20,40,50,.18)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', filter: i.passada ? 'saturate(.75)' : 'none', outline: ativa ? '3px solid #fff' : 'none', outlineOffset: -3 }}>
+        {v.foto && <img src={v.foto} alt="" loading="eager" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 }} />}
+        {v.foto && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(150deg, rgba(8,28,38,.32) 0%, rgba(8,28,38,.62) 100%)', zIndex: 1 }} />}
         {!v.foto && <Sky />}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
           <span style={{ fontSize: 12, fontWeight: 700, background: 'rgba(0,0,0,.22)', backdropFilter: 'blur(3px)', padding: '6px 13px', borderRadius: 20 }}>{i.tag}</span>
