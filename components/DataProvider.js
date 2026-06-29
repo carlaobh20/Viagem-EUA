@@ -132,6 +132,12 @@ export function DataProvider({ session, children }) {
   async function removerKm(id) { await supabase.from('registros_km').delete().eq('id', id); await carregar(); }
   async function adicionarChecklist({ texto, tema, prazo, ordem }) { await supabase.from('checklist_itens').insert({ viagem_id: viagem.id, texto, tema: tema || 'Geral', prazo: prazo || null, ordem: ordem || 0 }); await carregar(); }
   async function alternarChecklist(id, feito) { await supabase.from('checklist_itens').update({ feito }).eq('id', id); await carregar(); }
+  async function definirValorCompra(id, feito, valor) {
+    const v = (valor === '' || valor == null || isNaN(valor)) ? null : Number(valor);
+    const { error } = await supabase.from('checklist_itens').update({ feito, valor: v }).eq('id', id);
+    if (error) { await supabase.from('checklist_itens').update({ feito }).eq('id', id); } // coluna 'valor' ainda não existe: marca mesmo assim
+    await carregar();
+  }
   async function editarChecklist(id, texto) { await supabase.from('checklist_itens').update({ texto }).eq('id', id); await carregar(); }
   async function removerChecklist(id) { await supabase.from('checklist_itens').delete().eq('id', id); await carregar(); }
   async function semearChecklist(itens) { if (!itens || !itens.length) return; await supabase.from('checklist_itens').insert(itens.map((it) => ({ ...it, viagem_id: viagem.id }))); await supabase.from('viagens').update({ checklist_seed: true }).eq('id', viagem.id); await carregar(); }
@@ -197,7 +203,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }
