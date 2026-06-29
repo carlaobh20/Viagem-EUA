@@ -21,31 +21,35 @@ export function DataProvider({ session, children }) {
 
   const carregar = useCallback(async () => {
     try {
-    const uid = session.user.id;
+    const { data: { session: sess } } = await supabase.auth.getSession();
+    const authUser = sess?.user || session.user;
+    const uid = authUser.id;
     // viagens das quais sou membro
     const { data: ms } = await supabase.from('viagem_membros').select('viagem_id').eq('user_id', uid);
     const vids = (ms || []).map((m) => m.viagem_id);
     let vs = [];
     if (vids.length) { const r = await supabase.from('viagens').select('*').in('id', vids).order('criado_em'); vs = r.data || []; }
-    if (!vs.length) {
-      const r = await supabase.from('viagens').insert({ nome: 'Minha viagem', orcamento_brl: 0, cotacao_usd: 5.4, owner_id: uid }).select().single();
-      if (r.data) { await supabase.from('viagem_membros').insert({ viagem_id: r.data.id, user_id: uid, papel: 'dono' }); vs = [r.data]; }
-    }
     setViagens(vs);
+    // nome de exibição agora é global (auth user_metadata), não preso a uma viagem
+    const metaNome = (authUser.user_metadata?.nome || '').trim();
     const savedId = (typeof window !== 'undefined' && window.localStorage.getItem('viagemAtiva')) || null;
-    const v = vs.find((x) => x.id === savedId) || vs[0];
+    const v = vs.find((x) => x.id === savedId) || vs[0] || null;
     setViagem(v);
-    if (!v) { setErro('Você ainda não está em nenhuma viagem.'); setCarregando(false); return; }
+    setErro(null);
+    // sem nenhuma viagem: não cria nada. Pede o nome se ainda não escolheu; o app abre no lobby de viagens.
+    if (!v) { setPerfil(null); setPrecisaNome(!metaNome); setCarregando(false); return; }
     // garante o meu perfil nesta viagem
     let { data: meu } = await supabase.from('perfis').select('*').eq('user_id', uid).eq('viagem_id', v.id).maybeSingle();
     if (!meu) {
-      const nome = session.user.user_metadata?.nome || session.user.email.split('@')[0];
-      const rp = await supabase.from('perfis').insert({ user_id: uid, nome, cor: corAleatoria(), viagem_id: v.id, nome_definido: false }).select().single();
+      const nome = metaNome || authUser.email.split('@')[0];
+      const rp = await supabase.from('perfis').insert({ user_id: uid, nome, cor: corAleatoria(), viagem_id: v.id, nome_definido: !!metaNome }).select().single();
       meu = rp.data;
     }
     setPerfil(meu);
-    // se o perfil ainda nao teve o nome escolhido pela pessoa, pede
-    setPrecisaNome(meu && meu.nome_definido === false);
+    // pede o nome só se ainda não houver nome global. usuário antigo (já tinha nome na viagem): copia pro global e não pergunta de novo.
+    let precisa = !metaNome;
+    if (precisa && meu && meu.nome_definido && meu.nome) { await supabase.auth.updateUser({ data: { nome: meu.nome } }); precisa = false; }
+    setPrecisaNome(precisa);
     const [{ data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }, { data: ck }] = await Promise.all([
       supabase.from('perfis').select('*').eq('viagem_id', v.id).order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
@@ -145,9 +149,10 @@ export function DataProvider({ session, children }) {
   // define o nome escolhido pela pessoa (tela de boas-vindas ou Minha Conta)
   async function definirMeuNome(nome) {
     const nm = (nome || '').trim();
-    if (!nm || !perfil) return { erro: 'Informe um nome.' };
-    const { error } = await supabase.from('perfis').update({ nome: nm, nome_definido: true }).eq('id', perfil.id);
+    if (!nm) return { erro: 'Informe um nome.' };
+    const { error } = await supabase.auth.updateUser({ data: { nome: nm } });
     if (error) return { erro: 'Não consegui salvar o nome.' };
+    if (perfil) await supabase.from('perfis').update({ nome: nm, nome_definido: true }).eq('id', perfil.id);
     setPrecisaNome(false);
     await carregar();
     return { ok: true };
