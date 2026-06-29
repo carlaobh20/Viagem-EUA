@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useData } from '../DataProvider';
+import { fmtBRL } from '../../lib/format';
 
 const TEMAS = ['Documentos', 'Dinheiro', 'Saúde', 'Bagagem', 'Antes de embarcar'];
 const ICON_TEMA = { Documentos: '📄', Dinheiro: '💳', 'Saúde': '💊', Bagagem: '🧳', 'Antes de embarcar': '🛫' };
@@ -52,11 +53,12 @@ const COMPRAR_SUG = {
 };
 
 export default function Checklist({ ir }) {
-  const { viagem, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist } = useData();
+  const { viagem, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra } = useData();
   const [filtro, setFiltro] = useState('todos');
   const [add, setAdd] = useState(null);
   const [aba, setAba] = useState('tarefas'); // 'tarefas' | 'comprar'
   const [compForm, setCompForm] = useState(null); // { texto, cat }
+  const [precoBox, setPrecoBox] = useState(null); // { id, valor } — caixa de valor ao marcar comprado
 
   useEffect(() => {
     if (viagem && !viagem.checklist_seed && (checklist || []).filter((i) => TEMAS.includes(i.tema)).length === 0) {
@@ -90,6 +92,20 @@ export default function Checklist({ ir }) {
     if (!window.confirm('Remover tudo que já foi comprado?')) return;
     compras.filter((i) => i.feito).forEach((i) => removerChecklist(i.id));
   }
+  function parseBRL(s) {
+    if (s == null) return null;
+    let t = String(s).trim().replace(/[^\d.,]/g, '');
+    if (!t) return null;
+    if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(t);
+    return isNaN(n) ? null : n;
+  }
+  function confirmarCompra() {
+    if (!precoBox) return;
+    definirValorCompra(precoBox.id, true, parseBRL(precoBox.valor));
+    setPrecoBox(null);
+  }
+  const totalComprado = compras.filter((i) => i.feito && i.valor != null).reduce((s, i) => s + Number(i.valor || 0), 0);
 
   function novoItem() {
     if (!add || !add.texto.trim()) { setAdd(null); return; }
@@ -188,6 +204,7 @@ export default function Checklist({ ir }) {
             <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--ui-teal)' }}>{compPct}%</span>
           </div>
           <div style={{ height: 8, borderRadius: 5, background: 'var(--ui-line)', overflow: 'hidden' }}><div style={{ width: compPct + '%', height: '100%', borderRadius: 5, background: 'var(--ui-teal)', transition: 'width .3s' }} /></div>
+          {totalComprado > 0 && <div style={{ fontSize: 12.5, color: 'var(--ui-muted)', marginTop: 10 }}>Total comprado: <b style={{ color: 'var(--ui-ink)' }}>{fmtBRL(totalComprado)}</b></div>}
           {compFeitos > 0 && <button onClick={limparCompradas} style={{ width: '100%', marginTop: 10, border: 'none', background: 'none', color: 'var(--ui-muted)', fontSize: 12.5, cursor: 'pointer' }}>Remover {compFeitos} comprado{compFeitos === 1 ? '' : 's'}</button>}
         </div>
 
@@ -204,10 +221,24 @@ export default function Checklist({ ir }) {
               </div>
               <div style={{ ...card, padding: '4px 14px' }}>
                 {lista.map((it, idx) => (
-                  <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 0', borderTop: idx > 0 ? '1px solid var(--ui-line)' : 'none' }}>
-                    <button onClick={() => alternarChecklist(it.id, !it.feito)} aria-label="Marcar" style={{ width: 24, height: 24, borderRadius: '50%', flex: '0 0 auto', cursor: 'pointer', border: it.feito ? 'none' : '2px solid var(--ui-line)', background: it.feito ? 'var(--ui-teal)' : 'transparent', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{it.feito ? '✓' : ''}</button>
-                    <span onClick={() => { const t = window.prompt('Editar item', it.texto); if (t && t.trim()) editarChecklist(it.id, t.trim()); }} style={{ flex: 1, minWidth: 0, fontSize: 14, cursor: 'text', textDecoration: it.feito ? 'line-through' : 'none', color: it.feito ? 'var(--ui-faint)' : 'var(--ui-ink)' }}>{it.texto}</span>
-                    <button onClick={() => removerChecklist(it.id)} aria-label="Apagar" style={{ border: 'none', background: 'none', color: 'var(--ui-faint)', fontSize: 14, cursor: 'pointer', flex: '0 0 auto' }}>✕</button>
+                  <div key={it.id} style={{ borderTop: idx > 0 ? '1px solid var(--ui-line)' : 'none', padding: '12px 0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                      <button onClick={() => it.feito ? definirValorCompra(it.id, false, it.valor) : setPrecoBox({ id: it.id, valor: it.valor != null ? String(it.valor) : '' })} aria-label="Marcar" style={{ width: 24, height: 24, borderRadius: '50%', flex: '0 0 auto', cursor: 'pointer', border: it.feito ? 'none' : '2px solid var(--ui-line)', background: it.feito ? 'var(--ui-teal)' : 'transparent', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{it.feito ? '✓' : ''}</button>
+                      <span onClick={() => { const t = window.prompt('Editar item', it.texto); if (t && t.trim()) editarChecklist(it.id, t.trim()); }} style={{ flex: 1, minWidth: 0, fontSize: 14, cursor: 'text', textDecoration: it.feito ? 'line-through' : 'none', color: it.feito ? 'var(--ui-faint)' : 'var(--ui-ink)' }}>{it.texto}</span>
+                      {it.feito && it.valor != null && <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ui-teal)', background: 'rgba(0,199,177,.12)', padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap', flex: '0 0 auto' }}>{fmtBRL(it.valor)}</span>}
+                      <button onClick={() => { if (window.confirm('Apagar este item?')) removerChecklist(it.id); }} aria-label="Apagar" style={{ border: 'none', background: 'none', color: 'var(--ui-faint)', fontSize: 14, cursor: 'pointer', flex: '0 0 auto' }}>✕</button>
+                    </div>
+                    {precoBox && precoBox.id === it.id && (
+                      <div style={{ marginTop: 11, background: 'var(--ui-bg)', borderRadius: 13, padding: 12 }}>
+                        <div style={{ fontSize: 12.5, color: 'var(--ui-muted)', marginBottom: 7 }}>Quanto você pagou? <span style={{ color: 'var(--ui-faint)' }}>(opcional)</span></div>
+                        <input autoFocus inputMode="decimal" value={precoBox.valor} onChange={(e) => setPrecoBox({ ...precoBox, valor: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && confirmarCompra()} placeholder="R$ 0,00" style={{ width: '100%', border: '1px solid var(--ui-line)', borderRadius: 11, padding: '10px 12px', fontSize: 15, background: 'var(--ui-card)', color: 'var(--ui-ink)', marginBottom: 10 }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={confirmarCompra} style={{ flex: 1, border: 'none', borderRadius: 11, padding: '11px', background: 'var(--ui-teal)', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>✓ Comprei</button>
+                          <button onClick={() => { if (window.confirm('Apagar este item da lista?')) { removerChecklist(it.id); setPrecoBox(null); } }} style={{ border: '1px solid var(--ui-line)', borderRadius: 11, padding: '11px 14px', background: 'var(--ui-card)', color: '#C0392B', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', flex: '0 0 auto' }}>🗑 Desisti</button>
+                        </div>
+                        <button onClick={() => setPrecoBox(null)} style={{ width: '100%', border: 'none', background: 'none', color: 'var(--ui-muted)', fontSize: 12.5, marginTop: 7, cursor: 'pointer' }}>cancelar</button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
