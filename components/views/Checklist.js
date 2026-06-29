@@ -52,11 +52,11 @@ const COMPRAR_SUG = {
   outros: ['Travesseiro de pescoço', 'Garrafa de água', 'Snacks de viagem'],
 };
 
-export default function Checklist({ ir }) {
+export default function Checklist({ ir, abaInicial }) {
   const { viagem, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra } = useData();
   const [filtro, setFiltro] = useState('todos');
   const [add, setAdd] = useState(null);
-  const [aba, setAba] = useState('tarefas'); // 'tarefas' | 'comprar'
+  const [aba, setAba] = useState(abaInicial === 'comprar' ? 'comprar' : 'tarefas'); // 'tarefas' | 'comprar'
   const [compForm, setCompForm] = useState(null); // { texto, cat }
   const [precoBox, setPrecoBox] = useState(null); // { id, valor } — caixa de valor ao marcar comprado
 
