@@ -13,6 +13,7 @@ import Motorhome from './views/Motorhome';
 import Checklist from './views/Checklist';
 import Viagens from './views/Viagens';
 import Conta from './views/Conta';
+import Menu from './views/Menu';
 import BoasVindas from './views/BoasVindas';
 export default function AppShell() {
   const { carregando, viagem, erro, recarregar, entrarPorConvite, precisaNome } = useData();
@@ -49,6 +50,8 @@ export default function AppShell() {
       {view === 'mapa' && <Mapa ir={irPara} />}
       {view === 'motorhome' && <Motorhome ir={irPara} />}
       {view === 'checklist' && <Checklist ir={irPara} />}
+      {view === 'compras' && <Checklist ir={irPara} abaInicial="comprar" />}
+      {view === 'menu' && <Menu ir={irPara} />}
       {view === 'viagens' && <Viagens ir={irPara} />}
       {view === 'conta' && <Conta ir={irPara} />}
       {view !== 'novo' && view !== 'viagens' && view !== 'conta' && <Nav view={view} setView={setView} />}
