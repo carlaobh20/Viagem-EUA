@@ -15,10 +15,12 @@ const GRADS = [
 ];
 
 export default function Viagens({ ir }) {
-  const { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem } = useData();
+  const { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, guardados, definirMeta, adicionarGuardado, removerGuardado } = useData();
   const [totais, setTotais] = useState({});
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [metaForm, setMetaForm] = useState(null); // string do valor da meta em edição
+  const [guardForm, setGuardForm] = useState(null); // { banco, valor }
   const [emailUser, setEmailUser] = useState('');
   const hoje = new Date().toISOString().slice(0, 10);
 
@@ -100,7 +102,7 @@ export default function Viagens({ ir }) {
     const inkTotal = v.foto ? '#0B5563' : g.ink;
     return (
       <div onClick={() => abrir(v)} style={{ position: 'relative', margin: '0 0 16px', borderRadius: 24, overflow: 'hidden', padding: 18, minHeight: 172, color: '#fff', cursor: 'pointer', background: v.foto ? '#0B3A47' : g.bg, boxShadow: '0 12px 26px rgba(20,40,50,.18)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', filter: i.passada ? 'saturate(.75)' : 'none', outline: ativa ? '3px solid #fff' : 'none', outlineOffset: -3 }}>
-        {v.foto && <img src={v.foto} alt="" loading="eager" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 }} />}
+        {v.foto && <img src={v.foto} alt="" loading="eager" onLoad={(e) => { e.currentTarget.style.opacity = 1; }} ref={(el) => { if (el && el.complete) el.style.opacity = 1; }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0, opacity: 0, transition: 'opacity .45s ease' }} />}
         {v.foto && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(150deg, rgba(8,28,38,.32) 0%, rgba(8,28,38,.62) 100%)', zIndex: 1 }} />}
         {!v.foto && <Sky />}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
@@ -122,6 +124,19 @@ export default function Viagens({ ir }) {
     );
   }
 
+  // ----- Minha meta (viagem ativa) -----
+  const parseValor = (s) => { if (s == null) return null; let t = String(s).trim().replace(/[^\d.,]/g, ''); if (!t) return null; if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); const n = parseFloat(t); return isNaN(n) ? null : n; };
+  const meta = perfil && perfil.meta_valor != null ? Number(perfil.meta_valor) : null;
+  const guardado = (guardados || []).reduce((s, g) => s + Number(g.valor || 0), 0);
+  const metaPct = meta > 0 ? Math.min(100, Math.round((guardado / meta) * 100)) : 0;
+  const metaFalta = Math.max(0, (meta || 0) - guardado);
+  const hojeM = new Date().toISOString().slice(0, 10);
+  const diasMeta = viagem && viagem.data_ida && viagem.data_ida > hojeM ? Math.ceil((new Date(viagem.data_ida + 'T00:00:00') - new Date(hojeM + 'T00:00:00')) / 86400000) : 0;
+  const mesesMeta = Math.max(1, Math.ceil(diasMeta / 30));
+  const mensalMeta = meta > 0 && diasMeta > 0 ? metaFalta / mesesMeta : 0;
+  function salvarMeta() { definirMeta(parseValor(metaForm)); setMetaForm(null); }
+  function salvarGuardado() { if (!guardForm) return; const v = parseValor(guardForm.valor); if (!guardForm.banco.trim() || !(v > 0)) { setGuardForm(null); return; } adicionarGuardado(guardForm.banco, v); setGuardForm({ banco: '', valor: '' }); }
+
   return (
     <div style={{ background: '#F4F8FB', minHeight: '100%', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif', color: '#16242C', paddingBottom: 28 }}>
       {/* HEADER com foto ao fundo + degradê dissolvendo no app */}
@@ -141,6 +156,75 @@ export default function Viagens({ ir }) {
 
         {passadas.length > 0 && <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: '#7B8794', margin: '24px 4px 12px' }}>VIAGENS REALIZADAS</div>}
         {passadas.map((v, i) => <Card key={v.id} v={v} idx={i + proximas.length} />)}
+
+        {viagem && (
+          <div style={{ margin: '22px 0 4px' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: '#00A99B', margin: '0 4px 12px' }}>MINHA META · {viagem.nome}</div>
+            {meta == null ? (
+              <div style={{ background: '#fff', borderRadius: 20, padding: 18, boxShadow: '0 8px 24px rgba(20,40,50,.07)' }}>
+                {metaForm == null ? (
+                  <>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Quanto você quer guardar pra essa viagem?</div>
+                    <div style={{ fontSize: 12.5, color: '#7B8794', marginBottom: 12 }}>Defina sua meta e acompanhe quanto já separou, em cada banco.</div>
+                    <button onClick={() => setMetaForm(viagem.orcamento_brl ? String(viagem.orcamento_brl) : '')} style={{ width: '100%', border: 'none', borderRadius: 12, padding: 13, background: '#13A98E', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Definir minha meta</button>
+                  </>
+                ) : (
+                  <>
+                    <input autoFocus inputMode="decimal" value={metaForm} onChange={(e) => setMetaForm(e.target.value)} placeholder="Ex.: 30000" style={{ width: '100%', border: '1px solid #E6E9E6', borderRadius: 12, padding: '12px 14px', fontSize: 16, marginBottom: 10 }} />
+                    <button onClick={salvarMeta} style={{ width: '100%', border: 'none', borderRadius: 12, padding: 13, background: '#13A98E', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Salvar meta</button>
+                    <button onClick={() => setMetaForm(null)} style={{ width: '100%', border: 'none', background: 'none', color: '#7B8794', fontSize: 13, marginTop: 6, cursor: 'pointer' }}>cancelar</button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div style={{ background: '#fff', borderRadius: 22, overflow: 'hidden', boxShadow: '0 8px 26px rgba(20,40,50,.08)' }}>
+                <div style={{ background: 'linear-gradient(135deg,#0E7C68 0%,#13A98E 60%,#1FB6A6 100%)', color: '#fff', padding: '18px 20px 20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <span style={{ fontSize: 12.5, opacity: 0.85 }}>Guardado de {fmtBRL(meta)}</span>
+                    <button onClick={() => setMetaForm(String(meta))} style={{ border: 'none', background: 'none', color: '#fff', opacity: 0.85, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>editar meta</button>
+                  </div>
+                  <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-1px', margin: '2px 0 1px' }}>{fmtBRL(guardado)}</div>
+                  <div style={{ fontSize: 12.5, opacity: 0.85 }}>{metaPct}% da meta</div>
+                  <div style={{ height: 10, borderRadius: 7, background: 'rgba(255,255,255,.25)', overflow: 'hidden', margin: '13px 0 8px' }}><div style={{ width: metaPct + '%', height: '100%', borderRadius: 7, background: '#fff', transition: 'width .3s' }} /></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, opacity: 0.92 }}><span>Faltam {fmtBRL(metaFalta)}</span>{diasMeta > 0 && <span>até {fmtDia(viagem.data_ida)}</span>}</div>
+                </div>
+                {metaForm != null && (
+                  <div style={{ padding: 16, borderTop: '1px solid #EDEFEC', background: '#F7F9F7' }}>
+                    <input autoFocus inputMode="decimal" value={metaForm} onChange={(e) => setMetaForm(e.target.value)} placeholder="Nova meta" style={{ width: '100%', border: '1px solid #E6E9E6', borderRadius: 12, padding: '11px 13px', fontSize: 15, marginBottom: 9 }} />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={salvarMeta} style={{ flex: 1, border: 'none', borderRadius: 11, padding: 11, background: '#13A98E', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>Salvar</button>
+                      <button onClick={() => { definirMeta(null); setMetaForm(null); }} style={{ border: '1px solid #E6E9E6', borderRadius: 11, padding: '11px 14px', background: '#fff', color: '#B53D2E', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>Remover</button>
+                    </div>
+                  </div>
+                )}
+                {mensalMeta > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderTop: '1px solid #EDEFEC' }}>
+                    <span style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(19,169,142,.12)', color: '#13A98E', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flex: '0 0 auto' }}>📆</span>
+                    <div><div style={{ fontSize: 14, fontWeight: 700 }}>Guarde {fmtBRL(mensalMeta)}/mês</div><div style={{ fontSize: 12, color: '#7B8794', marginTop: 1 }}>pra bater a meta {mesesMeta === 1 ? 'no mês que falta' : `nos ${mesesMeta} meses que faltam`}</div></div>
+                  </div>
+                )}
+                {guardados.map((g) => (
+                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 18px', borderTop: '1px solid #EDEFEC' }}>
+                    <span style={{ width: 36, height: 36, borderRadius: 11, background: '#0E3A44', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800, flex: '0 0 auto' }}>{(g.banco || '?').slice(0, 1).toUpperCase()}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 14.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.banco}</div></div>
+                    <span style={{ fontSize: 14.5, fontWeight: 700 }}>{fmtBRL(Number(g.valor))}</span>
+                    <button onClick={() => { if (window.confirm('Remover este guardado?')) removerGuardado(g.id); }} aria-label="Remover" style={{ border: 'none', background: 'none', color: '#A6ADA8', fontSize: 15, cursor: 'pointer', flex: '0 0 auto' }}>✕</button>
+                  </div>
+                ))}
+                {guardForm ? (
+                  <div style={{ padding: 16, borderTop: '1px solid #EDEFEC', background: '#F7F9F7' }}>
+                    <input autoFocus value={guardForm.banco} onChange={(e) => setGuardForm({ ...guardForm, banco: e.target.value })} placeholder="Banco (ex.: Nubank)" style={{ width: '100%', border: '1px solid #E6E9E6', borderRadius: 12, padding: '11px 13px', fontSize: 14, marginBottom: 9 }} />
+                    <input inputMode="decimal" value={guardForm.valor} onChange={(e) => setGuardForm({ ...guardForm, valor: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && salvarGuardado()} placeholder="Valor guardado" style={{ width: '100%', border: '1px solid #E6E9E6', borderRadius: 12, padding: '11px 13px', fontSize: 14, marginBottom: 10 }} />
+                    <button onClick={salvarGuardado} style={{ width: '100%', border: 'none', borderRadius: 12, padding: 12, background: '#13A98E', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Adicionar</button>
+                    <button onClick={() => setGuardForm(null)} style={{ width: '100%', border: 'none', background: 'none', color: '#7B8794', fontSize: 12.5, marginTop: 6, cursor: 'pointer' }}>fechar</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setGuardForm({ banco: '', valor: '' })} style={{ width: '100%', textAlign: 'center', padding: 15, color: '#13A98E', fontWeight: 700, fontSize: 14, border: 'none', background: 'none', borderTop: '1px solid #EDEFEC', cursor: 'pointer' }}>+ Adicionar guardado</button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {msg && <div style={{ fontSize: 12.5, color: '#00A99B', textAlign: 'center', marginTop: 14 }}>{msg}</div>}
       </div>
