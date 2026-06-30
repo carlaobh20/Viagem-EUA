@@ -14,6 +14,7 @@ export function DataProvider({ session, children }) {
   const [acertos, setAcertos] = useState([]);
   const [registrosKm, setRegistrosKm] = useState([]);
   const [checklist, setChecklist] = useState([]);
+  const [guardados, setGuardados] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
   const [gastoEditando, setGastoEditando] = useState(null);
@@ -59,6 +60,8 @@ export function DataProvider({ session, children }) {
       supabase.from('checklist_itens').select('*').eq('viagem_id', v.id).order('ordem'),
     ]);
     setPerfis(ps || []); setPontos(pts || []); setGastos(gs || []); setAcertos(acs || []); setRegistrosKm(rk || []); setChecklist(ck || []);
+    const { data: gd } = await supabase.from('guardados').select('*').eq('viagem_id', v.id).eq('user_id', uid).order('criado_em');
+    setGuardados(gd || []);
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) { const { data: dv } = await supabase.from('gasto_divisao').select('*').in('gasto_id', ids); setDivisoes(dv || []); }
     else setDivisoes([]);
@@ -158,6 +161,23 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
+  async function definirMeta(valor) {
+    if (!perfil) return;
+    const v = (valor === '' || valor == null || isNaN(valor)) ? null : Number(valor);
+    await supabase.from('perfis').update({ meta_valor: v }).eq('id', perfil.id);
+    await carregar();
+  }
+  async function adicionarGuardado(banco, valor) {
+    const b = (banco || '').trim(); const v = Number(valor);
+    if (!b || !(v > 0) || !viagem) return;
+    await supabase.from('guardados').insert({ viagem_id: viagem.id, user_id: session.user.id, banco: b, valor: v });
+    await carregar();
+  }
+  async function removerGuardado(id) {
+    await supabase.from('guardados').delete().eq('id', id);
+    await carregar();
+  }
+
   function trocarViagem(id) { if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', id); carregar(); }
   async function definirFotoViagem(id, url) { await supabase.from('viagens').update({ foto: url || null }).eq('id', id); await carregar(); }
   async function criarViagem(nome) {
@@ -208,7 +228,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, guardados, definirMeta, adicionarGuardado, removerGuardado, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }
