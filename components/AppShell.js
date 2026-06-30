@@ -1,20 +1,25 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useData } from './DataProvider';
 import Nav from './Nav';
-import Resumo from './views/Resumo';
-import Gastos from './views/Gastos';
-import Novo from './views/Novo';
-import Pessoas from './views/Pessoas';
-import Acerto from './views/Acerto';
-import Roteiro from './views/Roteiro';
-import Mapa from './views/Mapa';
-import Motorhome from './views/Motorhome';
-import Checklist from './views/Checklist';
-import Viagens from './views/Viagens';
-import Conta from './views/Conta';
-import Menu from './views/menu';
-import BoasVindas from './views/BoasVindas';
+
+// telas carregadas sob demanda (cada uma vira um pedaço separado, baixado só ao abrir)
+const Resumo = lazy(() => import('./views/Resumo'));
+const Gastos = lazy(() => import('./views/Gastos'));
+const Novo = lazy(() => import('./views/Novo'));
+const Pessoas = lazy(() => import('./views/Pessoas'));
+const Acerto = lazy(() => import('./views/Acerto'));
+const Roteiro = lazy(() => import('./views/Roteiro'));
+const Mapa = lazy(() => import('./views/Mapa'));
+const Motorhome = lazy(() => import('./views/Motorhome'));
+const Checklist = lazy(() => import('./views/Checklist'));
+const Viagens = lazy(() => import('./views/Viagens'));
+const Conta = lazy(() => import('./views/Conta'));
+const Menu = lazy(() => import('./views/menu'));
+const BoasVindas = lazy(() => import('./views/BoasVindas'));
+
+const Carregando = () => <div className="center-msg">Carregando…</div>;
+
 export default function AppShell() {
   const { carregando, viagem, erro, recarregar, entrarPorConvite, precisaNome } = useData();
   const [view, setView] = useState('viagens');
@@ -35,25 +40,27 @@ export default function AppShell() {
     </div>
   );
   // primeira vez da pessoa: pede o nome antes de tudo (mesmo sem viagem)
-  if (precisaNome) return <BoasVindas />;
+  if (precisaNome) return <Suspense fallback={<Carregando />}><BoasVindas /></Suspense>;
   const irPara = (v) => setView(v);
   // ainda sem nenhuma viagem: abre direto no lobby pra criar/entrar na primeira
-  if (!viagem) return <div className="app ui-theme"><Viagens ir={irPara} /></div>;
+  if (!viagem) return <div className="app ui-theme"><Suspense fallback={<Carregando />}><Viagens ir={irPara} /></Suspense></div>;
   return (
     <div className="app ui-theme">
-      {view === 'resumo' && <Resumo ir={irPara} />}
-      {view === 'gastos' && <Gastos ir={irPara} />}
-      {view === 'novo' && <Novo ir={irPara} />}
-      {view === 'pessoas' && <Pessoas ir={irPara} />}
-      {view === 'acerto' && <Acerto ir={irPara} />}
-      {view === 'roteiro' && <Roteiro ir={irPara} />}
-      {view === 'mapa' && <Mapa ir={irPara} />}
-      {view === 'motorhome' && <Motorhome ir={irPara} />}
-      {view === 'checklist' && <Checklist ir={irPara} />}
-      {view === 'compras' && <Checklist ir={irPara} abaInicial="comprar" />}
-      {view === 'menu' && <Menu ir={irPara} />}
-      {view === 'viagens' && <Viagens ir={irPara} />}
-      {view === 'conta' && <Conta ir={irPara} />}
+      <Suspense fallback={<Carregando />}>
+        {view === 'resumo' && <Resumo ir={irPara} />}
+        {view === 'gastos' && <Gastos ir={irPara} />}
+        {view === 'novo' && <Novo ir={irPara} />}
+        {view === 'pessoas' && <Pessoas ir={irPara} />}
+        {view === 'acerto' && <Acerto ir={irPara} />}
+        {view === 'roteiro' && <Roteiro ir={irPara} />}
+        {view === 'mapa' && <Mapa ir={irPara} />}
+        {view === 'motorhome' && <Motorhome ir={irPara} />}
+        {view === 'checklist' && <Checklist ir={irPara} />}
+        {view === 'compras' && <Checklist ir={irPara} abaInicial="comprar" />}
+        {view === 'menu' && <Menu ir={irPara} />}
+        {view === 'viagens' && <Viagens ir={irPara} />}
+        {view === 'conta' && <Conta ir={irPara} />}
+      </Suspense>
       {view !== 'novo' && view !== 'viagens' && view !== 'conta' && <Nav view={view} setView={setView} />}
     </div>
   );
