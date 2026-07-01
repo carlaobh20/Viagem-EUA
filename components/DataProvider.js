@@ -140,7 +140,7 @@ export function DataProvider({ session, children }) {
   async function removerGasto(id) { await supabase.from('gastos').delete().eq('id', id); await carregar(); }
   async function adicionarKm({ km, valorOrigem, unidade, data, origem, destino, nota }) { await supabase.from('registros_km').insert({ viagem_id: viagem.id, km, valor_origem: valorOrigem, unidade, data: data || null, origem: origem || null, destino: destino || null, nota: nota || null }); await carregar(); }
   async function removerKm(id) { await supabase.from('registros_km').delete().eq('id', id); await carregar(); }
-  async function adicionarChecklist({ texto, tema, prazo, ordem }) { await supabase.from('checklist_itens').insert({ viagem_id: viagem.id, texto, tema: tema || 'Geral', prazo: prazo || null, ordem: ordem || 0 }); await carregar(); }
+  async function adicionarChecklist({ texto, tema, prazo, ordem }) { await supabase.from('checklist_itens').insert({ viagem_id: viagem.id, user_id: session.user.id, texto, tema: tema || 'Geral', prazo: prazo || null, ordem: ordem || 0 }); await carregar(); }
   async function alternarChecklist(id, feito) { await supabase.from('checklist_itens').update({ feito }).eq('id', id); await carregar(); }
   async function definirValorCompra(id, feito, valor) {
     const v = (valor === '' || valor == null || isNaN(valor)) ? null : Number(valor);
@@ -150,7 +150,7 @@ export function DataProvider({ session, children }) {
   }
   async function editarChecklist(id, texto) { await supabase.from('checklist_itens').update({ texto }).eq('id', id); await carregar(); }
   async function removerChecklist(id) { await supabase.from('checklist_itens').delete().eq('id', id); await carregar(); }
-  async function semearChecklist(itens) { if (!itens || !itens.length) return; await supabase.from('checklist_itens').insert(itens.map((it) => ({ ...it, viagem_id: viagem.id }))); await supabase.from('viagens').update({ checklist_seed: true }).eq('id', viagem.id); await carregar(); }
+  async function semearChecklist(itens) { if (!itens || !itens.length) return; await supabase.from('checklist_itens').insert(itens.map((it) => ({ ...it, viagem_id: viagem.id, user_id: session.user.id }))); await supabase.from('viagens').update({ checklist_seed: true }).eq('id', viagem.id); await carregar(); }
 
   // define o nome escolhido pela pessoa (tela de boas-vindas ou Minha Conta)
   async function definirMeuNome(nome) {
