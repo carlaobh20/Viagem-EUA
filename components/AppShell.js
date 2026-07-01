@@ -16,6 +16,7 @@ const Checklist = lazy(() => import('./views/Checklist'));
 const Viagens = lazy(() => import('./views/Viagens'));
 const Conta = lazy(() => import('./views/Conta'));
 const Menu = lazy(() => import('./views/menu'));
+const Lugares = lazy(() => import('./views/Lugares'));
 const BoasVindas = lazy(() => import('./views/BoasVindas'));
 
 const Carregando = () => <div className="center-msg">Carregando…</div>;
@@ -58,6 +59,7 @@ export default function AppShell() {
         {view === 'checklist' && <Checklist ir={irPara} />}
         {view === 'compras' && <Checklist ir={irPara} abaInicial="comprar" />}
         {view === 'menu' && <Menu ir={irPara} />}
+        {view === 'lugares' && <Lugares ir={irPara} />}
         {view === 'viagens' && <Viagens ir={irPara} />}
         {view === 'conta' && <Conta ir={irPara} />}
       </Suspense>
