@@ -15,6 +15,7 @@ export function DataProvider({ session, children }) {
   const [registrosKm, setRegistrosKm] = useState([]);
   const [checklist, setChecklist] = useState([]);
   const [guardados, setGuardados] = useState([]);
+  const [lugares, setLugares] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
   const [gastoEditando, setGastoEditando] = useState(null);
@@ -62,6 +63,8 @@ export function DataProvider({ session, children }) {
     setPerfis(ps || []); setPontos(pts || []); setGastos(gs || []); setAcertos(acs || []); setRegistrosKm(rk || []); setChecklist(ck || []);
     const { data: gd } = await supabase.from('guardados').select('*').eq('viagem_id', v.id).eq('user_id', uid).order('criado_em');
     setGuardados(gd || []);
+    const { data: lg } = await supabase.from('lugares').select('*').eq('viagem_id', v.id).order('criado_em');
+    setLugares(lg || []);
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) { const { data: dv } = await supabase.from('gasto_divisao').select('*').in('gasto_id', ids); setDivisoes(dv || []); }
     else setDivisoes([]);
@@ -178,6 +181,21 @@ export function DataProvider({ session, children }) {
     await carregar();
   }
 
+  async function adicionarLugar({ nome, endereco, comentario, prioridade }) {
+    const n = (nome || '').trim();
+    if (!n || !viagem) return;
+    await supabase.from('lugares').insert({ viagem_id: viagem.id, nome: n, endereco: (endereco || '').trim() || null, comentario: (comentario || '').trim() || null, prioridade: prioridade || 'sugerido' });
+    await carregar();
+  }
+  async function editarLugar(id, campos) { await supabase.from('lugares').update(campos).eq('id', id); await carregar(); }
+  async function removerLugar(id) { await supabase.from('lugares').delete().eq('id', id); await carregar(); }
+  async function lugarParaRoteiro(lugar, data, hora) {
+    if (!viagem || !lugar) return;
+    await supabase.from('pontos_roteiro').insert({ viagem_id: viagem.id, nome: lugar.nome, local: lugar.endereco || null, nota: lugar.comentario || null, data_inicio: data || null, hora: hora || null, tipo: 'passeio', ordem: 999 });
+    await supabase.from('lugares').update({ no_roteiro: true }).eq('id', lugar.id);
+    await carregar();
+  }
+
   function trocarViagem(id) { if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', id); carregar(); }
   async function definirFotoViagem(id, url) { await supabase.from('viagens').update({ foto: url || null }).eq('id', id); await carregar(); }
   async function criarViagem(nome) {
@@ -228,7 +246,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, guardados, definirMeta, adicionarGuardado, removerGuardado, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }
