@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
 import { useData } from '../DataProvider';
+import { supabase } from '../../lib/supabase';
 import { CATEGORIAS } from '../../lib/format';
 
 export default function Novo({ ir }) {
@@ -48,7 +49,9 @@ export default function Novo({ ir }) {
       const { blob, base64, mediaType } = await reduzirImagem(file);
       setReciboBlob(blob);
       setReciboPreview(URL.createObjectURL(blob));
-      const r = await fetch('/api/recibo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ imageBase64: base64, mediaType }) });
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess && sess.session ? sess.session.access_token : null;
+      const r = await fetch('/api/recibo', { method: 'POST', headers: { 'content-type': 'application/json', authorization: token ? `Bearer ${token}` : '' }, body: JSON.stringify({ imageBase64: base64, mediaType }) });
       const j = await r.json();
       if (j.ok && j.dados) preencher(j.dados);
       else alert('A foto foi anexada, mas não consegui ler os dados. Preencha à mão. ' + (j.erro || ''));
