@@ -13,10 +13,11 @@ const IT = {
   lugares: { id: 'lugares', label: 'Lugares para Ir', sub: 'Lista de desejos: obrigatórios e sugeridos', cor: '#D4537E', bg: 'rgba(212,83,126,.14)', icon: <><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></> },
   pessoas: { id: 'pessoas', label: 'Pessoas', sub: 'Quem está na viagem', cor: '#534AB7', bg: 'rgba(83,74,183,.14)', icon: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></> },
   viagens: { id: 'viagens', label: 'Trocar de viagem', sub: 'Ver e abrir suas viagens', cor: '#5F5E5A', bg: 'rgba(95,94,90,.12)', icon: <><rect x="3" y="7" width="18" height="13" rx="2.5" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></> },
+  frases: { id: 'frases', label: 'Conversar em inglês', sub: 'Frases prontas por situação', cor: '#0E7C9C', bg: 'rgba(14,124,156,.12)', icon: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h8M8 13h5" /></> },
 };
 
 const INDIVIDUAL = [IT.checklist, IT.compras];
-const COMPARTILHADO = [IT.gastos, IT.acerto, IT.lugares, IT.pessoas, IT.viagens];
+const COMPARTILHADO = [IT.gastos, IT.acerto, IT.lugares, IT.frases, IT.pessoas, IT.viagens];
 
 export default function Menu({ ir }) {
   const card = { background: 'var(--ui-card)', borderRadius: 18, boxShadow: 'var(--ui-shadow)' };
