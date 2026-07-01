@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useData } from '../DataProvider';
 import { fmtBRL } from '../../lib/format';
 
@@ -53,28 +53,34 @@ const COMPRAR_SUG = {
 };
 
 export default function Checklist({ ir, abaInicial }) {
-  const { viagem, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra } = useData();
+  const { viagem, perfil, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra } = useData();
+  const meu = perfil?.user_id;
+  const souDono = (i) => i.user_id === meu || i.user_id == null; // meus itens + itens antigos (compartilhados)
   const [filtro, setFiltro] = useState('todos');
   const [add, setAdd] = useState(null);
   const [aba, setAba] = useState(abaInicial === 'comprar' ? 'comprar' : 'tarefas'); // 'tarefas' | 'comprar'
   const [compForm, setCompForm] = useState(null); // { texto, cat }
   const [precoBox, setPrecoBox] = useState(null); // { id, valor } — caixa de valor ao marcar comprado
 
+  const semeado = useRef(false);
   useEffect(() => {
-    if (viagem && !viagem.checklist_seed && (checklist || []).filter((i) => TEMAS.includes(i.tema)).length === 0) {
+    if (semeado.current || !viagem) return;
+    const meusTemas = (checklist || []).filter((i) => TEMAS.includes(i.tema) && souDono(i));
+    if (meusTemas.length === 0) {
+      semeado.current = true;
       semearChecklist(TEMPLATE.map(([texto, tema, prazo], i) => ({ texto, tema, prazo, ordem: i })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viagem?.checklist_seed]);
+  }, [viagem?.id, meu]);
 
-  const itens = (checklist || []).filter((i) => TEMAS.includes(i.tema));
+  const itens = (checklist || []).filter((i) => TEMAS.includes(i.tema) && souDono(i));
   const visiveis = filtro === 'todos' ? itens : itens.filter((i) => i.prazo === filtro);
   const feitos = visiveis.filter((i) => i.feito).length;
   const total = visiveis.length;
   const pct = total > 0 ? Math.round((feitos / total) * 100) : 0;
 
   // ----- Comprar -----
-  const compras = (checklist || []).filter((i) => i.tema === 'Comprar');
+  const compras = (checklist || []).filter((i) => i.tema === 'Comprar' && souDono(i));
   const compFeitos = compras.filter((i) => i.feito).length;
   const compPct = compras.length > 0 ? Math.round((compFeitos / compras.length) * 100) : 0;
   function addCompra(texto, cat) {
