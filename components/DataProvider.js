@@ -181,10 +181,10 @@ export function DataProvider({ session, children }) {
     await carregar();
   }
 
-  async function adicionarLugar({ nome, endereco, comentario, prioridade }) {
+  async function adicionarLugar({ nome, endereco, comentario, prioridade, categoria }) {
     const n = (nome || '').trim();
     if (!n || !viagem) return;
-    await supabase.from('lugares').insert({ viagem_id: viagem.id, nome: n, endereco: (endereco || '').trim() || null, comentario: (comentario || '').trim() || null, prioridade: prioridade || 'sugerido' });
+    await supabase.from('lugares').insert({ viagem_id: viagem.id, nome: n, endereco: (endereco || '').trim() || null, comentario: (comentario || '').trim() || null, prioridade: prioridade || 'sugerido', categoria: categoria || 'outro' });
     await carregar();
   }
   async function editarLugar(id, campos) { await supabase.from('lugares').update(campos).eq('id', id); await carregar(); }
