@@ -23,6 +23,10 @@ const ITENS = [
     icon: <><circle cx="9" cy="20" r="1.6" /><circle cx="19" cy="20" r="1.6" /><path d="M2 3h3l2.2 11a2 2 0 0 0 2 1.6h8.4a2 2 0 0 0 2-1.6L22 7H6" /></>,
   },
   {
+    id: 'lugares', label: 'Lugares para Ir', sub: 'Lista de desejos: obrigatórios e sugeridos', cor: '#D4537E', bg: 'rgba(212,83,126,.14)',
+    icon: <><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></>,
+  },
+  {
     id: 'pessoas', label: 'Pessoas', sub: 'Quem está na viagem', cor: '#534AB7', bg: 'rgba(83,74,183,.14)',
     icon: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
   },
