@@ -17,6 +17,7 @@ const Viagens = lazy(() => import('./views/Viagens'));
 const Conta = lazy(() => import('./views/Conta'));
 const Menu = lazy(() => import('./views/menu'));
 const Lugares = lazy(() => import('./views/Lugares'));
+const Frases = lazy(() => import('./views/Frases'));
 const BoasVindas = lazy(() => import('./views/BoasVindas'));
 
 const Carregando = () => <div className="center-msg">Carregando…</div>;
@@ -24,6 +25,7 @@ const Carregando = () => <div className="center-msg">Carregando…</div>;
 export default function AppShell() {
   const { carregando, viagem, erro, recarregar, entrarPorConvite, precisaNome } = useData();
   const [view, setView] = useState('viagens');
+  const [viewParam, setViewParam] = useState(null);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const cod = new URLSearchParams(window.location.search).get('convite');
@@ -42,7 +44,7 @@ export default function AppShell() {
   );
   // primeira vez da pessoa: pede o nome antes de tudo (mesmo sem viagem)
   if (precisaNome) return <Suspense fallback={<Carregando />}><BoasVindas /></Suspense>;
-  const irPara = (v) => setView(v);
+  const irPara = (v, param = null) => { setView(v); setViewParam(param); };
   // ainda sem nenhuma viagem: abre direto no lobby pra criar/entrar na primeira
   if (!viagem) return <div className="app ui-theme"><Suspense fallback={<Carregando />}><Viagens ir={irPara} /></Suspense></div>;
   return (
@@ -60,6 +62,7 @@ export default function AppShell() {
         {view === 'compras' && <Checklist ir={irPara} abaInicial="comprar" />}
         {view === 'menu' && <Menu ir={irPara} />}
         {view === 'lugares' && <Lugares ir={irPara} />}
+        {view === 'frases' && <Frases ir={irPara} categoriaInicial={viewParam} />}
         {view === 'viagens' && <Viagens ir={irPara} />}
         {view === 'conta' && <Conta ir={irPara} />}
       </Suspense>
