@@ -16,6 +16,7 @@ export function DataProvider({ session, children }) {
   const [checklist, setChecklist] = useState([]);
   const [guardados, setGuardados] = useState([]);
   const [lugares, setLugares] = useState([]);
+  const [dicas, setDicas] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
   const [gastoEditando, setGastoEditando] = useState(null);
@@ -65,6 +66,8 @@ export function DataProvider({ session, children }) {
     setGuardados(gd || []);
     const { data: lg } = await supabase.from('lugares').select('*').eq('viagem_id', v.id).order('criado_em');
     setLugares(lg || []);
+    const { data: dc } = await supabase.from('dicas').select('*').eq('viagem_id', v.id).order('criado_em');
+    setDicas(dc || []);
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) { const { data: dv } = await supabase.from('gasto_divisao').select('*').in('gasto_id', ids); setDivisoes(dv || []); }
     else setDivisoes([]);
@@ -85,6 +88,7 @@ export function DataProvider({ session, children }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'acertos' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registros_km' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dicas' }, deb)
       .subscribe();
     return () => { clearTimeout(t); supabase.removeChannel(canal); };
   }, [carregar]);
@@ -196,6 +200,20 @@ export function DataProvider({ session, children }) {
     await carregar();
   }
 
+  async function adicionarDica({ categoria, titulo, texto, link }) {
+    const t = (titulo || '').trim();
+    if (!t || !viagem) return;
+    await supabase.from('dicas').insert({ viagem_id: viagem.id, categoria: categoria || 'outros', titulo: t, texto: (texto || '').trim() || null, link: (link || '').trim() || null, criado_por: (perfil && perfil.id) || null });
+    await carregar();
+  }
+  async function editarDica(id, campos) { await supabase.from('dicas').update(campos).eq('id', id); await carregar(); }
+  async function removerDica(id) { await supabase.from('dicas').delete().eq('id', id); await carregar(); }
+  async function semearDicas(itens) {
+    if (!itens || !itens.length || !viagem) return;
+    await supabase.from('dicas').insert(itens.map((it) => ({ viagem_id: viagem.id, categoria: it.categoria || 'outros', titulo: it.titulo, texto: it.texto || null, link: it.link || null, criado_por: (perfil && perfil.id) || null })));
+    await carregar();
+  }
+
   function trocarViagem(id) { if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', id); carregar(); }
   async function definirFotoViagem(id, url) { await supabase.from('viagens').update({ foto: url || null }).eq('id', id); await carregar(); }
   async function criarViagem(nome) {
@@ -246,7 +264,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, dicas, adicionarDica, editarDica, removerDica, semearDicas, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }
