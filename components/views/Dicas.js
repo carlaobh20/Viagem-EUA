@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useData } from '../DataProvider';
 
 const CATS = [
@@ -33,34 +33,94 @@ const SUGESTOES = [
   { categoria: 'passeios', titulo: 'Compre ingresso online e com antecedência', texto: 'Parques e atrações saem mais baratos e sem fila comprando online antes. Compare o preço em sites de ingresso além do oficial.' },
 ];
 
+function reduzImg(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const max = 1400;
+      let w = img.width, h = img.height;
+      if (w > max || h > max) { if (w >= h) { h = Math.round(h * max / w); w = max; } else { w = Math.round(w * max / h); h = max; } }
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      c.toBlob((blob) => { URL.revokeObjectURL(url); blob ? resolve(new File([blob], 'dica.jpg', { type: 'image/jpeg' })) : reject(new Error('falha ao processar')); }, 'image/jpeg', 0.8);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('imagem inválida')); };
+    img.src = url;
+  });
+}
+
 export default function Dicas({ ir }) {
-  const { dicas, adicionarDica, editarDica, removerDica, semearDicas } = useData();
+  const { dicas, adicionarDica, editarDica, removerDica, semearDicas, subirImagemDica, urlImagemDica } = useData();
   const [filtro, setFiltro] = useState('todos');
-  const [form, setForm] = useState(null); // { id?, categoria, titulo, texto, link }
+  const [form, setForm] = useState(null);
   const [verSugestoes, setVerSugestoes] = useState(false);
+  const [imgUrls, setImgUrls] = useState({});
+  const fileRef = useRef(null);
 
   const card = { background: 'var(--ui-card)', borderRadius: 18, boxShadow: 'var(--ui-shadow)' };
   const inp = { width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 14, background: 'var(--ui-bg)', color: 'var(--ui-ink)', boxSizing: 'border-box' };
 
   const todas = dicas || [];
+
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      for (const d of todas) {
+        if (d.imagem && !(d.id in imgUrls)) {
+          const u = await urlImagemDica(d.imagem);
+          if (!cancel) setImgUrls((prev) => ({ ...prev, [d.id]: u }));
+        }
+      }
+    })();
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dicas]);
+
   const catsComItem = CATS.filter((c) => todas.some((d) => (d.categoria || 'outros') === c.id));
   const lista = todas.filter((d) => filtro === 'todos' || (d.categoria || 'outros') === filtro);
   const grupos = catsComItem
     .map((c) => ({ cat: c, itens: lista.filter((d) => (d.categoria || 'outros') === c.id) }))
     .filter((g) => g.itens.length);
 
-  function abrirNova() { setForm({ id: null, categoria: 'cartao', titulo: '', texto: '', link: '' }); }
-  function abrirEdicao(d) { setForm({ id: d.id, categoria: d.categoria || 'outros', titulo: d.titulo || '', texto: d.texto || '', link: d.link || '' }); }
+  function abrirNova() { setForm({ id: null, categoria: 'cartao', titulo: '', texto: '', link: '', imagem: null, imgPreview: null, subindo: false }); }
+  function abrirEdicao(d) { setForm({ id: d.id, categoria: d.categoria || 'outros', titulo: d.titulo || '', texto: d.texto || '', link: d.link || '', imagem: d.imagem || null, imgPreview: imgUrls[d.id] || null, subindo: false }); }
+
+  async function aoEscolherImagem(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setForm((f) => ({ ...f, subindo: true }));
+    try {
+      const reduzida = await reduzImg(file);
+      const path = await subirImagemDica(reduzida);
+      if (!path) throw new Error('upload falhou');
+      const preview = URL.createObjectURL(reduzida);
+      setForm((f) => ({ ...f, imagem: path, imgPreview: preview, subindo: false }));
+    } catch (err) {
+      setForm((f) => ({ ...f, subindo: false }));
+      window.alert('Não consegui subir a imagem: ' + err.message);
+    } finally {
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+  function removerImagemDoForm() { setForm((f) => ({ ...f, imagem: null, imgPreview: null })); }
+
   function salvar() {
-    if (!form || !form.titulo.trim()) { setForm(null); return; }
-    if (form.id) editarDica(form.id, { categoria: form.categoria, titulo: form.titulo.trim(), texto: form.texto.trim() || null, link: form.link.trim() || null });
-    else adicionarDica({ categoria: form.categoria, titulo: form.titulo, texto: form.texto, link: form.link });
+    if (!form) return;
+    const temTitulo = form.titulo.trim();
+    if (!temTitulo && !form.imagem) { window.alert('Escreva um título ou adicione uma imagem.'); return; }
+    if (form.subindo) { window.alert('Espere a imagem terminar de subir.'); return; }
+    const campos = { categoria: form.categoria, titulo: temTitulo || null, texto: form.texto.trim() || null, link: form.link.trim() || null, imagem: form.imagem || null };
+    if (form.id) editarDica(form.id, campos);
+    else adicionarDica(campos);
     setForm(null);
   }
-  function excluir(d) { if (window.confirm(`Excluir a dica "${d.titulo}"?`)) removerDica(d.id); }
+  function excluir(d) { if (window.confirm('Excluir esta dica?')) removerDica(d.id); }
 
   const jaExiste = (t) => todas.some((d) => (d.titulo || '').trim().toLowerCase() === t.trim().toLowerCase());
   const sugestoesRestantes = SUGESTOES.filter((s) => !jaExiste(s.titulo));
+
+  const previewSrc = form ? (form.imgPreview || (form.id ? imgUrls[form.id] : null)) : null;
 
   return (
     <div style={{ background: 'var(--ui-bg)', minHeight: '100%', padding: '14px 18px 96px', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif', color: 'var(--ui-ink)' }}>
@@ -72,7 +132,6 @@ export default function Dicas({ ir }) {
         </div>
       </div>
 
-      {/* form de adicionar / editar */}
       {form ? (
         <div style={{ ...card, padding: 16, marginBottom: 16 }}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>{form.id ? 'Editar dica' : 'Nova dica'}</div>
@@ -83,13 +142,30 @@ export default function Dicas({ ir }) {
             </select>
           </div>
           <div style={{ marginBottom: 10 }}>
-            <label style={{ fontSize: 12, color: 'var(--ui-muted)', display: 'block', marginBottom: 5 }}>Título</label>
+            <label style={{ fontSize: 12, color: 'var(--ui-muted)', display: 'block', marginBottom: 5 }}>Título (opcional se tiver imagem)</label>
             <input value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder="Ex.: Cashback de gasolina" style={inp} />
           </div>
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 12, color: 'var(--ui-muted)', display: 'block', marginBottom: 5 }}>Detalhe (opcional)</label>
-            <textarea value={form.texto} onChange={(e) => setForm({ ...form, texto: e.target.value })} placeholder="Como funciona, onde usar…" style={{ ...inp, minHeight: 70, resize: 'vertical' }} />
+            <textarea value={form.texto} onChange={(e) => setForm({ ...form, texto: e.target.value })} placeholder="Como funciona, onde usar…" style={{ ...inp, minHeight: 64, resize: 'vertical' }} />
           </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 12, color: 'var(--ui-muted)', display: 'block', marginBottom: 5 }}>Imagem / print (opcional)</label>
+            <input ref={fileRef} type="file" accept="image/*" onChange={aoEscolherImagem} style={{ display: 'none' }} />
+            {previewSrc ? (
+              <div>
+                <img src={previewSrc} alt="Imagem da dica" style={{ width: '100%', maxHeight: 260, objectFit: 'contain', borderRadius: 12, border: '1px solid var(--ui-line)', background: 'var(--ui-bg)' }} />
+                <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
+                  <button onClick={() => fileRef.current && fileRef.current.click()} disabled={form.subindo} style={{ border: 'none', background: 'none', padding: 0, fontSize: 13, fontWeight: 600, color: 'var(--ui-teal)', cursor: 'pointer' }}>Trocar</button>
+                  <button onClick={removerImagemDoForm} style={{ border: 'none', background: 'none', padding: 0, fontSize: 13, fontWeight: 600, color: '#C2410C', cursor: 'pointer' }}>Remover</button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => fileRef.current && fileRef.current.click()} disabled={form.subindo} style={{ width: '100%', border: '1px dashed var(--ui-line)', borderRadius: 12, padding: '13px 0', fontSize: 14, fontWeight: 700, background: 'var(--ui-bg)', color: form.subindo ? 'var(--ui-muted)' : 'var(--ui-teal)', cursor: 'pointer' }}>{form.subindo ? 'Subindo imagem…' : '📷 Adicionar imagem / print'}</button>
+            )}
+          </div>
+
           <div style={{ marginBottom: 14 }}>
             <label style={{ fontSize: 12, color: 'var(--ui-muted)', display: 'block', marginBottom: 5 }}>Link (opcional)</label>
             <input value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="https://…" style={inp} />
@@ -103,7 +179,6 @@ export default function Dicas({ ir }) {
         <button onClick={abrirNova} style={{ width: '100%', border: '1px dashed var(--ui-line)', borderRadius: 14, padding: '13px 0', fontSize: 14, fontWeight: 700, background: 'var(--ui-card)', color: 'var(--ui-teal)', cursor: 'pointer', marginBottom: 16 }}>+ Nova dica</button>
       )}
 
-      {/* estado vazio: oferece as sugeridas */}
       {todas.length === 0 && !form && (
         <div style={{ ...card, padding: 18, marginBottom: 16, textAlign: 'center' }}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Comece com nossas dicas prontas 💡</div>
@@ -112,16 +187,14 @@ export default function Dicas({ ir }) {
         </div>
       )}
 
-      {/* filtro por setor */}
       {catsComItem.length > 1 && (
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 14 }}>
-          {[{ id: 'todos', label: 'Todas' }, ...catsComItem].map((c) => (
+          {[{ id: 'todos', label: 'Todas', emoji: '' }, ...catsComItem].map((c) => (
             <button key={c.id} onClick={() => setFiltro(c.id)} style={{ flex: '0 0 auto', border: 'none', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: filtro === c.id ? 'var(--ui-teal)' : 'var(--ui-card)', color: filtro === c.id ? '#fff' : 'var(--ui-muted)', boxShadow: filtro === c.id ? 'none' : 'var(--ui-shadow)' }}>{c.emoji ? c.emoji + ' ' : ''}{c.label}</button>
           ))}
         </div>
       )}
 
-      {/* lista agrupada por setor */}
       {grupos.map((g) => (
         <div key={g.cat.id} style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 4px 10px' }}>
@@ -131,8 +204,19 @@ export default function Dicas({ ir }) {
           <div style={{ ...card, padding: '4px 16px' }}>
             {g.itens.map((d, i) => (
               <div key={d.id} style={{ padding: '14px 0', borderTop: i > 0 ? '1px solid var(--ui-line)' : 'none' }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ui-ink)' }}>{d.titulo}</div>
+                {d.titulo && <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ui-ink)' }}>{d.titulo}</div>}
                 {d.texto && <div style={{ fontSize: 13.5, color: 'var(--ui-muted)', marginTop: 3, lineHeight: 1.45 }}>{d.texto}</div>}
+                {d.imagem && (
+                  <div style={{ marginTop: 8 }}>
+                    {imgUrls[d.id] ? (
+                      <a href={imgUrls[d.id]} target="_blank" rel="noreferrer">
+                        <img src={imgUrls[d.id]} alt={d.titulo || 'Imagem da dica'} style={{ width: '100%', maxHeight: 320, objectFit: 'contain', borderRadius: 12, border: '1px solid var(--ui-line)', background: 'var(--ui-bg)' }} />
+                      </a>
+                    ) : (
+                      <div style={{ height: 120, borderRadius: 12, border: '1px solid var(--ui-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--ui-faint)' }}>carregando imagem…</div>
+                    )}
+                  </div>
+                )}
                 {d.link && <a href={d.link} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: 'var(--ui-teal)', display: 'inline-block', marginTop: 6, wordBreak: 'break-all' }}>🔗 abrir link</a>}
                 <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
                   <button onClick={() => abrirEdicao(d)} style={{ border: 'none', background: 'none', padding: 0, fontSize: 13, fontWeight: 600, color: 'var(--ui-muted)', cursor: 'pointer' }}>Editar</button>
@@ -144,7 +228,6 @@ export default function Dicas({ ir }) {
         </div>
       ))}
 
-      {/* sugestões prontas (sempre disponíveis pra adicionar as que faltam) */}
       {sugestoesRestantes.length > 0 && todas.length > 0 && (
         <div style={{ marginTop: 8 }}>
           <button onClick={() => setVerSugestoes((v) => !v)} style={{ width: '100%', border: 'none', background: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px', cursor: 'pointer', color: 'var(--ui-muted)' }}>

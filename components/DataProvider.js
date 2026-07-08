@@ -200,13 +200,28 @@ export function DataProvider({ session, children }) {
     await carregar();
   }
 
-  async function adicionarDica({ categoria, titulo, texto, link }) {
+  async function adicionarDica({ categoria, titulo, texto, link, imagem }) {
+    if (!viagem) return;
     const t = (titulo || '').trim();
-    if (!t || !viagem) return;
-    await supabase.from('dicas').insert({ viagem_id: viagem.id, categoria: categoria || 'outros', titulo: t, texto: (texto || '').trim() || null, link: (link || '').trim() || null, criado_por: (perfil && perfil.id) || null });
+    if (!t && !imagem) return;
+    await supabase.from('dicas').insert({ viagem_id: viagem.id, categoria: categoria || 'outros', titulo: t || null, texto: (texto || '').trim() || null, link: (link || '').trim() || null, imagem: imagem || null, criado_por: (perfil && perfil.id) || null });
     await carregar();
   }
   async function editarDica(id, campos) { await supabase.from('dicas').update(campos).eq('id', id); await carregar(); }
+  async function subirImagemDica(file) {
+    if (!file || !viagem) return null;
+    const ext = (file.type && file.type.indexOf('png') >= 0) ? 'png' : 'jpg';
+    const path = `${viagem.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage.from('dicas').upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
+    if (error) return null;
+    return path;
+  }
+  async function urlImagemDica(ref) {
+    if (!ref) return null;
+    if (ref.startsWith('http')) return ref;
+    const { data } = await supabase.storage.from('dicas').createSignedUrl(ref, 3600);
+    return (data && data.signedUrl) || null;
+  }
   async function removerDica(id) { await supabase.from('dicas').delete().eq('id', id); await carregar(); }
   async function semearDicas(itens) {
     if (!itens || !itens.length || !viagem) return;
@@ -264,7 +279,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, dicas, adicionarDica, editarDica, removerDica, semearDicas, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, dicas, adicionarDica, editarDica, removerDica, semearDicas, subirImagemDica, urlImagemDica, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }
