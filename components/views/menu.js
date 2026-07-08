@@ -14,10 +14,11 @@ const IT = {
   pessoas: { id: 'pessoas', label: 'Pessoas', sub: 'Quem está na viagem', cor: '#534AB7', bg: 'rgba(83,74,183,.14)', icon: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></> },
   viagens: { id: 'viagens', label: 'Trocar de viagem', sub: 'Ver e abrir suas viagens', cor: '#5F5E5A', bg: 'rgba(95,94,90,.12)', icon: <><rect x="3" y="7" width="18" height="13" rx="2.5" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></> },
   frases: { id: 'frases', label: 'Conversar em inglês', sub: 'Frases prontas por situação', cor: '#0E7C9C', bg: 'rgba(14,124,156,.12)', icon: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h8M8 13h5" /></> },
+  dicas: { id: 'dicas', label: 'Dicas imperdíveis', sub: 'Descontos e bônus em cada setor', cor: '#0F9D6B', bg: 'rgba(16,185,129,.12)', icon: <><path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z" /></> },
 };
 
 const INDIVIDUAL = [IT.checklist, IT.compras];
-const COMPARTILHADO = [IT.gastos, IT.acerto, IT.lugares, IT.frases, IT.pessoas, IT.viagens];
+const COMPARTILHADO = [IT.gastos, IT.acerto, IT.dicas, IT.lugares, IT.frases, IT.pessoas, IT.viagens];
 
 export default function Menu({ ir }) {
   const card = { background: 'var(--ui-card)', borderRadius: 18, boxShadow: 'var(--ui-shadow)' };
