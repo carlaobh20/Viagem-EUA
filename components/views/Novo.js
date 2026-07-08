@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
 import { useData } from '../DataProvider';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabaseClient';
 import { CATEGORIAS } from '../../lib/format';
 
 export default function Novo({ ir }) {
