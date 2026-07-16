@@ -94,6 +94,7 @@ export function DataProvider({ session, children }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'acertos' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registros_km' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dicas' }, deb)
       .subscribe();
     return () => { clearTimeout(t); supabase.removeChannel(canal); };
   }, [carregar]);
