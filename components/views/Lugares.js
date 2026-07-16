@@ -119,6 +119,7 @@ export default function Lugares({ ir }) {
           ) : (
             <button onClick={() => setRotForm({ id: l.id, data: (viagem && viagem.data_ida) || '', hora: '' })} style={{ marginTop: 12, width: '100%', border: '1.5px dashed var(--ui-line)', borderRadius: 12, padding: 11, background: 'transparent', color: 'var(--ui-teal)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>📅 Adicionar ao roteiro</button>
           )}
+          <button onClick={() => ir('frases', l.categoria)} style={{ marginTop: 8, width: '100%', border: 'none', background: 'none', color: 'var(--ui-muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 4 }}>💬 Frases em inglês pra {catDe(l.categoria).label.toLowerCase()}</button>
         </div>
       ))}
 
