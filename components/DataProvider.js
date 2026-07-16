@@ -16,6 +16,7 @@ export function DataProvider({ session, children }) {
   const [checklist, setChecklist] = useState([]);
   const [guardados, setGuardados] = useState([]);
   const [lugares, setLugares] = useState([]);
+  const [appsInstalar, setAppsInstalar] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
   const [gastoEditando, setGastoEditando] = useState(null);
@@ -65,6 +66,8 @@ export function DataProvider({ session, children }) {
     setGuardados(gd || []);
     const { data: lg } = await supabase.from('lugares').select('*').eq('viagem_id', v.id).order('criado_em');
     setLugares(lg || []);
+    const { data: ai } = await supabase.from('apps_instalar').select('*').eq('viagem_id', v.id).order('criado_em');
+    setAppsInstalar(ai || []);
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) { const { data: dv } = await supabase.from('gasto_divisao').select('*').in('gasto_id', ids); setDivisoes(dv || []); }
     else setDivisoes([]);
@@ -196,6 +199,14 @@ export function DataProvider({ session, children }) {
     await carregar();
   }
 
+  async function adicionarApp({ nome, funcao, beneficio }) {
+    const n = (nome || '').trim();
+    if (!n || !viagem) return;
+    await supabase.from('apps_instalar').insert({ viagem_id: viagem.id, nome: n, funcao: (funcao || '').trim() || null, beneficio: (beneficio || '').trim() || null });
+    await carregar();
+  }
+  async function removerApp(id) { await supabase.from('apps_instalar').delete().eq('id', id); await carregar(); }
+
   function trocarViagem(id) { if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', id); carregar(); }
   async function definirFotoViagem(id, url) { await supabase.from('viagens').update({ foto: url || null }).eq('id', id); await carregar(); }
   async function criarViagem(nome) {
@@ -246,7 +257,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, appsInstalar, adicionarApp, removerApp, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }
