@@ -18,7 +18,7 @@ const Conta = lazy(() => import('./views/Conta'));
 const Menu = lazy(() => import('./views/menu'));
 const Lugares = lazy(() => import('./views/Lugares'));
 const Frases = lazy(() => import('./views/Frases'));
-const Dicas = lazy(() => import('./views/Dicas'));
+const AppsInstalar = lazy(() => import('./views/AppsInstalar'));
 const BoasVindas = lazy(() => import('./views/BoasVindas'));
 
 const Carregando = () => <div className="center-msg">Carregando…</div>;
@@ -63,8 +63,8 @@ export default function AppShell() {
         {view === 'compras' && <Checklist ir={irPara} abaInicial="comprar" />}
         {view === 'menu' && <Menu ir={irPara} />}
         {view === 'lugares' && <Lugares ir={irPara} />}
-        {view === 'dicas' && <Dicas ir={irPara} />}
         {view === 'frases' && <Frases ir={irPara} categoriaInicial={viewParam} />}
+        {view === 'appsinstalar' && <AppsInstalar ir={irPara} />}
         {view === 'viagens' && <Viagens ir={irPara} />}
         {view === 'conta' && <Conta ir={irPara} />}
       </Suspense>
