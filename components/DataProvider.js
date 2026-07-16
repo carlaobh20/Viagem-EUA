@@ -17,6 +17,8 @@ export function DataProvider({ session, children }) {
   const [guardados, setGuardados] = useState([]);
   const [lugares, setLugares] = useState([]);
   const [appsInstalar, setAppsInstalar] = useState([]);
+  const [perguntasImigracao, setPerguntasImigracao] = useState([]);
+  const [appsMarcados, setAppsMarcados] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
   const [gastoEditando, setGastoEditando] = useState(null);
@@ -68,6 +70,10 @@ export function DataProvider({ session, children }) {
     setLugares(lg || []);
     const { data: ai } = await supabase.from('apps_instalar').select('*').eq('viagem_id', v.id).order('criado_em');
     setAppsInstalar(ai || []);
+    const { data: pi } = await supabase.from('perguntas_imigracao').select('*').eq('viagem_id', v.id).order('ordem');
+    setPerguntasImigracao(pi || []);
+    const { data: am } = await supabase.from('apps_marcados').select('*').eq('viagem_id', v.id).eq('user_id', uid);
+    setAppsMarcados(am || []);
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) { const { data: dv } = await supabase.from('gasto_divisao').select('*').in('gasto_id', ids); setDivisoes(dv || []); }
     else setDivisoes([]);
@@ -207,6 +213,26 @@ export function DataProvider({ session, children }) {
   }
   async function removerApp(id) { await supabase.from('apps_instalar').delete().eq('id', id); await carregar(); }
 
+  async function adicionarPergunta({ pergunta_pt, pergunta_en, resposta_pt, resposta_en }) {
+    if (!viagem || !(pergunta_pt || '').trim()) return;
+    const ordem = (perguntasImigracao || []).length;
+    await supabase.from('perguntas_imigracao').insert({ viagem_id: viagem.id, pergunta_pt: pergunta_pt.trim(), pergunta_en: (pergunta_en || '').trim(), resposta_pt: (resposta_pt || '').trim() || null, resposta_en: (resposta_en || '').trim() || null, ordem });
+    await carregar();
+  }
+  async function editarPergunta(id, campos) { await supabase.from('perguntas_imigracao').update(campos).eq('id', id); await carregar(); }
+  async function removerPergunta(id) { await supabase.from('perguntas_imigracao').delete().eq('id', id); await carregar(); }
+
+  async function alternarAppInstalado(appKey) {
+    if (!viagem || !session) return;
+    const jaMarcado = (appsMarcados || []).find((m) => m.app_key === appKey);
+    if (jaMarcado) {
+      await supabase.from('apps_marcados').delete().eq('id', jaMarcado.id);
+    } else {
+      await supabase.from('apps_marcados').insert({ viagem_id: viagem.id, user_id: session.user.id, app_key: appKey });
+    }
+    await carregar();
+  }
+
   function trocarViagem(id) { if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', id); carregar(); }
   async function definirFotoViagem(id, url) { await supabase.from('viagens').update({ foto: url || null }).eq('id', id); await carregar(); }
   async function criarViagem(nome) {
@@ -257,7 +283,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, appsInstalar, adicionarApp, removerApp, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }

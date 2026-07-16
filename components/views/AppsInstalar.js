@@ -48,11 +48,22 @@ const GRUPOS = [
 ];
 
 export default function AppsInstalar({ ir }) {
-  const { appsInstalar, adicionarApp, removerApp } = useData();
+  const { appsInstalar, adicionarApp, removerApp, appsMarcados, alternarAppInstalado } = useData();
   const [aberto, setAberto] = useState('essencial');
   const [addForm, setAddForm] = useState(null); // { nome, funcao, beneficio }
   const card = { background: 'var(--ui-card)', borderRadius: 18, boxShadow: 'var(--ui-shadow)' };
   const inp = { width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 14, background: 'var(--ui-bg)', color: 'var(--ui-ink)' };
+  const marcadosSet = new Set((appsMarcados || []).map((m) => m.app_key));
+  const instalado = (key) => marcadosSet.has(key);
+  const totalApps = GRUPOS.reduce((s, g) => s + g.apps.length, 0) + (appsInstalar || []).length;
+  const totalInstalados = marcadosSet.size;
+
+  const Check = ({ appKey }) => {
+    const on = instalado(appKey);
+    return (
+      <button onClick={() => alternarAppInstalado(appKey)} aria-label={on ? 'Marcar como não instalado' : 'Marcar como instalado'} style={{ width: 26, height: 26, borderRadius: 8, border: on ? 'none' : '2px solid var(--ui-line)', background: on ? 'var(--ui-teal)' : 'transparent', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flex: '0 0 auto' }}>{on ? '✓' : ''}</button>
+    );
+  };
 
   function salvarAdd() {
     if (!addForm || !addForm.nome.trim()) { setAddForm(null); return; }
@@ -68,6 +79,7 @@ export default function AppsInstalar({ ir }) {
           <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.5px' }}>Apps pra instalar</div>
           <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 1 }}>Baixe antes de embarcar</div>
         </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ui-teal)', flex: '0 0 auto' }}>{totalInstalados}/{totalApps}</div>
       </div>
 
       {/* Adicionados pela família — editável, compartilhado com quem está na viagem */}
@@ -82,6 +94,7 @@ export default function AppsInstalar({ ir }) {
       {(appsInstalar || []).map((a) => (
         <div key={a.id} style={{ ...card, padding: 15, marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <Check appKey={'db:' + a.id} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14.5, fontWeight: 700 }}>{a.nome}</div>
               {a.funcao && <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 3 }}>{a.funcao}</div>}
@@ -114,17 +127,20 @@ export default function AppsInstalar({ ir }) {
             <button onClick={() => setAberto(on ? null : g.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: 15, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
               <span style={{ fontSize: 18 }}>{g.emoji}</span>
               <span style={{ flex: 1, fontSize: 15.5, fontWeight: 700 }}>{g.label}</span>
-              <span style={{ fontSize: 12, color: 'var(--ui-faint)' }}>{g.apps.length}</span>
+              <span style={{ fontSize: 12, color: 'var(--ui-faint)' }}>{g.apps.filter((a) => instalado('sug:' + g.id + ':' + a.nome)).length}/{g.apps.length}</span>
               <span style={{ color: 'var(--ui-faint)', fontSize: 16, transform: on ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
             </button>
             {on && (
               <div style={{ borderTop: '1px solid var(--ui-line)' }}>
                 {g.apps.map((a, i) => (
-                  <div key={i} style={{ padding: '14px 16px', borderTop: i > 0 ? '1px solid var(--ui-line)' : 'none' }}>
-                    <div style={{ fontSize: 14.5, fontWeight: 700 }}>{a.nome}</div>
-                    <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 3 }}>{a.funcao}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--ui-teal)', marginTop: 5, display: 'flex', gap: 6 }}>
-                      <span>✓</span><span>{a.beneficio}</span>
+                  <div key={i} style={{ padding: '14px 16px', borderTop: i > 0 ? '1px solid var(--ui-line)' : 'none', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <Check appKey={'sug:' + g.id + ':' + a.nome} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14.5, fontWeight: 700 }}>{a.nome}</div>
+                      <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 3 }}>{a.funcao}</div>
+                      <div style={{ fontSize: 12.5, color: 'var(--ui-teal)', marginTop: 5, display: 'flex', gap: 6 }}>
+                        <span>✓</span><span>{a.beneficio}</span>
+                      </div>
                     </div>
                   </div>
                 ))}

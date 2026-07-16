@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useData } from '../DataProvider';
 
 // Conteúdo estático (offline, sem IA, sem dado de usuário).
 const FRASES = [
@@ -101,10 +102,20 @@ function falar(txt) {
 }
 
 export default function Frases({ ir, categoriaInicial }) {
+  const { perguntasImigracao, adicionarPergunta, removerPergunta } = useData();
   const inicial = FRASES.find((f) => f.id === categoriaInicial) ? categoriaInicial : 'geral';
   const [cat, setCat] = useState(inicial);
+  const [addForm, setAddForm] = useState(null); // { pergunta_pt, pergunta_en, resposta_pt, resposta_en }
   const atual = FRASES.find((f) => f.id === cat) || FRASES[0];
   const card = { background: 'var(--ui-card)', borderRadius: 16, boxShadow: 'var(--ui-shadow)' };
+  const inp = { width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 14, background: 'var(--ui-bg)', color: 'var(--ui-ink)' };
+  const naImigracao = cat === 'imigracao';
+
+  function salvarPergunta() {
+    if (!addForm || !addForm.pergunta_pt.trim()) { setAddForm(null); return; }
+    adicionarPergunta(addForm);
+    setAddForm(null);
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
@@ -130,18 +141,68 @@ export default function Frases({ ir, categoriaInicial }) {
             <button key={f.id} onClick={() => setCat(f.id)} style={{ flex: '0 0 auto', border: 'none', borderRadius: 20, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? 'var(--ui-teal)' : 'var(--ui-card)', color: on ? '#fff' : 'var(--ui-muted)', boxShadow: on ? 'none' : 'var(--ui-shadow)' }}>{f.emoji} {f.label}</button>
           );
         })}
+        <button onClick={() => setCat('imigracao')} style={{ flex: '0 0 auto', border: 'none', borderRadius: 20, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', background: naImigracao ? 'var(--ui-teal)' : 'var(--ui-card)', color: naImigracao ? '#fff' : 'var(--ui-muted)', boxShadow: naImigracao ? 'none' : 'var(--ui-shadow)' }}>🛂 Migração</button>
       </div>
 
-      {atual.itens.map((fr, i) => (
-        <div key={i} style={{ ...card, padding: 15, marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.2px' }}>{fr.en}</div>
-            <div style={{ fontSize: 14, color: 'var(--ui-muted)', marginTop: 3 }}>{fr.pt}</div>
-            <div style={{ fontSize: 12, color: 'var(--ui-faint)', marginTop: 4, fontStyle: 'italic' }}>{fr.fon}</div>
-          </div>
-          <button onClick={() => falar(fr.en)} aria-label="Ouvir" style={{ border: 'none', background: 'rgba(0,199,177,.14)', color: 'var(--ui-teal)', width: 40, height: 40, borderRadius: '50%', fontSize: 18, cursor: 'pointer', flex: '0 0 auto' }}>🔊</button>
+      {naImigracao && (
+        <div style={{ fontSize: 12, color: 'var(--ui-faint)', margin: '0 4px 14px', lineHeight: 1.4 }}>
+          🔒 Só a sua família vê essas respostas — ficam salvas no banco, não no código do app.
         </div>
-      ))}
+      )}
+
+      {naImigracao ? (
+        <>
+          {(perguntasImigracao || []).length === 0 && !addForm && (
+            <div style={{ ...card, padding: 20, textAlign: 'center', color: 'var(--ui-faint)', fontSize: 13, marginBottom: 12 }}>
+              Nenhuma pergunta adicionada ainda.
+            </div>
+          )}
+          {(perguntasImigracao || []).map((p) => (
+            <div key={p.id} style={{ ...card, padding: 15, marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>{p.pergunta_en}</div>
+                  <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 2 }}>{p.pergunta_pt}</div>
+                  {p.resposta_en && (
+                    <div style={{ marginTop: 10, padding: '10px 12px', background: 'var(--ui-bg)', borderRadius: 12 }}>
+                      <div style={{ fontSize: 10.5, color: 'var(--ui-faint)', textTransform: 'uppercase', letterSpacing: '.4px', fontWeight: 700, marginBottom: 4 }}>Resposta</div>
+                      <div style={{ fontSize: 14.5, fontWeight: 600 }}>{p.resposta_en}</div>
+                      {p.resposta_pt && <div style={{ fontSize: 12.5, color: 'var(--ui-muted)', marginTop: 3 }}>{p.resposta_pt}</div>}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: '0 0 auto' }}>
+                  {p.resposta_en && <button onClick={() => falar(p.resposta_en)} aria-label="Ouvir" style={{ border: 'none', background: 'rgba(0,199,177,.14)', color: 'var(--ui-teal)', width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}>🔊</button>}
+                  <button onClick={() => { if (window.confirm('Remover esta pergunta?')) removerPergunta(p.id); }} aria-label="Remover" style={{ border: 'none', background: 'none', color: 'var(--ui-faint)', fontSize: 14, cursor: 'pointer' }}>✕</button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {addForm ? (
+            <div style={{ ...card, padding: 16, marginBottom: 20 }}>
+              <input autoFocus value={addForm.pergunta_pt} onChange={(e) => setAddForm({ ...addForm, pergunta_pt: e.target.value })} placeholder="Pergunta em português" style={{ ...inp, marginBottom: 9 }} />
+              <input value={addForm.pergunta_en} onChange={(e) => setAddForm({ ...addForm, pergunta_en: e.target.value })} placeholder="Pergunta em inglês" style={{ ...inp, marginBottom: 9 }} />
+              <textarea value={addForm.resposta_pt} onChange={(e) => setAddForm({ ...addForm, resposta_pt: e.target.value })} placeholder="Sua resposta em português" style={{ ...inp, height: 60, resize: 'none', marginBottom: 9 }} />
+              <textarea value={addForm.resposta_en} onChange={(e) => setAddForm({ ...addForm, resposta_en: e.target.value })} placeholder="Sua resposta em inglês" style={{ ...inp, height: 60, resize: 'none', marginBottom: 12 }} />
+              <button onClick={salvarPergunta} style={{ width: '100%', border: 'none', borderRadius: 12, padding: 12, background: 'var(--ui-teal)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Adicionar</button>
+              <button onClick={() => setAddForm(null)} style={{ width: '100%', border: 'none', background: 'none', color: 'var(--ui-muted)', fontSize: 13, marginTop: 6, cursor: 'pointer' }}>fechar</button>
+            </div>
+          ) : (
+            <button onClick={() => setAddForm({ pergunta_pt: '', pergunta_en: '', resposta_pt: '', resposta_en: '' })} style={{ width: '100%', border: '1.5px dashed var(--ui-line)', borderRadius: 14, padding: 14, background: 'transparent', color: 'var(--ui-teal)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>+ Adicionar pergunta</button>
+          )}
+        </>
+      ) : (
+        atual.itens.map((fr, i) => (
+          <div key={i} style={{ ...card, padding: 15, marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.2px' }}>{fr.en}</div>
+              <div style={{ fontSize: 14, color: 'var(--ui-muted)', marginTop: 3 }}>{fr.pt}</div>
+              <div style={{ fontSize: 12, color: 'var(--ui-faint)', marginTop: 4, fontStyle: 'italic' }}>{fr.fon}</div>
+            </div>
+            <button onClick={() => falar(fr.en)} aria-label="Ouvir" style={{ border: 'none', background: 'rgba(0,199,177,.14)', color: 'var(--ui-teal)', width: 40, height: 40, borderRadius: '50%', fontSize: 18, cursor: 'pointer', flex: '0 0 auto' }}>🔊</button>
+          </div>
+        ))
+      )}
     </div>
   );
 }
