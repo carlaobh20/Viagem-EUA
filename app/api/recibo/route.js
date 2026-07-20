@@ -1,7 +1,19 @@
+import { createClient } from '@supabase/supabase-js';
+
 const MODELO = 'claude-haiku-4-5-20251001';
 const CATEGORIAS = ['seguro', 'visto', 'documentos', 'passagens', 'hospedagem', 'comida', 'transporte', 'lazer', 'compras', 'compras_particular', 'outros'];
+
 export async function POST(request) {
   try {
+    // --- Tranca: só usuário logado pode usar a IA (fecha o abuso da chave) ---
+    const auth = request.headers.get('authorization') || '';
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+    if (!token) return Response.json({ ok: false, erro: 'Faça login para ler recibos' }, { status: 401 });
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    const { data: udata, error: aerr } = await sb.auth.getUser(token);
+    if (aerr || !udata || !udata.user) return Response.json({ ok: false, erro: 'Sessão inválida' }, { status: 401 });
+    // ------------------------------------------------------------------------
+
     const { imageBase64, mediaType } = await request.json();
     if (!imageBase64) return Response.json({ ok: false, erro: 'Sem imagem' }, { status: 400 });
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -12,7 +24,7 @@ Regras: "valor" é o TOTAL pago. Se a moeda não estiver clara, use "USD". Escol
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODELO, max_tokens: 400, messages: [{ role: 'user', content: [ { type: 'image', source: { type: 'base64', media_type: mediaType || 'image/jpeg', data: imageBase64 } }, { type: 'text', text: prompt } ] }] }),
+      body: JSON.stringify({ model: MODELO, max_tokens: 400, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mediaType || 'image/jpeg', data: imageBase64 } }, { type: 'text', text: prompt }] }] }),
     });
     if (!resp.ok) { const t = await resp.text(); return Response.json({ ok: false, erro: 'Falha na IA: ' + t.slice(0, 200) }, { status: 502 }); }
     const json = await resp.json();

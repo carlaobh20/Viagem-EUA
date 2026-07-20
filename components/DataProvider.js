@@ -14,6 +14,11 @@ export function DataProvider({ session, children }) {
   const [acertos, setAcertos] = useState([]);
   const [registrosKm, setRegistrosKm] = useState([]);
   const [checklist, setChecklist] = useState([]);
+  const [guardados, setGuardados] = useState([]);
+  const [lugares, setLugares] = useState([]);
+  const [appsInstalar, setAppsInstalar] = useState([]);
+  const [perguntasImigracao, setPerguntasImigracao] = useState([]);
+  const [appsMarcados, setAppsMarcados] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
   const [gastoEditando, setGastoEditando] = useState(null);
@@ -21,31 +26,35 @@ export function DataProvider({ session, children }) {
 
   const carregar = useCallback(async () => {
     try {
-    const uid = session.user.id;
+    const { data: { session: sess } } = await supabase.auth.getSession();
+    const authUser = sess?.user || session.user;
+    const uid = authUser.id;
     // viagens das quais sou membro
     const { data: ms } = await supabase.from('viagem_membros').select('viagem_id').eq('user_id', uid);
     const vids = (ms || []).map((m) => m.viagem_id);
     let vs = [];
     if (vids.length) { const r = await supabase.from('viagens').select('*').in('id', vids).order('criado_em'); vs = r.data || []; }
-    if (!vs.length) {
-      const r = await supabase.from('viagens').insert({ nome: 'Minha viagem', orcamento_brl: 0, cotacao_usd: 5.4, owner_id: uid }).select().single();
-      if (r.data) { await supabase.from('viagem_membros').insert({ viagem_id: r.data.id, user_id: uid, papel: 'dono' }); vs = [r.data]; }
-    }
     setViagens(vs);
+    // nome de exibição agora é global (auth user_metadata), não preso a uma viagem
+    const metaNome = (authUser.user_metadata?.nome || '').trim();
     const savedId = (typeof window !== 'undefined' && window.localStorage.getItem('viagemAtiva')) || null;
-    const v = vs.find((x) => x.id === savedId) || vs[0];
+    const v = vs.find((x) => x.id === savedId) || vs[0] || null;
     setViagem(v);
-    if (!v) { setErro('Você ainda não está em nenhuma viagem.'); setCarregando(false); return; }
+    setErro(null);
+    // sem nenhuma viagem: não cria nada. Pede o nome se ainda não escolheu; o app abre no lobby de viagens.
+    if (!v) { setPerfil(null); setPrecisaNome(!metaNome); setCarregando(false); return; }
     // garante o meu perfil nesta viagem
     let { data: meu } = await supabase.from('perfis').select('*').eq('user_id', uid).eq('viagem_id', v.id).maybeSingle();
     if (!meu) {
-      const nome = session.user.user_metadata?.nome || session.user.email.split('@')[0];
-      const rp = await supabase.from('perfis').insert({ user_id: uid, nome, cor: corAleatoria(), viagem_id: v.id, nome_definido: false }).select().single();
+      const nome = metaNome || authUser.email.split('@')[0];
+      const rp = await supabase.from('perfis').insert({ user_id: uid, nome, cor: corAleatoria(), viagem_id: v.id, nome_definido: !!metaNome }).select().single();
       meu = rp.data;
     }
     setPerfil(meu);
-    // se o perfil ainda nao teve o nome escolhido pela pessoa, pede
-    setPrecisaNome(meu && meu.nome_definido === false);
+    // pede o nome só se ainda não houver nome global. usuário antigo (já tinha nome na viagem): copia pro global e não pergunta de novo.
+    let precisa = !metaNome;
+    if (precisa && meu && meu.nome_definido && meu.nome) { await supabase.auth.updateUser({ data: { nome: meu.nome } }); precisa = false; }
+    setPrecisaNome(precisa);
     const [{ data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }, { data: ck }] = await Promise.all([
       supabase.from('perfis').select('*').eq('viagem_id', v.id).order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
@@ -55,6 +64,16 @@ export function DataProvider({ session, children }) {
       supabase.from('checklist_itens').select('*').eq('viagem_id', v.id).order('ordem'),
     ]);
     setPerfis(ps || []); setPontos(pts || []); setGastos(gs || []); setAcertos(acs || []); setRegistrosKm(rk || []); setChecklist(ck || []);
+    const { data: gd } = await supabase.from('guardados').select('*').eq('viagem_id', v.id).eq('user_id', uid).order('criado_em');
+    setGuardados(gd || []);
+    const { data: lg } = await supabase.from('lugares').select('*').eq('viagem_id', v.id).order('criado_em');
+    setLugares(lg || []);
+    const { data: ai } = await supabase.from('apps_instalar').select('*').eq('viagem_id', v.id).order('criado_em');
+    setAppsInstalar(ai || []);
+    const { data: pi } = await supabase.from('perguntas_imigracao').select('*').eq('viagem_id', v.id).order('ordem');
+    setPerguntasImigracao(pi || []);
+    const { data: am } = await supabase.from('apps_marcados').select('*').eq('viagem_id', v.id).eq('user_id', uid);
+    setAppsMarcados(am || []);
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) { const { data: dv } = await supabase.from('gasto_divisao').select('*').in('gasto_id', ids); setDivisoes(dv || []); }
     else setDivisoes([]);
@@ -75,6 +94,7 @@ export function DataProvider({ session, children }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'acertos' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registros_km' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dicas' }, deb)
       .subscribe();
     return () => { clearTimeout(t); supabase.removeChannel(canal); };
   }, [carregar]);
@@ -130,21 +150,88 @@ export function DataProvider({ session, children }) {
   async function removerGasto(id) { await supabase.from('gastos').delete().eq('id', id); await carregar(); }
   async function adicionarKm({ km, valorOrigem, unidade, data, origem, destino, nota }) { await supabase.from('registros_km').insert({ viagem_id: viagem.id, km, valor_origem: valorOrigem, unidade, data: data || null, origem: origem || null, destino: destino || null, nota: nota || null }); await carregar(); }
   async function removerKm(id) { await supabase.from('registros_km').delete().eq('id', id); await carregar(); }
-  async function adicionarChecklist({ texto, tema, prazo, ordem }) { await supabase.from('checklist_itens').insert({ viagem_id: viagem.id, texto, tema: tema || 'Geral', prazo: prazo || null, ordem: ordem || 0 }); await carregar(); }
+  async function adicionarChecklist({ texto, tema, prazo, ordem }) { await supabase.from('checklist_itens').insert({ viagem_id: viagem.id, user_id: session.user.id, texto, tema: tema || 'Geral', prazo: prazo || null, ordem: ordem || 0 }); await carregar(); }
   async function alternarChecklist(id, feito) { await supabase.from('checklist_itens').update({ feito }).eq('id', id); await carregar(); }
+  async function definirValorCompra(id, feito, valor) {
+    const v = (valor === '' || valor == null || isNaN(valor)) ? null : Number(valor);
+    const { error } = await supabase.from('checklist_itens').update({ feito, valor: v }).eq('id', id);
+    if (error) { await supabase.from('checklist_itens').update({ feito }).eq('id', id); } // coluna 'valor' ainda não existe: marca mesmo assim
+    await carregar();
+  }
   async function editarChecklist(id, texto) { await supabase.from('checklist_itens').update({ texto }).eq('id', id); await carregar(); }
   async function removerChecklist(id) { await supabase.from('checklist_itens').delete().eq('id', id); await carregar(); }
-  async function semearChecklist(itens) { if (!itens || !itens.length) return; await supabase.from('checklist_itens').insert(itens.map((it) => ({ ...it, viagem_id: viagem.id }))); await supabase.from('viagens').update({ checklist_seed: true }).eq('id', viagem.id); await carregar(); }
+  async function semearChecklist(itens) { if (!itens || !itens.length) return; await supabase.from('checklist_itens').insert(itens.map((it) => ({ ...it, viagem_id: viagem.id, user_id: session.user.id }))); await supabase.from('viagens').update({ checklist_seed: true }).eq('id', viagem.id); await carregar(); }
 
   // define o nome escolhido pela pessoa (tela de boas-vindas ou Minha Conta)
   async function definirMeuNome(nome) {
     const nm = (nome || '').trim();
-    if (!nm || !perfil) return { erro: 'Informe um nome.' };
-    const { error } = await supabase.from('perfis').update({ nome: nm, nome_definido: true }).eq('id', perfil.id);
+    if (!nm) return { erro: 'Informe um nome.' };
+    const { error } = await supabase.auth.updateUser({ data: { nome: nm } });
     if (error) return { erro: 'Não consegui salvar o nome.' };
+    if (perfil) await supabase.from('perfis').update({ nome: nm, nome_definido: true }).eq('id', perfil.id);
     setPrecisaNome(false);
     await carregar();
     return { ok: true };
+  }
+
+  async function definirMeta(valor) {
+    if (!perfil) return;
+    const v = (valor === '' || valor == null || isNaN(valor)) ? null : Number(valor);
+    await supabase.from('perfis').update({ meta_valor: v }).eq('id', perfil.id);
+    await carregar();
+  }
+  async function adicionarGuardado(banco, valor) {
+    const b = (banco || '').trim(); const v = Number(valor);
+    if (!b || !(v > 0) || !viagem) return;
+    await supabase.from('guardados').insert({ viagem_id: viagem.id, user_id: session.user.id, banco: b, valor: v });
+    await carregar();
+  }
+  async function removerGuardado(id) {
+    await supabase.from('guardados').delete().eq('id', id);
+    await carregar();
+  }
+
+  async function adicionarLugar({ nome, endereco, comentario, prioridade, categoria }) {
+    const n = (nome || '').trim();
+    if (!n || !viagem) return;
+    await supabase.from('lugares').insert({ viagem_id: viagem.id, nome: n, endereco: (endereco || '').trim() || null, comentario: (comentario || '').trim() || null, prioridade: prioridade || 'sugerido', categoria: categoria || 'outro' });
+    await carregar();
+  }
+  async function editarLugar(id, campos) { await supabase.from('lugares').update(campos).eq('id', id); await carregar(); }
+  async function removerLugar(id) { await supabase.from('lugares').delete().eq('id', id); await carregar(); }
+  async function lugarParaRoteiro(lugar, data, hora) {
+    if (!viagem || !lugar) return;
+    await supabase.from('pontos_roteiro').insert({ viagem_id: viagem.id, nome: lugar.nome, local: lugar.endereco || null, nota: lugar.comentario || null, data_inicio: data || null, hora: hora || null, tipo: 'passeio', ordem: 999 });
+    await supabase.from('lugares').update({ no_roteiro: true }).eq('id', lugar.id);
+    await carregar();
+  }
+
+  async function adicionarApp({ nome, funcao, beneficio }) {
+    const n = (nome || '').trim();
+    if (!n || !viagem) return;
+    await supabase.from('apps_instalar').insert({ viagem_id: viagem.id, nome: n, funcao: (funcao || '').trim() || null, beneficio: (beneficio || '').trim() || null });
+    await carregar();
+  }
+  async function removerApp(id) { await supabase.from('apps_instalar').delete().eq('id', id); await carregar(); }
+
+  async function adicionarPergunta({ pergunta_pt, pergunta_en, resposta_pt, resposta_en }) {
+    if (!viagem || !(pergunta_pt || '').trim()) return;
+    const ordem = (perguntasImigracao || []).length;
+    await supabase.from('perguntas_imigracao').insert({ viagem_id: viagem.id, pergunta_pt: pergunta_pt.trim(), pergunta_en: (pergunta_en || '').trim(), resposta_pt: (resposta_pt || '').trim() || null, resposta_en: (resposta_en || '').trim() || null, ordem });
+    await carregar();
+  }
+  async function editarPergunta(id, campos) { await supabase.from('perguntas_imigracao').update(campos).eq('id', id); await carregar(); }
+  async function removerPergunta(id) { await supabase.from('perguntas_imigracao').delete().eq('id', id); await carregar(); }
+
+  async function alternarAppInstalado(appKey) {
+    if (!viagem || !session) return;
+    const jaMarcado = (appsMarcados || []).find((m) => m.app_key === appKey);
+    if (jaMarcado) {
+      await supabase.from('apps_marcados').delete().eq('id', jaMarcado.id);
+    } else {
+      await supabase.from('apps_marcados').insert({ viagem_id: viagem.id, user_id: session.user.id, app_key: appKey });
+    }
+    await carregar();
   }
 
   function trocarViagem(id) { if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', id); carregar(); }
@@ -197,7 +284,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }

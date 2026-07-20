@@ -46,10 +46,10 @@ export default function Gastos({ ir }) {
       </div>
 
       {/* total */}
-      <div style={{ background: 'linear-gradient(135deg,#2F6FE4 0%,#1C9FC4 55%,#12B89A 100%)', borderRadius: 22, padding: '20px', color: '#fff', boxShadow: '0 14px 30px rgba(28,120,150,.26)', marginBottom: 16 }}>
-        <div style={{ fontSize: 12.5, opacity: 0.9 }}>Total {temFiltro ? 'filtrado' : 'geral'}</div>
+      <div style={{ backgroundImage: "linear-gradient(135deg, rgba(0,43,54,.88) 0%, rgba(0,43,54,.60) 52%, rgba(0,43,54,.82) 100%), url('/hero-eua.jpg')", backgroundSize: 'cover', backgroundPosition: 'center', borderRadius: 24, padding: 22, color: '#fff', boxShadow: '0 14px 30px rgba(0,43,54,.30)', marginBottom: 16 }}>
+        <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.65)', fontWeight: 500 }}>Total {temFiltro ? 'filtrado' : 'geral'}</div>
         <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-1px', margin: '3px 0 2px' }}>{fmtBRL(totalBRL)}</div>
-        <div style={{ fontSize: 12, opacity: 0.9 }}>{lista.length} {lista.length === 1 ? 'lançamento' : 'lançamentos'}</div>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,.65)' }}>{lista.length} {lista.length === 1 ? 'lançamento' : 'lançamentos'}</div>
       </div>
 
       {/* filtro moeda */}
