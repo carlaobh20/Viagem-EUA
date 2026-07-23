@@ -16,6 +16,7 @@ export default function Novo({ ir }) {
   const [pagoPor, setPagoPor] = useState(ed ? ed.pago_por : (perfil?.id || (perfis[0] && perfis[0].id)));
   const [pontoId, setPontoId] = useState(ed ? (ed.ponto_id || '') : '');
   const [data, setData] = useState(ed ? ed.data : hoje());
+  const [privado, setPrivado] = useState(ed ? !!ed.privado : false);
   const [partes, setPartes] = useState(() => {
     const init = {};
     perfis.forEach((p) => { init[p.id] = ed ? 0 : 1; });
@@ -69,7 +70,7 @@ export default function Novo({ ir }) {
     if (!valido) return;
     setSalvando(true);
     try {
-      const payload = { descricao: descricao.trim() || nomeDe(categoria), valor: valorNum, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile: reciboBlob };
+      const payload = { descricao: descricao.trim() || nomeDe(categoria), valor: valorNum, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile: reciboBlob, privado };
       if (ed) await atualizarGasto({ id: ed.id, ...payload, reciboUrlAtual: ed.recibo_url });
       else await salvarGasto(payload);
       setGastoEditando(null);
@@ -128,6 +129,13 @@ export default function Novo({ ir }) {
             );
           })}
           <p style={{ fontSize: 11, color: 'var(--faint)', marginTop: 8 }}>Partes diferentes = divisão proporcional. Ex.: 2 e 1 = um paga o dobro do outro.</p>
+        </div>
+        <div className="field"><label>Visibilidade</label>
+          <div className="toggle">
+            <button className={!privado ? 'on' : ''} onClick={() => setPrivado(false)}>👥 Compartilhado</button>
+            <button className={privado ? 'on' : ''} onClick={() => setPrivado(true)}>🔒 Só eu vejo</button>
+          </div>
+          {privado && <p style={{ fontSize: 11, color: 'var(--faint)', marginTop: 8 }}>Esse gasto fica visível só pra você — as outras pessoas da viagem não veem o valor, nem ele entra no total que elas enxergam.</p>}
         </div>
         <button className="btn-primary" onClick={salvar} disabled={!valido || salvando}>{salvando ? 'Salvando…' : ed ? 'Salvar alterações' : 'Salvar gasto'}</button>
       </div>

@@ -113,11 +113,11 @@ export function DataProvider({ session, children }) {
     return (data && data.signedUrl) || null;
   }
 
-  async function salvarGasto({ descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile }) {
+  async function salvarGasto({ descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile, privado }) {
     let recibo_url = null;
     if (reciboFile) recibo_url = await subirRecibo(reciboFile);
     const { data: novo, error } = await supabase.from('gastos').insert({
-      viagem_id: viagem.id, descricao, valor, moeda, categoria, pago_por: pagoPor, ponto_id: pontoId || null, data, recibo_url,
+      viagem_id: viagem.id, descricao, valor, moeda, categoria, pago_por: pagoPor, ponto_id: pontoId || null, data, recibo_url, privado: !!privado, user_id: session.user.id,
     }).select().single();
     if (error) throw error;
     const linhas = participantes.map((p) => ({ gasto_id: novo.id, perfil_id: p.id, partes: p.partes }));
@@ -125,10 +125,10 @@ export function DataProvider({ session, children }) {
     await carregar();
   }
 
-  async function atualizarGasto({ id, descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile, reciboUrlAtual }) {
+  async function atualizarGasto({ id, descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile, reciboUrlAtual, privado }) {
     let recibo_url = reciboUrlAtual || null;
     if (reciboFile) recibo_url = await subirRecibo(reciboFile);
-    const { error } = await supabase.from('gastos').update({ descricao, valor, moeda, categoria, pago_por: pagoPor, ponto_id: pontoId || null, data, recibo_url }).eq('id', id);
+    const { error } = await supabase.from('gastos').update({ descricao, valor, moeda, categoria, pago_por: pagoPor, ponto_id: pontoId || null, data, recibo_url, privado: !!privado }).eq('id', id);
     if (error) throw error;
     await supabase.from('gasto_divisao').delete().eq('gasto_id', id);
     const linhas = participantes.map((p) => ({ gasto_id: id, perfil_id: p.id, partes: p.partes }));

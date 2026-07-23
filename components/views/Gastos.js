@@ -79,7 +79,7 @@ export default function Gastos({ ir }) {
             <div onClick={() => editar(g)} style={{ display: 'flex', alignItems: 'center', gap: 11, flex: 1, minWidth: 0, cursor: 'pointer' }}>
               <span style={{ width: 38, height: 38, borderRadius: 12, background: 'var(--ui-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flex: '0 0 auto' }}>{emojiCategoria(g.categoria)}</span>
               <span style={{ minWidth: 0, flex: 1 }}>
-                <span style={{ display: 'block', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.descricao || nomeCategoria(g.categoria)}</span>
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.privado && '🔒 '}{g.descricao || nomeCategoria(g.categoria)}</span>
                 <span style={{ display: 'block', fontSize: 11, color: 'var(--ui-muted)', marginTop: 1 }}>{nomePagador(g.pago_por)} · entre {qtd(g.id)} · {formataData(g.data)}</span>
               </span>
               <span style={{ textAlign: 'right', flex: '0 0 auto' }}>
