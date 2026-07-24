@@ -95,6 +95,17 @@ export default function Pessoas() {
         );
       })}
 
+      {/* Editar/remover a pessoa selecionada — sempre visível, independente de já ter gasto registrado */}
+      {sel && (
+        <div style={{ ...card, marginTop: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <span style={{ fontSize: 13, color: 'var(--ui-muted)', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Editando: <b style={{ color: 'var(--ui-ink)' }}>{sel.nome}</b></span>
+          <div style={{ display: 'flex', gap: 14, flex: '0 0 auto' }}>
+            <button onClick={() => editar(sel)} style={{ border: 'none', background: 'none', color: 'var(--ui-teal)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>✏️ Editar nome</button>
+            {!sel.ehVoce && <button onClick={() => remover(sel)} style={{ border: 'none', background: 'none', color: '#E14B5A', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>Remover</button>}
+          </div>
+        </div>
+      )}
+
       {/* Detalhamento da pessoa selecionada */}
       {sel && cats.length > 0 && (
         <div style={{ ...card, marginTop: 14, padding: 16 }}>
@@ -117,10 +128,6 @@ export default function Pessoas() {
                 </div>
               ))}
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: 14, marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--ui-line)' }}>
-            <button onClick={() => editar(sel)} style={{ border: 'none', background: 'none', color: 'var(--ui-teal)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>Editar nome</button>
-            {!sel.ehVoce && <button onClick={() => remover(sel)} style={{ border: 'none', background: 'none', color: '#E14B5A', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>Remover</button>}
           </div>
         </div>
       )}
