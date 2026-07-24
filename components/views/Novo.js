@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { CATEGORIAS } from '../../lib/format';
 
 export default function Novo({ ir }) {
-  const { perfis, pontos, perfil, divisoes, salvarGasto, atualizarGasto, gastoEditando, setGastoEditando } = useData();
+  const { perfis, pontos, perfil, divisoes, gastoVistoPor, salvarGasto, atualizarGasto, gastoEditando, setGastoEditando } = useData();
   const ed = gastoEditando;
   const inputRecibo = useRef(null);
 
@@ -17,6 +17,9 @@ export default function Novo({ ir }) {
   const [pontoId, setPontoId] = useState(ed ? (ed.ponto_id || '') : '');
   const [data, setData] = useState(ed ? ed.data : hoje());
   const [privado, setPrivado] = useState(ed ? !!ed.privado : false);
+  const [compartilhadoCom, setCompartilhadoCom] = useState(() =>
+    ed ? gastoVistoPor.filter((v) => v.gasto_id === ed.id).map((v) => v.perfil_id) : []
+  );
   const [partes, setPartes] = useState(() => {
     const init = {};
     perfis.forEach((p) => { init[p.id] = ed ? 0 : 1; });
@@ -29,6 +32,8 @@ export default function Novo({ ir }) {
   const [lendoRecibo, setLendoRecibo] = useState(false);
 
   function togglePessoa(id) { setPartes((prev) => ({ ...prev, [id]: prev[id] > 0 ? 0 : 1 })); }
+  function toggleVeQuem(id) { setCompartilhadoCom((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]); }
+  const outrasPessoas = perfis.filter((p) => p.id !== (perfil && perfil.id));
   function mudarPartes(id, delta) { setPartes((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] || 0) + delta) })); }
   const participantes = perfis.filter((p) => (partes[p.id] || 0) > 0).map((p) => ({ id: p.id, partes: partes[p.id] }));
   const valorNum = parseFloat((valor || '').replace(',', '.'));
@@ -70,7 +75,7 @@ export default function Novo({ ir }) {
     if (!valido) return;
     setSalvando(true);
     try {
-      const payload = { descricao: descricao.trim() || nomeDe(categoria), valor: valorNum, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile: reciboBlob, privado };
+      const payload = { descricao: descricao.trim() || nomeDe(categoria), valor: valorNum, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile: reciboBlob, privado, compartilhadoCom };
       if (ed) await atualizarGasto({ id: ed.id, ...payload, reciboUrlAtual: ed.recibo_url });
       else await salvarGasto(payload);
       setGastoEditando(null);
@@ -132,10 +137,23 @@ export default function Novo({ ir }) {
         </div>
         <div className="field"><label>Visibilidade</label>
           <div className="toggle">
-            <button className={!privado ? 'on' : ''} onClick={() => setPrivado(false)}>👥 Compartilhado</button>
-            <button className={privado ? 'on' : ''} onClick={() => setPrivado(true)}>🔒 Só eu vejo</button>
+            <button className={!privado ? 'on' : ''} onClick={() => setPrivado(false)}>👥 Todo mundo vê</button>
+            <button className={privado ? 'on' : ''} onClick={() => setPrivado(true)}>🔒 Restrito</button>
           </div>
-          {privado && <p style={{ fontSize: 11, color: 'var(--faint)', marginTop: 8 }}>Esse gasto fica visível só pra você — as outras pessoas da viagem não veem o valor, nem ele entra no total que elas enxergam.</p>}
+          {privado && (
+            <div style={{ marginTop: 10 }}>
+              <p style={{ fontSize: 11, color: 'var(--faint)', marginBottom: 8 }}>Só você vê por padrão. Toque em quem mais da viagem pode ver esse gasto (opcional):</p>
+              {outrasPessoas.length === 0 && <p style={{ fontSize: 12, color: 'var(--faint)' }}>Não tem mais ninguém nessa viagem ainda.</p>}
+              {outrasPessoas.map((p) => {
+                const ativo = compartilhadoCom.includes(p.id);
+                return (
+                  <button key={p.id} className={'chip' + (ativo ? ' on' : '')} onClick={() => toggleVeQuem(p.id)} style={{ marginRight: 8, marginBottom: 8 }}>
+                    {ativo ? '✓ ' : ''}{p.nome}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
         <button className="btn-primary" onClick={salvar} disabled={!valido || salvando}>{salvando ? 'Salvando…' : ed ? 'Salvar alterações' : 'Salvar gasto'}</button>
       </div>

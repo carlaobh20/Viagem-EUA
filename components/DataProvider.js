@@ -11,6 +11,7 @@ export function DataProvider({ session, children }) {
   const [pontos, setPontos] = useState([]);
   const [gastos, setGastos] = useState([]);
   const [divisoes, setDivisoes] = useState([]);
+  const [gastoVistoPor, setGastoVistoPor] = useState([]);
   const [acertos, setAcertos] = useState([]);
   const [registrosKm, setRegistrosKm] = useState([]);
   const [checklist, setChecklist] = useState([]);
@@ -75,8 +76,10 @@ export function DataProvider({ session, children }) {
     const { data: am } = await supabase.from('apps_marcados').select('*').eq('viagem_id', v.id).eq('user_id', uid);
     setAppsMarcados(am || []);
     const ids = (gs || []).map((g) => g.id);
-    if (ids.length) { const { data: dv } = await supabase.from('gasto_divisao').select('*').in('gasto_id', ids); setDivisoes(dv || []); }
-    else setDivisoes([]);
+    if (ids.length) {
+      const { data: dv } = await supabase.from('gasto_divisao').select('*').in('gasto_id', ids); setDivisoes(dv || []);
+      const { data: vp } = await supabase.from('gasto_visto_por').select('*').in('gasto_id', ids); setGastoVistoPor(vp || []);
+    } else { setDivisoes([]); setGastoVistoPor([]); }
     setErro(null);
     } catch (e) { setErro((e && e.message) || 'Falha ao carregar a viagem.'); }
     finally { setCarregando(false); }
@@ -113,7 +116,7 @@ export function DataProvider({ session, children }) {
     return (data && data.signedUrl) || null;
   }
 
-  async function salvarGasto({ descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile, privado }) {
+  async function salvarGasto({ descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile, privado, compartilhadoCom }) {
     let recibo_url = null;
     if (reciboFile) recibo_url = await subirRecibo(reciboFile);
     const { data: novo, error } = await supabase.from('gastos').insert({
@@ -122,10 +125,13 @@ export function DataProvider({ session, children }) {
     if (error) throw error;
     const linhas = participantes.map((p) => ({ gasto_id: novo.id, perfil_id: p.id, partes: p.partes }));
     await supabase.from('gasto_divisao').insert(linhas);
+    if (privado && compartilhadoCom && compartilhadoCom.length) {
+      await supabase.from('gasto_visto_por').insert(compartilhadoCom.map((perfilId) => ({ gasto_id: novo.id, perfil_id: perfilId })));
+    }
     await carregar();
   }
 
-  async function atualizarGasto({ id, descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile, reciboUrlAtual, privado }) {
+  async function atualizarGasto({ id, descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile, reciboUrlAtual, privado, compartilhadoCom }) {
     let recibo_url = reciboUrlAtual || null;
     if (reciboFile) recibo_url = await subirRecibo(reciboFile);
     const { error } = await supabase.from('gastos').update({ descricao, valor, moeda, categoria, pago_por: pagoPor, ponto_id: pontoId || null, data, recibo_url, privado: !!privado }).eq('id', id);
@@ -133,6 +139,10 @@ export function DataProvider({ session, children }) {
     await supabase.from('gasto_divisao').delete().eq('gasto_id', id);
     const linhas = participantes.map((p) => ({ gasto_id: id, perfil_id: p.id, partes: p.partes }));
     await supabase.from('gasto_divisao').insert(linhas);
+    await supabase.from('gasto_visto_por').delete().eq('gasto_id', id);
+    if (privado && compartilhadoCom && compartilhadoCom.length) {
+      await supabase.from('gasto_visto_por').insert(compartilhadoCom.map((perfilId) => ({ gasto_id: id, perfil_id: perfilId })));
+    }
     await carregar();
   }
 
@@ -291,7 +301,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }
