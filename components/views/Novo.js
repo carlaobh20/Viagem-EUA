@@ -76,7 +76,7 @@ export default function Novo({ ir }) {
     setSalvando(true);
     try {
       const payload = { descricao: descricao.trim() || nomeDe(categoria), valor: valorNum, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile: reciboBlob, privado, compartilhadoCom };
-      if (ed) await atualizarGasto({ id: ed.id, ...payload, reciboUrlAtual: ed.recibo_url });
+      if (ed) await atualizarGasto({ id: ed.id, ...payload, reciboUrlAtual: ed.recibo_url, userIdAtual: ed.user_id });
       else await salvarGasto(payload);
       setGastoEditando(null);
       ir('gastos');

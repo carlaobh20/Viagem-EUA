@@ -152,10 +152,15 @@ export function DataProvider({ session, children }) {
     await carregar();
   }
 
-  async function atualizarGasto({ id, descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile, reciboUrlAtual, privado, compartilhadoCom }) {
+  async function atualizarGasto({ id, descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile, reciboUrlAtual, privado, compartilhadoCom, userIdAtual }) {
     let recibo_url = reciboUrlAtual || null;
     if (reciboFile) recibo_url = await subirRecibo(reciboFile);
-    const { error } = await supabase.from('gastos').update({ descricao, valor, moeda, categoria, pago_por: pagoPor, ponto_id: pontoId || null, data, recibo_url, privado: !!privado }).eq('id', id);
+    // Gastos antigos foram criados antes da coluna user_id existir e ficaram com user_id nulo.
+    // Se houver uma política de RLS de UPDATE exigindo user_id = auth.uid(), editá-los falha.
+    // Preenchemos o user_id com o do editor quando estiver vazio (não rouba a autoria de quem já tem).
+    const patch = { descricao, valor, moeda, categoria, pago_por: pagoPor, ponto_id: pontoId || null, data, recibo_url, privado: !!privado };
+    if (!userIdAtual) patch.user_id = session.user.id;
+    const { error } = await supabase.from('gastos').update(patch).eq('id', id);
     if (error) throw error;
     await supabase.from('gasto_divisao').delete().eq('gasto_id', id);
     const linhas = participantes.map((p) => ({ gasto_id: id, perfil_id: p.id, partes: p.partes }));
