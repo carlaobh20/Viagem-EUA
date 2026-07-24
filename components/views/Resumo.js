@@ -7,7 +7,9 @@ import { valorEmBRL, fmtBRL, fmtUSD, emojiCategoria, nomeCategoria, CATEGORIAS_M
 const MS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const fmtDia = (d) => { if (!d) return ''; const [, m, dia] = d.split('-'); return `${Number(dia)} ${MS[Number(m) - 1]}`; };
 const diff = (a, b) => Math.floor((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
-const ICON_TIPO = { voo: '✈️', aviao: '✈️', hotel: '🏨', hospedagem: '🏨', passeio: '🎟️', atividade: '🎟️', transporte: '🚗', carro: '🚗', comida: '🍽️', restaurante: '🍽️' };
+const ICON_TIPO = { voo: '✈️', aviao: '✈️', hotel: '🏨', hospedagem: '🏨', passeio: '🎟️', atividade: '🎟️', museu: '🖼️', transporte: '🚗', carro: '🚗', comida: '🍽️', restaurante: '🍽️' };
+const COR_TIPO = { voo: '#185FA5', hospedagem: '#BA7517', hotel: '#BA7517', passeio: '#1D9E75', comida: '#D4537E', restaurante: '#D4537E', museu: '#534AB7', transporte: '#0F6E56', carro: '#0F6E56', outro: '#00877A' };
+const hexRgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
 
 export default function Resumo({ ir }) {
   const { viagem, gastos, perfis, divisoes, acertos, pontos, checklist, atualizarOrcamento } = useData();
@@ -32,7 +34,7 @@ export default function Resumo({ ir }) {
   const iconDe = (t) => ICON_TIPO[(t || '').toLowerCase()] || '📍';
 
   // rota (por ordem) para o mini-mapa
-  const rota = (pontos || []).slice().sort((a, b) => (a.ordem || 0) - (b.ordem || 0)).map((p) => p.nome).filter(Boolean);
+  const rota = (pontos || []).slice().sort((a, b) => (a.ordem || 0) - (b.ordem || 0)).map((p) => ({ nome: p.nome, tipo: p.tipo })).filter((p) => p.nome);
   const rotaShow = rota.slice(0, 5);
 
   // resumo de gastos por categoria
@@ -112,19 +114,24 @@ export default function Resumo({ ir }) {
             <span style={sec}>Roteiro da viagem</span>
             <span onClick={() => ir('mapa')} style={verTodos}>Ver mapa</span>
           </div>
-          <div onClick={() => ir('mapa')} style={{ ...card, padding: '18px 16px', cursor: 'pointer' }}>
+          <div onClick={() => ir('mapa')} style={{ ...card, padding: '20px 16px 16px', cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              {rotaShow.map((nome, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < rotaShow.length - 1 ? 1 : '0 0 auto', minWidth: 0 }}>
-                  <span style={{ width: 11, height: 11, borderRadius: '50%', background: 'var(--ui-teal)', flex: '0 0 auto', boxShadow: '0 0 0 4px rgba(0,199,177,.14)' }} />
-                  {i < rotaShow.length - 1 && <span style={{ flex: 1, height: 2, background: 'repeating-linear-gradient(90deg, var(--ui-line) 0 6px, transparent 6px 11px)', margin: '0 3px' }} />}
-                </div>
-              ))}
+              {rotaShow.map((p, i) => {
+                const cor = COR_TIPO[(p.tipo || '').toLowerCase()] || COR_TIPO.outro;
+                const corProx = COR_TIPO[(rotaShow[i + 1]?.tipo || '').toLowerCase()] || COR_TIPO.outro;
+                const atual = prox && p.nome === prox.nome;
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < rotaShow.length - 1 ? 1 : '0 0 auto', minWidth: 0 }}>
+                    <span style={{ width: 36, height: 36, borderRadius: 12, background: hexRgba(cor, 0.13), border: atual ? `2px solid ${cor}` : `1px solid ${hexRgba(cor, 0.28)}`, boxShadow: atual ? `0 0 0 4px ${hexRgba(cor, 0.16)}` : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flex: '0 0 auto' }}>{iconDe(p.tipo)}</span>
+                    {i < rotaShow.length - 1 && <span style={{ flex: 1, height: 3, borderRadius: 2, background: `linear-gradient(90deg, ${hexRgba(cor, 0.55)}, ${hexRgba(corProx, 0.55)})`, margin: '0 4px' }} />}
+                  </div>
+                );
+              })}
               {rota.length > rotaShow.length && <span style={{ fontSize: 11, color: 'var(--ui-muted)', marginLeft: 6, flex: '0 0 auto' }}>+{rota.length - rotaShow.length}</span>}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 9 }}>
-              {rotaShow.map((nome, i) => (
-                <span key={i} style={{ fontSize: 10.5, color: 'var(--ui-muted)', flex: 1, textAlign: i === 0 ? 'left' : i === rotaShow.length - 1 ? 'right' : 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 2px' }}>{nome}</span>
+              {rotaShow.map((p, i) => (
+                <span key={i} style={{ fontSize: 10.5, color: 'var(--ui-muted)', fontWeight: prox && p.nome === prox.nome ? 700 : 400, flex: 1, textAlign: i === 0 ? 'left' : i === rotaShow.length - 1 ? 'right' : 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 2px' }}>{p.nome}</span>
               ))}
             </div>
           </div>
