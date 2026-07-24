@@ -124,28 +124,24 @@ export default function Novo({ ir }) {
         <div className="field"><label>Data</label>
           <input className="input" type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
         <div className="field"><label>Dividir entre (toque para incluir)</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
             {perfis.map((p) => {
               const ativo = (partes[p.id] || 0) > 0;
-              const voce = perfil && p.id === perfil.id;
               return (
                 <div key={p.id} onClick={() => togglePessoa(p.id)} style={{
-                  aspectRatio: '1', borderRadius: 16, cursor: 'pointer', position: 'relative',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 10,
-                  background: ativo ? 'var(--brand-soft)' : 'var(--surface)',
-                  border: ativo ? '2px solid var(--brand)' : '0.5px solid var(--line-strong)',
+                  borderRadius: 10, cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '7px 3px',
+                  background: ativo ? 'var(--credit)' : 'var(--surface)',
+                  border: ativo ? '1px solid var(--credit)' : '0.5px solid var(--line-strong)',
                   transition: 'background .15s, border-color .15s'
                 }}>
+                  <span style={{ width: 20, height: 20, borderRadius: '50%', background: ativo ? 'rgba(255,255,255,.28)' : (p.cor || 'var(--brand)'), color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>{p.nome.slice(0, 2).toUpperCase()}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: ativo ? '#fff' : 'var(--ink)', textAlign: 'center', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{p.nome}</span>
                   {ativo && (
-                    <span style={{ position: 'absolute', top: 8, right: 8, width: 18, height: 18, borderRadius: '50%', background: 'var(--brand)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
-                  )}
-                  <span style={{ width: 40, height: 40, borderRadius: '50%', background: p.cor || 'var(--brand)', color: '#fff', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>{p.nome.slice(0, 2).toUpperCase()}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: ativo ? 'var(--brand)' : 'var(--ink)', textAlign: 'center', lineHeight: 1.2 }}>{p.nome}{voce ? ' (você)' : ''}</span>
-                  {ativo && (
-                    <div onClick={(e) => e.stopPropagation()} className="stepper" style={{ marginTop: 2 }}>
-                      <button onClick={() => mudarPartes(p.id, -1)} aria-label="Menos">−</button>
-                      <span className="n">{partes[p.id]}</span>
-                      <button onClick={() => mudarPartes(p.id, 1)} aria-label="Mais">+</button>
+                    <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 1 }}>
+                      <button onClick={() => mudarPartes(p.id, -1)} aria-label="Menos" style={{ width: 16, height: 16, lineHeight: '16px', fontSize: 10, padding: 0, border: 'none', borderRadius: 4, background: 'rgba(255,255,255,.28)', color: '#fff' }}>−</button>
+                      <span style={{ fontSize: 10, color: '#fff', minWidth: 9, textAlign: 'center' }}>{partes[p.id]}</span>
+                      <button onClick={() => mudarPartes(p.id, 1)} aria-label="Mais" style={{ width: 16, height: 16, lineHeight: '16px', fontSize: 10, padding: 0, border: 'none', borderRadius: 4, background: 'rgba(255,255,255,.28)', color: '#fff' }}>+</button>
                     </div>
                   )}
                 </div>
