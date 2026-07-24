@@ -72,29 +72,34 @@ export function DataProvider({ session, children }) {
     let precisa = !metaNome;
     if (precisa && meu && meu.nome_definido && meu.nome) { await supabase.auth.updateUser({ data: { nome: meu.nome } }); precisa = false; }
     setPrecisaNome(precisa);
-    const [{ data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }, { data: ck }] = await Promise.all([
+    // Tudo o que depende só de v.id/uid vai numa leva paralela (antes eram ~11
+    // consultas em fila, o que deixava a tela "Carregando a viagem…" travada).
+    const [
+      { data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }, { data: ck },
+      { data: gd }, { data: lg }, { data: ai }, { data: pi }, { data: am },
+    ] = await Promise.all([
       supabase.from('perfis').select('*').eq('viagem_id', v.id).order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
       supabase.from('gastos').select('*').eq('viagem_id', v.id).order('data', { ascending: false }),
       supabase.from('acertos').select('*').eq('viagem_id', v.id).order('criado_em', { ascending: false }),
       supabase.from('registros_km').select('*').eq('viagem_id', v.id).order('data', { ascending: false }),
       supabase.from('checklist_itens').select('*').eq('viagem_id', v.id).order('ordem'),
+      supabase.from('guardados').select('*').eq('viagem_id', v.id).eq('user_id', uid).order('criado_em'),
+      supabase.from('lugares').select('*').eq('viagem_id', v.id).order('criado_em'),
+      supabase.from('apps_instalar').select('*').eq('viagem_id', v.id).order('criado_em'),
+      supabase.from('perguntas_imigracao').select('*').eq('viagem_id', v.id).order('ordem'),
+      supabase.from('apps_marcados').select('*').eq('viagem_id', v.id).eq('user_id', uid),
     ]);
     setPerfis(ps || []); setPontos(pts || []); setGastos(gs || []); setAcertos(acs || []); setRegistrosKm(rk || []); setChecklist(ck || []);
-    const { data: gd } = await supabase.from('guardados').select('*').eq('viagem_id', v.id).eq('user_id', uid).order('criado_em');
-    setGuardados(gd || []);
-    const { data: lg } = await supabase.from('lugares').select('*').eq('viagem_id', v.id).order('criado_em');
-    setLugares(lg || []);
-    const { data: ai } = await supabase.from('apps_instalar').select('*').eq('viagem_id', v.id).order('criado_em');
-    setAppsInstalar(ai || []);
-    const { data: pi } = await supabase.from('perguntas_imigracao').select('*').eq('viagem_id', v.id).order('ordem');
-    setPerguntasImigracao(pi || []);
-    const { data: am } = await supabase.from('apps_marcados').select('*').eq('viagem_id', v.id).eq('user_id', uid);
-    setAppsMarcados(am || []);
+    setGuardados(gd || []); setLugares(lg || []); setAppsInstalar(ai || []); setPerguntasImigracao(pi || []); setAppsMarcados(am || []);
+    // divisões e "visto por" dependem dos ids dos gastos, então vão numa segunda leva (também paralela)
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) {
-      const { data: dv } = await supabase.from('gasto_divisao').select('*').in('gasto_id', ids); setDivisoes(dv || []);
-      const { data: vp } = await supabase.from('gasto_visto_por').select('*').in('gasto_id', ids); setGastoVistoPor(vp || []);
+      const [{ data: dv }, { data: vp }] = await Promise.all([
+        supabase.from('gasto_divisao').select('*').in('gasto_id', ids),
+        supabase.from('gasto_visto_por').select('*').in('gasto_id', ids),
+      ]);
+      setDivisoes(dv || []); setGastoVistoPor(vp || []);
     } else { setDivisoes([]); setGastoVistoPor([]); }
     setErro(null);
     } catch (e) { setErro((e && e.message) || 'Falha ao carregar a viagem.'); }

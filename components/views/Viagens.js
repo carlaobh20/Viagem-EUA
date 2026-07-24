@@ -87,42 +87,6 @@ export default function Viagens({ ir }) {
     window.prompt('Copie o link de convite:', url);
   }
 
-  function Sky() {
-    return (
-      <svg style={{ position: 'absolute', right: 0, bottom: 0, width: '72%', height: '60%', opacity: 0.16, zIndex: 1 }} viewBox="0 0 200 100" preserveAspectRatio="xMaxYMax meet">
-        <g fill="#fff"><rect x="6" y="42" width="15" height="58" /><rect x="26" y="26" width="13" height="74" /><rect x="44" y="52" width="11" height="48" /><rect x="118" y="16" width="9" height="84" /><rect x="132" y="46" width="15" height="54" /><rect x="153" y="30" width="13" height="70" /><rect x="172" y="56" width="11" height="44" /></g>
-      </svg>
-    );
-  }
-
-  function Card({ v, idx }) {
-    const i = info(v);
-    const g = GRADS[idx % GRADS.length];
-    const ativa = viagem && v.id === viagem.id;
-    const inkTotal = v.foto ? '#0B5563' : g.ink;
-    return (
-      <div onClick={() => abrir(v)} style={{ position: 'relative', margin: '0 0 16px', borderRadius: 24, overflow: 'hidden', padding: 18, minHeight: 172, color: '#fff', cursor: 'pointer', background: v.foto ? '#0B3A47' : g.bg, boxShadow: '0 12px 26px rgba(20,40,50,.18)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', filter: i.passada ? 'saturate(.75)' : 'none', outline: ativa ? '3px solid #fff' : 'none', outlineOffset: -3 }}>
-        {v.foto && <img src={v.foto} alt="" loading="eager" onLoad={(e) => { e.currentTarget.style.opacity = 1; }} ref={(el) => { if (el && el.complete) el.style.opacity = 1; }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0, opacity: 0, transition: 'opacity .45s ease' }} />}
-        {v.foto && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(150deg, rgba(8,28,38,.32) 0%, rgba(8,28,38,.62) 100%)', zIndex: 1 }} />}
-        {!v.foto && <Sky />}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, background: 'rgba(0,0,0,.22)', backdropFilter: 'blur(3px)', padding: '6px 13px', borderRadius: 20 }}>{i.tag}</span>
-          {ehDono(v) && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={(e) => convidarCard(v, e)} aria-label="Convidar" style={rb}>🔗</button>
-              <button onClick={(e) => trocarFoto(v, e)} aria-label="Trocar foto" style={rb}>📷</button>
-              <button onClick={(e) => apagar(v, e)} aria-label="Apagar" style={rb}>🗑</button>
-            </div>
-          )}
-        </div>
-        <div style={{ position: 'relative', zIndex: 2 }}>
-          <div style={{ fontSize: 25, fontWeight: 800, letterSpacing: '-0.5px', textShadow: '0 1px 8px rgba(0,0,0,.25)' }}>{v.nome}</div>
-          <div style={{ fontSize: 13, marginTop: 7, opacity: 0.96, display: 'flex', alignItems: 'center', gap: 7 }}>📅 {v.data_ida ? `${fmtDia(v.data_ida)}${v.data_volta ? ' → ' + fmtDia(v.data_volta) : ''}` : 'Sem datas definidas'}</div>
-        </div>
-        <div style={{ position: 'absolute', right: 18, bottom: 18, background: '#fff', color: inkTotal, fontSize: 14, fontWeight: 800, padding: '9px 15px', borderRadius: 14, zIndex: 3 }}>{totais[v.id] ? fmtBRL(totais[v.id]) : 'R$ 0'}</div>
-      </div>
-    );
-  }
 
   // ----- Minha meta (viagem ativa) -----
   const parseValor = (s) => { if (s == null) return null; let t = String(s).trim().replace(/[^\d.,]/g, ''); if (!t) return null; if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); const n = parseFloat(t); return isNaN(n) ? null : n; };
@@ -152,10 +116,10 @@ export default function Viagens({ ir }) {
 
       <div style={{ padding: '0 18px', marginTop: -6 }}>
         {proximas.length > 0 && <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: '#00A99B', margin: '16px 4px 12px' }}>PRÓXIMAS VIAGENS</div>}
-        {proximas.map((v, i) => <Card key={v.id} v={v} idx={i} />)}
+        {proximas.map((v, i) => <Card key={v.id} v={v} idx={i} info={info(v)} ativa={!!(viagem && v.id === viagem.id)} dono={ehDono(v)} total={totais[v.id]} onAbrir={() => abrir(v)} onConvidar={(e) => convidarCard(v, e)} onFoto={(e) => trocarFoto(v, e)} onApagar={(e) => apagar(v, e)} />)}
 
         {passadas.length > 0 && <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: '#7B8794', margin: '24px 4px 12px' }}>VIAGENS REALIZADAS</div>}
-        {passadas.map((v, i) => <Card key={v.id} v={v} idx={i + proximas.length} />)}
+        {passadas.map((v, i) => <Card key={v.id} v={v} idx={i + proximas.length} info={info(v)} ativa={!!(viagem && v.id === viagem.id)} dono={ehDono(v)} total={totais[v.id]} onAbrir={() => abrir(v)} onConvidar={(e) => convidarCard(v, e)} onFoto={(e) => trocarFoto(v, e)} onApagar={(e) => apagar(v, e)} />)}
 
         {viagem && (
           <div style={{ margin: '22px 0 4px' }}>
@@ -232,3 +196,42 @@ export default function Viagens({ ir }) {
   );
 }
 const rb = { width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,0,0,.22)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, border: 'none', color: '#fff', cursor: 'pointer' };
+
+// Sky e Card ficam no nível do módulo (fora do componente Viagens) de propósito:
+// se fossem definidos dentro, o React os recriaria a cada render e remontaria o
+// card inteiro — a imagem de fundo reiniciava a animação de opacidade e o card
+// "piscava". Fora, a identidade é estável e o card só atualiza, sem remontar.
+function Sky() {
+  return (
+    <svg style={{ position: 'absolute', right: 0, bottom: 0, width: '72%', height: '60%', opacity: 0.16, zIndex: 1 }} viewBox="0 0 200 100" preserveAspectRatio="xMaxYMax meet">
+      <g fill="#fff"><rect x="6" y="42" width="15" height="58" /><rect x="26" y="26" width="13" height="74" /><rect x="44" y="52" width="11" height="48" /><rect x="118" y="16" width="9" height="84" /><rect x="132" y="46" width="15" height="54" /><rect x="153" y="30" width="13" height="70" /><rect x="172" y="56" width="11" height="44" /></g>
+    </svg>
+  );
+}
+
+function Card({ v, idx, info, ativa, dono, total, onAbrir, onConvidar, onFoto, onApagar }) {
+  const g = GRADS[idx % GRADS.length];
+  const inkTotal = v.foto ? '#0B5563' : g.ink;
+  return (
+    <div onClick={onAbrir} style={{ position: 'relative', margin: '0 0 16px', borderRadius: 24, overflow: 'hidden', padding: 18, minHeight: 172, color: '#fff', cursor: 'pointer', background: v.foto ? '#0B3A47' : g.bg, boxShadow: '0 12px 26px rgba(20,40,50,.18)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', filter: info.passada ? 'saturate(.75)' : 'none', outline: ativa ? '3px solid #fff' : 'none', outlineOffset: -3 }}>
+      {v.foto && <img src={v.foto} alt="" loading="eager" onLoad={(e) => { e.currentTarget.style.opacity = 1; }} ref={(el) => { if (el && el.complete) el.style.opacity = 1; }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0, opacity: 0, transition: 'opacity .45s ease' }} />}
+      {v.foto && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(150deg, rgba(8,28,38,.32) 0%, rgba(8,28,38,.62) 100%)', zIndex: 1 }} />}
+      {!v.foto && <Sky />}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, background: 'rgba(0,0,0,.22)', backdropFilter: 'blur(3px)', padding: '6px 13px', borderRadius: 20 }}>{info.tag}</span>
+        {dono && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onConvidar} aria-label="Convidar" style={rb}>🔗</button>
+            <button onClick={onFoto} aria-label="Trocar foto" style={rb}>📷</button>
+            <button onClick={onApagar} aria-label="Apagar" style={rb}>🗑</button>
+          </div>
+        )}
+      </div>
+      <div style={{ position: 'relative', zIndex: 2 }}>
+        <div style={{ fontSize: 25, fontWeight: 800, letterSpacing: '-0.5px', textShadow: '0 1px 8px rgba(0,0,0,.25)' }}>{v.nome}</div>
+        <div style={{ fontSize: 13, marginTop: 7, opacity: 0.96, display: 'flex', alignItems: 'center', gap: 7 }}>📅 {v.data_ida ? `${fmtDia(v.data_ida)}${v.data_volta ? ' → ' + fmtDia(v.data_volta) : ''}` : 'Sem datas definidas'}</div>
+      </div>
+      <div style={{ position: 'absolute', right: 18, bottom: 18, background: '#fff', color: inkTotal, fontSize: 14, fontWeight: 800, padding: '9px 15px', borderRadius: 14, zIndex: 3 }}>{total ? fmtBRL(total) : 'R$ 0'}</div>
+    </div>
+  );
+}
