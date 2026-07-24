@@ -34,7 +34,6 @@ export default function Novo({ ir }) {
   function togglePessoa(id) { setPartes((prev) => ({ ...prev, [id]: prev[id] > 0 ? 0 : 1 })); }
   function toggleVeQuem(id) { setCompartilhadoCom((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]); }
   const outrasPessoas = perfis.filter((p) => p.id !== (perfil && perfil.id));
-  function mudarPartes(id, delta) { setPartes((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] || 0) + delta) })); }
   const participantes = perfis.filter((p) => (partes[p.id] || 0) > 0).map((p) => ({ id: p.id, partes: partes[p.id] }));
   const valorNum = parseFloat((valor || '').replace(',', '.'));
   const valido = valorNum > 0 && pagoPor && participantes.length > 0;
@@ -137,18 +136,11 @@ export default function Novo({ ir }) {
                 }}>
                   <span style={{ width: 20, height: 20, borderRadius: '50%', background: ativo ? 'rgba(255,255,255,.28)' : (p.cor || 'var(--brand)'), color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>{p.nome.slice(0, 2).toUpperCase()}</span>
                   <span style={{ fontSize: 11, fontWeight: 600, color: ativo ? '#fff' : 'var(--ink)', textAlign: 'center', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{p.nome}</span>
-                  {ativo && (
-                    <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 1 }}>
-                      <button onClick={() => mudarPartes(p.id, -1)} aria-label="Menos" style={{ width: 16, height: 16, lineHeight: '16px', fontSize: 10, padding: 0, border: 'none', borderRadius: 4, background: 'rgba(255,255,255,.28)', color: '#fff' }}>−</button>
-                      <span style={{ fontSize: 10, color: '#fff', minWidth: 9, textAlign: 'center' }}>{partes[p.id]}</span>
-                      <button onClick={() => mudarPartes(p.id, 1)} aria-label="Mais" style={{ width: 16, height: 16, lineHeight: '16px', fontSize: 10, padding: 0, border: 'none', borderRadius: 4, background: 'rgba(255,255,255,.28)', color: '#fff' }}>+</button>
-                    </div>
-                  )}
                 </div>
               );
             })}
           </div>
-          <p style={{ fontSize: 11, color: 'var(--faint)', marginTop: 10 }}>Por padrão só você fica marcado. Toque em quem mais participa desse gasto. Partes diferentes = divisão proporcional (ex.: 2 e 1 = um paga o dobro do outro).</p>
+          <p style={{ fontSize: 11, color: 'var(--faint)', marginTop: 10 }}>Por padrão só você fica marcado. Toque em quem mais participa desse gasto — a divisão é igual entre os selecionados.</p>
         </div>
         <div className="field"><label>Visibilidade</label>
           <div className="toggle">
