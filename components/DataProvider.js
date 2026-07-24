@@ -44,12 +44,28 @@ export function DataProvider({ session, children }) {
     setErro(null);
     // sem nenhuma viagem: não cria nada. Pede o nome se ainda não escolheu; o app abre no lobby de viagens.
     if (!v) { setPerfil(null); setPrecisaNome(!metaNome); setCarregando(false); return; }
-    // garante o meu perfil nesta viagem
-    let { data: meu } = await supabase.from('perfis').select('*').eq('user_id', uid).eq('viagem_id', v.id).maybeSingle();
+    // garante o meu perfil nesta viagem — pega TODOS os meus e usa o mais antigo.
+    // (Nunca usar .maybeSingle() aqui: se houver duplicata ele retorna null e o código
+    //  reinsere outro perfil; com a subscription realtime de 'perfis' isso vira loop infinito.)
+    let { data: meus } = await supabase.from('perfis').select('*').eq('user_id', uid).eq('viagem_id', v.id).order('criado_em');
+    meus = meus || [];
+    let meu = meus[0] || null;
     if (!meu) {
       const nome = metaNome || authUser.email.split('@')[0];
       const rp = await supabase.from('perfis').insert({ user_id: uid, nome, cor: corAleatoria(), viagem_id: v.id, nome_definido: !!metaNome }).select().single();
       meu = rp.data;
+    } else if (meus.length > 1) {
+      // Conserta o estrago do bug antigo: já existem vários perfis meus nesta viagem.
+      // Mantém o mais antigo, reaponta o que estiver em uso e apaga o resto.
+      try {
+        const manter = meu.id;
+        const dupIds = meus.slice(1).map((p) => p.id);
+        await supabase.from('gastos').update({ pago_por: manter }).in('pago_por', dupIds);
+        await supabase.from('gasto_divisao').update({ perfil_id: manter }).in('perfil_id', dupIds);
+        await supabase.from('acertos').update({ de: manter }).in('de', dupIds);
+        await supabase.from('acertos').update({ para: manter }).in('para', dupIds);
+        await supabase.from('perfis').delete().in('id', dupIds);
+      } catch (limpezaErro) { /* se falhar, segue com o perfil mais antigo mesmo */ }
     }
     setPerfil(meu);
     // pede o nome só se ainda não houver nome global. usuário antigo (já tinha nome na viagem): copia pro global e não pergunta de novo.
