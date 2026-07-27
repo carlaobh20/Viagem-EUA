@@ -35,28 +35,28 @@ export default function Menu({ ir }) {
   const semResultado = busca.trim() && individualFiltrado.length === 0 && compartilhadoFiltrado.length === 0;
 
   const CardGrande = ({ it }) => (
-    <button onClick={() => ir(it.id)} style={{ textAlign: 'left', border: 'none', cursor: 'pointer', borderRadius: 24, padding: 20, background: `linear-gradient(160deg, ${it.bg} 0%, var(--ui-card) 75%)`, position: 'relative', minHeight: 170, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: 'var(--ui-shadow)' }}>
-      <span style={{ width: 52, height: 52, borderRadius: 16, background: it.cor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Ic paths={it.icon} size={24} />
+    <button onClick={() => ir(it.id)} style={{ textAlign: 'left', border: 'none', cursor: 'pointer', borderRadius: 18, padding: 14, background: `linear-gradient(160deg, ${it.bg} 0%, var(--ui-card) 75%)`, position: 'relative', minHeight: 122, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: 'var(--ui-shadow)' }}>
+      <span style={{ width: 38, height: 38, borderRadius: 12, background: it.cor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Ic paths={it.icon} size={18} />
       </span>
       <div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ui-ink)', marginBottom: 4 }}>{it.label}</div>
-        <div style={{ fontSize: 13, color: 'var(--ui-muted)', lineHeight: 1.35 }}>{it.sub}</div>
+        <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--ui-ink)', marginBottom: 2 }}>{it.label}</div>
+        <div style={{ fontSize: 11, color: 'var(--ui-muted)', lineHeight: 1.3 }}>{it.sub}</div>
       </div>
-      <span style={{ position: 'absolute', right: 16, bottom: 16, width: 34, height: 34, borderRadius: '50%', background: 'var(--ui-card)', boxShadow: 'var(--ui-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'var(--ui-muted)' }}>›</span>
+      <span style={{ position: 'absolute', right: 12, bottom: 12, width: 26, height: 26, borderRadius: '50%', background: 'var(--ui-card)', boxShadow: 'var(--ui-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: 'var(--ui-muted)' }}>›</span>
     </button>
   );
 
   const CardPequeno = ({ it, cheio }) => (
-    <button onClick={() => ir(it.id)} style={{ textAlign: 'left', border: 'none', cursor: 'pointer', borderRadius: 20, padding: 16, background: 'var(--ui-card)', boxShadow: 'var(--ui-shadow)', display: 'flex', alignItems: 'flex-start', gap: 12, gridColumn: cheio ? '1 / -1' : 'auto' }}>
-      <span style={{ width: 42, height: 42, borderRadius: 13, background: it.bg, color: it.cor, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>
-        <Ic paths={it.icon} />
+    <button onClick={() => ir(it.id)} style={{ textAlign: 'left', border: 'none', cursor: 'pointer', borderRadius: 16, padding: 12, background: 'var(--ui-card)', boxShadow: 'var(--ui-shadow)', display: 'flex', alignItems: 'flex-start', gap: 10, gridColumn: cheio ? '1 / -1' : 'auto' }}>
+      <span style={{ width: 34, height: 34, borderRadius: 10, background: it.bg, color: it.cor, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>
+        <Ic paths={it.icon} size={16} />
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ui-ink)' }}>{it.label}</div>
-        <div style={{ fontSize: 12.5, color: 'var(--ui-muted)', marginTop: 2, lineHeight: 1.3 }}>{it.sub}</div>
+        <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ui-ink)' }}>{it.label}</div>
+        <div style={{ fontSize: 11, color: 'var(--ui-muted)', marginTop: 1, lineHeight: 1.25 }}>{it.sub}</div>
       </div>
-      <span style={{ color: 'var(--ui-faint)', fontSize: 18, flex: '0 0 auto', marginTop: 2 }}>›</span>
+      <span style={{ color: 'var(--ui-faint)', fontSize: 16, flex: '0 0 auto', marginTop: 1 }}>›</span>
     </button>
   );
 
@@ -92,7 +92,7 @@ export default function Menu({ ir }) {
             <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: 'var(--ui-muted)' }}>INDIVIDUAL</span>
             <span style={{ fontSize: 12, color: 'var(--ui-faint)' }}>🔒 só você vê</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {individualFiltrado.map((it) => <CardGrande key={it.id} it={it} />)}
           </div>
         </div>
@@ -104,7 +104,7 @@ export default function Menu({ ir }) {
             <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: 'var(--ui-muted)' }}>COMPARTILHADO</span>
             <span style={{ fontSize: 12, color: 'var(--ui-faint)' }}>🔗 todos da viagem veem</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {compartilhadoFiltrado.map((it) => <CardPequeno key={it.id} it={it} cheio={it.id === 'viagens'} />)}
           </div>
         </div>
