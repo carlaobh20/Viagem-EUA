@@ -55,8 +55,8 @@ export default function QuickActions({ tudoQuite, resumoAcerto, onAcerto, checkl
           {!foto && (
             <div style={{ width: 32, height: 32, borderRadius: 10, background: t.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, marginBottom: 8 }}>{emoji}</div>
           )}
-          <div style={{ fontSize: 11, color: foto ? 'rgba(255,255,255,.9)' : 'var(--ui-muted)', fontWeight: 600, marginBottom: 2, marginTop: foto ? 34 : 0, textShadow: foto ? '0 1px 3px rgba(0,0,0,.5)' : 'none' }}>{label}</div>
-          <div style={{ fontSize: 13.5, fontWeight: 800, color: foto ? '#fff' : 'var(--ui-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: foto ? '0 1px 3px rgba(0,0,0,.5)' : 'none' }}>{valor}</div>
+          <div style={{ fontSize: 12.5, color: foto ? 'rgba(255,255,255,.92)' : 'var(--ui-muted)', fontWeight: 800, marginBottom: 3, marginTop: foto ? 34 : 0, textShadow: foto ? '0 1px 3px rgba(0,0,0,.55)' : 'none' }}>{label}</div>
+          <div style={{ fontSize: 15, fontWeight: 900, color: foto ? '#fff' : 'var(--ui-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: foto ? '0 1px 3px rgba(0,0,0,.55)' : 'none' }}>{valor}</div>
         </div>
       </GlassCard>
     );
