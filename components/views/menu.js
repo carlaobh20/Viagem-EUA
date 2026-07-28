@@ -16,10 +16,11 @@ const IT = {
   viagens: { id: 'viagens', label: 'Trocar de viagem', sub: 'Ver e abrir suas viagens', cor: '#5F5E5A', bg: 'rgba(95,94,90,.12)', icon: <><rect x="3" y="7" width="18" height="13" rx="2.5" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></> },
   frases: { id: 'frases', label: 'Conversar em inglês', sub: 'Frases prontas por situação', cor: '#0E7C9C', bg: 'rgba(14,124,156,.12)', icon: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h8M8 13h5" /></> },
   appsinstalar: { id: 'appsinstalar', label: 'Apps pra instalar', sub: 'Nome, função e o benefício de cada um', cor: '#2563EB', bg: 'rgba(37,99,235,.12)', icon: <><rect x="5" y="2" width="14" height="20" rx="2.5" /><path d="M9 18h6" /></> },
+  diario: { id: 'diario', label: 'Diário da viagem', sub: 'Texto, áudio e fotos de cada dia', cor: '#C2410C', bg: 'rgba(234,88,12,.14)', icon: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></> },
 };
 
 const INDIVIDUAL = [IT.checklist, IT.compras];
-const COMPARTILHADO = [IT.gastos, IT.acerto, IT.lugares, IT.frases, IT.appsinstalar, IT.pessoas];
+const COMPARTILHADO = [IT.diario, IT.gastos, IT.acerto, IT.lugares, IT.frases, IT.appsinstalar, IT.pessoas];
 
 export default function Menu({ ir }) {
   const [buscaAberta, setBuscaAberta] = useState(false);
@@ -105,7 +106,7 @@ export default function Menu({ ir }) {
             <span style={{ fontSize: 12, color: 'var(--ui-faint)' }}>🔗 todos da viagem veem</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {compartilhadoFiltrado.map((it) => <CardPequeno key={it.id} it={it} cheio={it.id === 'viagens'} />)}
+            {compartilhadoFiltrado.map((it) => <CardPequeno key={it.id} it={it} cheio={it.id === 'viagens' || it.id === 'diario'} />)}
           </div>
         </div>
       )}

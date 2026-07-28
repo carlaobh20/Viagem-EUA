@@ -21,6 +21,7 @@ export function DataProvider({ session, children }) {
   const [appsInstalar, setAppsInstalar] = useState([]);
   const [perguntasImigracao, setPerguntasImigracao] = useState([]);
   const [appsMarcados, setAppsMarcados] = useState([]);
+  const [diario, setDiario] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
   const [gastoEditando, setGastoEditando] = useState(null);
@@ -77,7 +78,7 @@ export function DataProvider({ session, children }) {
     // consultas em fila, o que deixava a tela "Carregando a viagem…" travada).
     const [
       { data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }, { data: ck },
-      { data: gd }, { data: lg }, { data: ai }, { data: pi }, { data: am },
+      { data: gd }, { data: lg }, { data: ai }, { data: pi }, { data: am }, { data: dr },
     ] = await Promise.all([
       supabase.from('perfis').select('*').eq('viagem_id', v.id).order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
@@ -90,9 +91,11 @@ export function DataProvider({ session, children }) {
       supabase.from('apps_instalar').select('*').eq('viagem_id', v.id).order('criado_em'),
       supabase.from('perguntas_imigracao').select('*').eq('viagem_id', v.id).order('ordem'),
       supabase.from('apps_marcados').select('*').eq('viagem_id', v.id).eq('user_id', uid),
+      supabase.from('diario_entradas').select('*').eq('viagem_id', v.id).order('data').order('criado_em'),
     ]);
     setPerfis(ps || []); setPontos(pts || []); setGastos(gs || []); setAcertos(acs || []); setRegistrosKm(rk || []); setChecklist(ck || []);
     setGuardados(gd || []); setLugares(lg || []); setAppsInstalar(ai || []); setPerguntasImigracao(pi || []); setAppsMarcados(am || []);
+    setDiario(dr || []);
     // divisões e "visto por" dependem dos ids dos gastos, então vão numa segunda leva (também paralela)
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) {
@@ -120,6 +123,7 @@ export function DataProvider({ session, children }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registros_km' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'dicas' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'diario_entradas' }, deb)
       .subscribe();
     return () => { clearTimeout(t); supabase.removeChannel(canal); };
   }, [carregar]);
@@ -278,6 +282,44 @@ export function DataProvider({ session, children }) {
     await carregar();
   }
 
+  // ===== Diário da viagem (texto, fotos, áudio, por dia) =====
+  // Bucket 'diario' é público — guardamos só o caminho e resolvemos a URL na hora de mostrar.
+  function urlDiario(path) {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    const { data } = supabase.storage.from('diario').getPublicUrl(path);
+    return (data && data.publicUrl) || null;
+  }
+  async function subirArquivoDiario(blob, ext) {
+    const path = `${viagem.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage.from('diario').upload(path, blob, { contentType: blob.type || undefined, upsert: false });
+    if (error) throw error;
+    return path;
+  }
+  async function adicionarEntradaDiario({ data, texto, fotos, audioBlob, audioExt, audioDuracao }) {
+    if (!viagem || !perfil) return;
+    const fotoPaths = [];
+    if (fotos && fotos.length) { for (const f of fotos) fotoPaths.push(await subirArquivoDiario(f, 'jpg')); }
+    let audioPath = null;
+    if (audioBlob) audioPath = await subirArquivoDiario(audioBlob, audioExt || 'webm');
+    const { error } = await supabase.from('diario_entradas').insert({
+      viagem_id: viagem.id, perfil_id: perfil.id, user_id: session.user.id,
+      data: data || hojeLocal(), texto: (texto || '').trim() || null,
+      fotos: fotoPaths, audio_url: audioPath, audio_duracao: audioDuracao || null,
+    });
+    if (error) throw error;
+    await carregar();
+  }
+  async function removerEntradaDiario(entrada) {
+    try {
+      const paths = [...(entrada.fotos || [])];
+      if (entrada.audio_url) paths.push(entrada.audio_url);
+      if (paths.length) await supabase.storage.from('diario').remove(paths);
+    } catch (e) { /* segue removendo o registro mesmo se a limpeza da mídia falhar */ }
+    await supabase.from('diario_entradas').delete().eq('id', entrada.id);
+    await carregar();
+  }
+
   function trocarViagem(id) { if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', id); carregar(); }
   async function definirFotoViagem(id, url) { await supabase.from('viagens').update({ foto: url || null }).eq('id', id); await carregar(); }
   async function criarViagem(nome) {
@@ -328,7 +370,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome, diario, adicionarEntradaDiario, removerEntradaDiario, urlDiario };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }

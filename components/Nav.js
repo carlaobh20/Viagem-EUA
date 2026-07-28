@@ -8,7 +8,7 @@ const PATHS = {
 };
 
 // telas que vivem "dentro" do Menu — pra acender o ícone Menu quando estiver numa delas
-const NO_MENU = ['menu', 'gastos', 'checklist', 'compras', 'pessoas', 'acerto', 'conta'];
+const NO_MENU = ['menu', 'gastos', 'checklist', 'compras', 'pessoas', 'acerto', 'conta', 'diario', 'lugares', 'frases', 'appsinstalar'];
 
 export default function Nav({ view, setView }) {
   const ativo = NO_MENU.includes(view) ? 'menu' : view;
