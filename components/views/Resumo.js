@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useData } from '../DataProvider';
 import { calcularSaldos, quemDeveParaQuem } from '../../lib/settle';
@@ -13,6 +14,7 @@ import FinancePulse from '../home/FinancePulse';
 import QuickActions from '../home/QuickActions';
 import MotorhomeBanner from '../home/MotorhomeBanner';
 import RecentActivity from '../home/RecentActivity';
+import DiarioLembrete from '../home/DiarioLembrete';
 // Pontos de integração futuros — deixados prontos, não renderizados ainda
 // (sem fonte de dado real hoje, ver os próprios arquivos):
 // import CopilotSlot from '../home/futuro/CopilotSlot';
@@ -26,10 +28,23 @@ import RecentActivity from '../home/RecentActivity';
  * fabricado ou dependência de API externa ainda inexistente.
  */
 export default function Resumo({ ir }) {
-  const { viagem, gastos, perfis, divisoes, acertos, pontos, checklist, atualizarOrcamento } = useData();
+  const { viagem, gastos, perfis, divisoes, acertos, pontos, checklist, atualizarOrcamento, diario, perfil } = useData();
   const cambio = Number(viagem.cotacao_usd);
   const hoje = hojeLocal();
   const orcamento = Number(viagem.orcamento_brl) || 0;
+
+  // Provocação diária pro Diário: mostra uma vez por dia, na Home, enquanto a
+  // pessoa não tiver escrito nada hoje (em nenhum dos dois modos) e só durante
+  // o período da viagem (se as datas estiverem cadastradas).
+  const dentroDaViagem = !viagem.data_ida || !viagem.data_volta || (hoje >= viagem.data_ida && hoje <= viagem.data_volta);
+  const jaEscreveuHoje = !!perfil && (diario || []).some((e) => e.data === hoje && e.perfil_id === perfil.id);
+  const chaveDispensa = `diario-lembrete-dispensado-${hoje}`;
+  const [lembreteDispensado, setLembreteDispensado] = useState(() => (typeof window !== 'undefined' && window.localStorage.getItem(chaveDispensa) === '1'));
+  const mostrarLembreteDiario = dentroDaViagem && !jaEscreveuHoje && !lembreteDispensado;
+  function dispensarLembreteDiario() {
+    if (typeof window !== 'undefined') window.localStorage.setItem(chaveDispensa, '1');
+    setLembreteDispensado(true);
+  }
 
   const status = statusViagem(viagem.data_ida, viagem.data_volta, hoje);
   const financeiro = pulsoFinanceiro(gastos, cambio, status, orcamento, hoje);
@@ -79,6 +94,10 @@ export default function Resumo({ ir }) {
           </button>
         </div>
       </motion.div>
+
+      {mostrarLembreteDiario && (
+        <DiarioLembrete onEscrever={() => ir('diario')} onDispensar={dispensarLembreteDiario} />
+      )}
 
       <HeroTravelCard
         fotoUrl={viagem?.foto || null}
