@@ -10,6 +10,8 @@ import { motion as motionTokens, radius, shadow } from '../../lib/design-tokens'
  * @property {string} destino
  * @property {string[]} transporte - ids de TRANSPORTES selecionados (>= 1)
  * @property {'ferias'|'trabalho'|'outro'} motivo
+ * @property {string} dataIda - "AAAA-MM-DD" ou '' se ainda não souber
+ * @property {string} dataVolta - "AAAA-MM-DD" ou '' se ainda não souber
  */
 
 /**
@@ -38,7 +40,7 @@ const MOTIVOS = [
   { id: 'outro', emoji: '🗂️', label: 'Outro' },
 ];
 
-const TOTAL_PASSOS = 4;
+const TOTAL_PASSOS = 5;
 
 /**
  * Assistente de criação de viagem — card premium centralizado, em passos.
@@ -57,6 +59,8 @@ export default function NovaViagemWizard({ onCancelar, onCriar }) {
   const [destino, setDestino] = useState('');
   const [transporte, setTransporte] = useState([]);
   const [motivo, setMotivo] = useState(null);
+  const [dataIda, setDataIda] = useState('');
+  const [dataVolta, setDataVolta] = useState('');
   const [criando, setCriando] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -64,10 +68,18 @@ export default function NovaViagemWizard({ onCancelar, onCriar }) {
     setTransporte((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  // quantidade de dias, só pra mostrar feedback ao usuário no passo de datas —
+  // o cálculo "de verdade" usado pra personalizar o checklist é feito depois,
+  // a partir de data_ida/data_volta salvos na viagem (ver lib/trip-metrics.js)
+  const dias = (dataIda && dataVolta && dataVolta >= dataIda)
+    ? Math.round((new Date(dataVolta + 'T00:00:00') - new Date(dataIda + 'T00:00:00')) / 86400000) + 1
+    : null;
+
   const validoPorPasso = [
     nome.trim().length > 0 && !!tipoViagem,
     destino.trim().length > 0,
     transporte.length > 0,
+    true, // datas são opcionais — pode não saber ainda
     !!motivo,
   ];
   const passoValido = validoPorPasso[passo];
@@ -87,7 +99,7 @@ export default function NovaViagemWizard({ onCancelar, onCriar }) {
   async function criar() {
     setErro(''); setCriando(true);
     try {
-      await onCriar({ nome: nome.trim(), tipoViagem, destino: destino.trim(), transporte, motivo });
+      await onCriar({ nome: nome.trim(), tipoViagem, destino: destino.trim(), transporte, motivo, dataIda, dataVolta });
     } catch (e) {
       setErro('Não consegui criar a viagem. Tenta de novo.');
       setCriando(false);
@@ -196,6 +208,24 @@ export default function NovaViagemWizard({ onCancelar, onCriar }) {
               )}
 
               {passo === 3 && (
+                <>
+                  <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.4px', marginBottom: 4 }}>Quando é a viagem?</div>
+                  <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginBottom: 18 }}>Se ainda não souber, pode deixar em branco e ajustar depois. A quantidade de dias ajuda a ajustar o checklist.</div>
+                  <div style={{ display: 'flex', gap: 10, marginBottom: dias ? 12 : 0 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ui-faint)', marginBottom: 6 }}>IDA</div>
+                      <input type="date" value={dataIda} onChange={(e) => setDataIda(e.target.value)} style={inputStyle} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ui-faint)', marginBottom: 6 }}>VOLTA</div>
+                      <input type="date" value={dataVolta} min={dataIda || undefined} onChange={(e) => setDataVolta(e.target.value)} style={inputStyle} />
+                    </div>
+                  </div>
+                  {dias && <div style={{ fontSize: 13, color: 'var(--ui-teal)', fontWeight: 700 }}>{dias} dia{dias === 1 ? '' : 's'} de viagem</div>}
+                </>
+              )}
+
+              {passo === 4 && (
                 <>
                   <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.4px', marginBottom: 4 }}>Qual o motivo da viagem?</div>
                   <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginBottom: 18 }}>Última pergunta — prometo.</div>

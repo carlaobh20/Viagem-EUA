@@ -2,16 +2,17 @@
 import { useState, useRef } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
-import { CATEGORIAS, hojeLocal } from '../../lib/format';
+import { CATEGORIAS, hojeLocal, usaDolar } from '../../lib/format';
 
 export default function Novo({ ir }) {
-  const { perfis, pontos, perfil, divisoes, gastoVistoPor, salvarGasto, atualizarGasto, gastoEditando, setGastoEditando } = useData();
+  const { viagem, perfis, pontos, perfil, divisoes, gastoVistoPor, salvarGasto, atualizarGasto, gastoEditando, setGastoEditando } = useData();
   const ed = gastoEditando;
   const inputRecibo = useRef(null);
+  const comDolar = usaDolar(viagem);
 
   const [descricao, setDescricao] = useState(ed ? (ed.descricao || '') : '');
   const [valor, setValor] = useState(ed ? String(ed.valor).replace('.', ',') : '');
-  const [moeda, setMoeda] = useState(ed ? ed.moeda : 'USD');
+  const [moeda, setMoeda] = useState(ed ? ed.moeda : (comDolar ? 'USD' : 'BRL'));
   const [categoria, setCategoria] = useState(ed ? ed.categoria : 'comida');
   const [pagoPor, setPagoPor] = useState(ed ? ed.pago_por : (perfil?.id || (perfis[0] && perfis[0].id)));
   const [pontoId, setPontoId] = useState(ed ? (ed.ponto_id || '') : '');
@@ -99,10 +100,12 @@ export default function Novo({ ir }) {
         <div className="field"><label>Valor</label>
           <div style={{ display: 'flex', gap: 8 }}>
             <input className="input" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" style={{ flex: 1 }} />
-            <div className="toggle" style={{ width: 150 }}>
-              <button className={moeda === 'USD' ? 'on' : ''} onClick={() => setMoeda('USD')}>USD</button>
-              <button className={moeda === 'BRL' ? 'on' : ''} onClick={() => setMoeda('BRL')}>BRL</button>
-            </div>
+            {comDolar && (
+              <div className="toggle" style={{ width: 150 }}>
+                <button className={moeda === 'USD' ? 'on' : ''} onClick={() => setMoeda('USD')}>USD</button>
+                <button className={moeda === 'BRL' ? 'on' : ''} onClick={() => setMoeda('BRL')}>BRL</button>
+              </div>
+            )}
           </div>
         </div>
         <div className="field"><label>Categoria</label>

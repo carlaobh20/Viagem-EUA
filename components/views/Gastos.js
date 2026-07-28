@@ -1,11 +1,12 @@
 'use client';
 import { useState } from 'react';
 import { useData } from '../DataProvider';
-import { valorEmBRL, fmtUSD, fmtBRL, emojiCategoria, nomeCategoria, CATEGORIAS } from '../../lib/format';
+import { valorEmBRL, fmtUSD, fmtBRL, emojiCategoria, nomeCategoria, CATEGORIAS, usaDolar } from '../../lib/format';
 
 export default function Gastos({ ir }) {
   const { viagem, gastos, perfis, divisoes, removerGasto, setGastoEditando, urlRecibo } = useData();
   const cambio = Number(viagem.cotacao_usd);
+  const comDolar = usaDolar(viagem);
   const [moeda, setMoeda] = useState('todos');
   const [categoria, setCategoria] = useState('todas');
   const [pessoa, setPessoa] = useState('todas');
@@ -39,9 +40,11 @@ export default function Gastos({ ir }) {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
             Pessoas
           </button>
-          <button onClick={() => ir('acerto')} style={{ fontSize: 12, fontWeight: 600, color: 'var(--ui-teal)', background: '#DCF7EF', padding: '7px 12px', borderRadius: 20, border: 'none', cursor: 'pointer' }}>
-            Câmbio R$ {cambio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </button>
+          {comDolar && (
+            <button onClick={() => ir('acerto')} style={{ fontSize: 12, fontWeight: 600, color: 'var(--ui-teal)', background: '#DCF7EF', padding: '7px 12px', borderRadius: 20, border: 'none', cursor: 'pointer' }}>
+              Câmbio R$ {cambio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </button>
+          )}
         </div>
       </div>
 
@@ -53,11 +56,13 @@ export default function Gastos({ ir }) {
       </div>
 
       {/* filtro moeda */}
-      <div style={{ display: 'flex', gap: 4, background: 'var(--ui-line)', borderRadius: 14, padding: 3, marginBottom: 10 }}>
-        {[['todos', 'Todas'], ['USD', 'Dólar'], ['BRL', 'Real']].map(([id, lbl]) => (
-          <button key={id} onClick={() => setMoeda(id)} style={{ flex: 1, border: 'none', borderRadius: 11, padding: '8px 0', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', background: moeda === id ? 'var(--ui-teal)' : 'transparent', color: moeda === id ? '#fff' : 'var(--ui-muted)' }}>{lbl}</button>
-        ))}
-      </div>
+      {comDolar && (
+        <div style={{ display: 'flex', gap: 4, background: 'var(--ui-line)', borderRadius: 14, padding: 3, marginBottom: 10 }}>
+          {[['todos', 'Todas'], ['USD', 'Dólar'], ['BRL', 'Real']].map(([id, lbl]) => (
+            <button key={id} onClick={() => setMoeda(id)} style={{ flex: 1, border: 'none', borderRadius: 11, padding: '8px 0', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', background: moeda === id ? 'var(--ui-teal)' : 'transparent', color: moeda === id ? '#fff' : 'var(--ui-muted)' }}>{lbl}</button>
+          ))}
+        </div>
+      )}
 
       {/* filtros categoria/pessoa */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>

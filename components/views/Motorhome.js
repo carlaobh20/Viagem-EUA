@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
-import { valorEmBRL, fmtBRL, fmtUSD, nomeCategoria, emojiCategoria, CATEGORIAS_MOTORHOME, hojeLocal } from '../../lib/format';
+import { valorEmBRL, fmtBRL, fmtUSD, nomeCategoria, emojiCategoria, CATEGORIAS_MOTORHOME, hojeLocal, usaDolar } from '../../lib/format';
 
 const CORES = ['#BA7517', '#0F6E56', '#534AB7', '#185FA5', '#1D9E75', '#D4537E', '#993C1D', '#5F5E5A'];
 
@@ -41,10 +41,11 @@ export default function Motorhome({ ir }) {
     checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist,
   } = useData();
   const cambio = Number(viagem.cotacao_usd);
+  const comDolar = usaDolar(viagem);
   const [km, setKm] = useState(null); // null = calculando; 0 = sem trecho de carro
   const [moeda, setMoeda] = useState('brl'); // 'brl' | 'usd'
   const [aba, setAba] = useState('custos'); // 'custos' | 'mercado'
-  const cambioOk = cambio > 0;
+  const cambioOk = comDolar && cambio > 0;
   const fmtMoeda = (brl) => (moeda === 'usd' && cambioOk) ? fmtUSD(brl / cambio) : fmtBRL(brl);
   const MI = 1.60934;
   const [unKm, setUnKm] = useState('km');
@@ -162,7 +163,7 @@ export default function Motorhome({ ir }) {
         <div className="fab-back">
           <button onClick={() => ir('resumo')} aria-label="Voltar">←</button>
           <span className="ttl">🚐 Motorhome</span>
-          {aba === 'custos' && totalMH > 0 && (
+          {comDolar && aba === 'custos' && totalMH > 0 && (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: '#EFEDE6', borderRadius: 20, padding: 3, flex: '0 0 auto' }}>
               {[['brl', 'R$'], ['usd', 'US$']].map(([id, lbl]) => (
                 <button key={id} onClick={() => setMoeda(id)} disabled={id === 'usd' && !cambioOk}

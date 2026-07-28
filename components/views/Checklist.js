@@ -3,34 +3,66 @@ import { useEffect, useState, useRef } from 'react';
 import { useData } from '../DataProvider';
 import { fmtBRL } from '../../lib/format';
 
-const TEMAS = ['Documentos', 'Dinheiro', 'Saúde', 'Bagagem', 'Antes de embarcar'];
-const ICON_TEMA = { Documentos: '📄', Dinheiro: '💳', 'Saúde': '💊', Bagagem: '🧳', 'Antes de embarcar': '🛫' };
+const TEMAS = ['Documentos', 'Dinheiro', 'Saúde', 'Bagagem', 'Carro', 'Antes de embarcar'];
+const ICON_TEMA = { Documentos: '📄', Dinheiro: '💳', 'Saúde': '💊', Bagagem: '🧳', Carro: '🚗', 'Antes de embarcar': '🛫' };
 const PRAZO_LABEL = { '30d': '30 dias', '7d': '7 dias', '1d': '1 dia' };
 const PRAZO_COR = { '30d': '#2F6FE4', '7d': '#E0A22B', '1d': '#00C7B1' };
 
-const TEMPLATE = [
-  ['Passaporte válido (6+ meses)', 'Documentos', '30d'],
-  ['Visto / ESTA aprovado', 'Documentos', '30d'],
-  ['Seguro viagem contratado', 'Documentos', '30d'],
-  ['CNH internacional (PID)', 'Documentos', '30d'],
-  ['Cópias dos documentos (papel e celular)', 'Documentos', '7d'],
-  ['Reservas e ingressos salvos', 'Documentos', '7d'],
-  ['Cartão internacional / dólar', 'Dinheiro', '30d'],
-  ['Avisar o banco sobre a viagem', 'Dinheiro', '7d'],
-  ['Algum dinheiro em espécie', 'Dinheiro', '7d'],
-  ['App de câmbio no celular', 'Dinheiro', '1d'],
-  ['Vacinas em dia', 'Saúde', '30d'],
-  ['Remédios de uso contínuo', 'Saúde', '7d'],
-  ['Kit de primeiros socorros', 'Saúde', '7d'],
-  ['Adaptador de tomada (EUA)', 'Bagagem', '7d'],
-  ['Chip / eSIM internacional', 'Bagagem', '7d'],
-  ['Carregadores e power bank', 'Bagagem', '1d'],
-  ['Roupas conforme o clima', 'Bagagem', '1d'],
-  ['Check-in online feito', 'Antes de embarcar', '1d'],
-  ['Bagagem dentro do peso', 'Antes de embarcar', '1d'],
-  ['Documentos na mão (não na mala)', 'Antes de embarcar', '1d'],
-  ['Casa fechada (luz, água, gás)', 'Antes de embarcar', '1d'],
-];
+// Quantidade de dias da viagem, a partir de data_ida/data_volta (perguntados
+// no assistente de criação — ver NovaViagemWizard). null se ainda não souber.
+function diasDaViagem(viagem) {
+  if (!viagem || !viagem.data_ida || !viagem.data_volta) return null;
+  const ini = new Date(viagem.data_ida + 'T00:00:00');
+  const fim = new Date(viagem.data_volta + 'T00:00:00');
+  const d = Math.round((fim - ini) / 86400000) + 1;
+  return d > 0 ? d : null;
+}
+
+// Monta o checklist padrão de acordo com o perfil da viagem (nacional/internacional,
+// meio de transporte e quantidade de dias — ver NovaViagemWizard). Viagem sem perfil
+// definido ainda (tipo_viagem/transporte ausentes — todas as já existentes até essa
+// personalização existir) cai no template completo de antes: nada some pra quem já
+// usa o app, a redução só vale pra viagem nova que já respondeu o perfil.
+function montarTemplate(viagem) {
+  const nacional = viagem?.tipo_viagem === 'nacional';
+  const transporte = Array.isArray(viagem?.transporte) ? viagem.transporte : [];
+  const semPerfilTransporte = transporte.length === 0;
+  const deCarro = transporte.includes('carro');
+  const deAviao = semPerfilTransporte || transporte.includes('aviao');
+  const dias = diasDaViagem(viagem);
+
+  const t = [];
+  if (!nacional) t.push(['Passaporte válido (6+ meses)', 'Documentos', '30d'], ['Visto / ESTA aprovado', 'Documentos', '30d'], ['CNH internacional (PID)', 'Documentos', '30d']);
+  t.push(['Cópias dos documentos (papel e celular)', 'Documentos', '7d'], ['Reservas e ingressos salvos', 'Documentos', '7d']);
+
+  if (!nacional) t.push(['Cartão internacional / dólar', 'Dinheiro', '30d'], ['Avisar o banco sobre a viagem', 'Dinheiro', '7d'], ['App de câmbio no celular', 'Dinheiro', '1d']);
+  t.push(['Algum dinheiro em espécie', 'Dinheiro', '7d']);
+
+  if (!nacional) t.push(['Vacinas em dia', 'Saúde', '30d']);
+  t.push(['Remédios de uso contínuo', 'Saúde', '7d'], ['Kit de primeiros socorros', 'Saúde', '7d']);
+
+  if (!nacional) t.push(['Adaptador de tomada', 'Bagagem', '7d'], ['Chip / eSIM internacional', 'Bagagem', '7d']);
+  t.push(['Carregadores e power bank', 'Bagagem', '1d']);
+  t.push([dias ? `Roupas pra ${dias} dia${dias === 1 ? '' : 's'}` : 'Roupas conforme o clima', 'Bagagem', '1d']);
+  if (dias && dias >= 10) t.push(['Sabão / lavanderia pro meio da viagem', 'Bagagem', '7d']);
+
+  // itens de carro valem pra qualquer viagem de carro, nacional ou não
+  if (deCarro) {
+    t.push(
+      ['Pneus e estepe calibrados', 'Carro', '7d'],
+      ['Revisão / óleo em dia', 'Carro', '7d'],
+      ['Documentos do carro (CRLV)', 'Carro', '7d'],
+      ['Seguro do carro em dia', 'Carro', '30d'],
+      ['Kit de emergência (triângulo, macaco, cabo)', 'Carro', '7d'],
+      ['Tanque cheio', 'Carro', '1d'],
+    );
+  }
+
+  if (deAviao) t.push(['Check-in online feito', 'Antes de embarcar', '1d'], ['Bagagem dentro do peso', 'Antes de embarcar', '1d']);
+  t.push(['Documentos na mão (não na mala)', 'Antes de embarcar', '1d'], ['Casa fechada (luz, água, gás)', 'Antes de embarcar', '1d']);
+
+  return t;
+}
 
 // ===== Comprar (lista de compras pré-viagem — separada do Mercado do motorhome) =====
 const COMPRAR_CATS = [
@@ -51,6 +83,12 @@ const COMPRAR_SUG = {
   viagem: ['Seguro viagem', 'Dólar em espécie', 'Cartão internacional', 'Imprimir reservas'],
   outros: ['Travesseiro de pescoço', 'Garrafa de água', 'Snacks de viagem'],
 };
+// Sugestões de compra também seguem o perfil: viagem nacional não precisa de
+// seguro viagem / dólar / cartão internacional (ver TEMPLATE/montarTemplate acima).
+function sugestoesComprar(viagem) {
+  if (viagem?.tipo_viagem !== 'nacional') return COMPRAR_SUG;
+  return { ...COMPRAR_SUG, viagem: COMPRAR_SUG.viagem.filter((s) => s !== 'Seguro viagem' && s !== 'Dólar em espécie' && s !== 'Cartão internacional') };
+}
 
 export default function Checklist({ ir, abaInicial }) {
   const { viagem, perfil, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorItem } = useData();
@@ -68,7 +106,7 @@ export default function Checklist({ ir, abaInicial }) {
     const meusTemas = (checklist || []).filter((i) => TEMAS.includes(i.tema) && souDono(i));
     if (meusTemas.length === 0) {
       semeado.current = true;
-      semearChecklist(TEMPLATE.map(([texto, tema, prazo], i) => ({ texto, tema, prazo, ordem: i })));
+      semearChecklist(montarTemplate(viagem).map(([texto, tema, prazo], i) => ({ texto, tema, prazo, ordem: i })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viagem?.id, meu]);
@@ -272,7 +310,8 @@ export default function Checklist({ ir, abaInicial }) {
         <div style={{ fontSize: 11, color: 'var(--ui-faint)', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600, margin: '0 2px 8px' }}>Sugestões — toque para adicionar</div>
         {COMPRAR_CATS.map(([catId, emoji, label]) => {
           const naLista = new Set(compras.map((i) => (i.texto || '').toLowerCase()));
-          const chips = (COMPRAR_SUG[catId] || []).filter((s) => !naLista.has(s.toLowerCase()));
+          const sugestoes = sugestoesComprar(viagem);
+          const chips = (sugestoes[catId] || []).filter((s) => !naLista.has(s.toLowerCase()));
           if (chips.length === 0) return null;
           return (
             <div key={catId} style={{ marginBottom: 10 }}>

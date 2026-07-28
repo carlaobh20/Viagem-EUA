@@ -2,6 +2,30 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { hojeLocal } from '../lib/format';
+
+// Busca uma foto de capa da cidade pra viagens nacionais, usando a API pública
+// e gratuita da Wikipedia (sem chave, sem custo). Best-effort: qualquer falha
+// (cidade sem verbete, sem internet, timeout) simplesmente retorna null e a
+// viagem fica sem foto de capa — igual ao comportamento antes dessa função
+// existir. Nunca deve travar nem quebrar a criação da viagem.
+async function buscarFotoCidade(nomeCidade) {
+  const nome = (nomeCidade || '').trim();
+  if (!nome || typeof fetch === 'undefined') return null;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(`https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(nome)}`, {
+      headers: { Accept: 'application/json' }, signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const j = await res.json();
+    return (j.thumbnail && j.thumbnail.source) || (j.originalimage && j.originalimage.source) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 const DataContext = createContext(null);
 export const useData = () => useContext(DataContext);
 export function DataProvider({ session, children }) {
@@ -328,15 +352,25 @@ export function DataProvider({ session, children }) {
   async function criarViagem(dadosOuNome) {
     const uid = session.user.id;
     const dados = typeof dadosOuNome === 'string' ? { nome: dadosOuNome } : (dadosOuNome || {});
-    const { nome, tipoViagem, destino, motivo, transporte } = dados;
+    const { nome, tipoViagem, destino, motivo, transporte, dataIda, dataVolta } = dados;
+    const destinoLimpo = (destino || '').trim() || null;
     const { data: nv, error } = await supabase.from('viagens').insert({
       nome: (nome || 'Nova viagem').trim(), orcamento_brl: 0, cotacao_usd: 5.4, owner_id: uid,
-      tipo_viagem: tipoViagem || null, destino: (destino || '').trim() || null, motivo: motivo || null,
+      tipo_viagem: tipoViagem || null, destino: destinoLimpo, motivo: motivo || null,
       transporte: Array.isArray(transporte) ? transporte : [],
+      data_ida: dataIda || null, data_volta: dataVolta || null,
     }).select().single();
     if (error) throw error;
     await supabase.from('viagem_membros').insert({ viagem_id: nv.id, user_id: uid, papel: 'dono' });
     if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', nv.id);
+    // Viagem nacional com destino preenchido: tenta achar uma foto de capa da
+    // cidade (best-effort — se não achar ou der erro, a viagem fica sem foto,
+    // igual antes; o usuário sempre pode colar uma foto manualmente depois).
+    if (tipoViagem === 'nacional' && destinoLimpo) {
+      buscarFotoCidade(destinoLimpo).then((url) => {
+        if (url) supabase.from('viagens').update({ foto: url }).eq('id', nv.id).then(() => carregar());
+      });
+    }
     await carregar();
     return nv;
   }

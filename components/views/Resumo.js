@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useData } from '../DataProvider';
 import { calcularSaldos, quemDeveParaQuem } from '../../lib/settle';
-import { valorEmBRL, fmtBRL, emojiCategoria, nomeCategoria, CATEGORIAS_MOTORHOME, hojeLocal } from '../../lib/format';
+import { valorEmBRL, fmtBRL, emojiCategoria, nomeCategoria, CATEGORIAS_MOTORHOME, hojeLocal, usaDolar } from '../../lib/format';
 import { statusViagem, pulsoFinanceiro, ordenarRoteiro } from '../../lib/trip-metrics';
 import { motion as motionTokens } from '../../lib/design-tokens';
 
@@ -30,6 +30,7 @@ import DiarioLembrete from '../home/DiarioLembrete';
 export default function Resumo({ ir }) {
   const { viagem, gastos, perfis, divisoes, acertos, pontos, checklist, atualizarOrcamento, diario, perfil } = useData();
   const cambio = Number(viagem.cotacao_usd);
+  const comDolar = usaDolar(viagem);
   const hoje = hojeLocal();
   const orcamento = Number(viagem.orcamento_brl) || 0;
 
@@ -86,9 +87,11 @@ export default function Resumo({ ir }) {
           <span style={{ fontSize: 13, color: 'var(--ui-faint)', fontWeight: 600 }}>⌄</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
-          <button onClick={() => ir('acerto')} className="v3-press" style={{ fontSize: 12, fontWeight: 600, color: 'var(--ui-teal)', background: 'rgba(0,199,177,.12)', padding: '7px 12px', borderRadius: 20, border: 'none' }}>
-            {cambio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace('R$', 'R$ ')}
-          </button>
+          {comDolar && (
+            <button onClick={() => ir('acerto')} className="v3-press" style={{ fontSize: 12, fontWeight: 600, color: 'var(--ui-teal)', background: 'rgba(0,199,177,.12)', padding: '7px 12px', borderRadius: 20, border: 'none' }}>
+              {cambio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace('R$', 'R$ ')}
+            </button>
+          )}
           <button onClick={() => ir('conta')} aria-label="Minha conta" className="v3-press" style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--ui-card)', border: '1px solid var(--ui-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--ui-shadow)' }}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--ui-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
           </button>

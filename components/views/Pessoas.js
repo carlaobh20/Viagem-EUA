@@ -3,14 +3,15 @@ import { useState } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
 import { calcularConsumoPorMoeda } from '../../lib/settle';
-import { valorEmBRL, fmtBRL, fmtUSD, emojiCategoria, nomeCategoria } from '../../lib/format';
+import { valorEmBRL, fmtBRL, fmtUSD, emojiCategoria, nomeCategoria, usaDolar } from '../../lib/format';
 
 const CAT_CORES = ['#12B8A6', '#2F6FE4', '#534AB7', '#E0A22B', '#9AE6D6', '#E84F8D', '#CBD5E1'];
 
 export default function Pessoas() {
   const { viagem, gastos, divisoes, perfis, perfil, adicionarPessoa, atualizarNomePessoa, removerPessoa } = useData();
   const cambio = Number(viagem.cotacao_usd);
-  const cambioOk = cambio > 0;
+  const comDolar = usaDolar(viagem);
+  const cambioOk = comDolar && cambio > 0;
   const [moeda, setMoeda] = useState('brl');
   const [selId, setSelId] = useState(null);
 
@@ -65,11 +66,13 @@ export default function Pessoas() {
       </div>
 
       {/* toggle moeda */}
-      <div style={{ display: 'flex', gap: 4, background: 'var(--ui-line)', borderRadius: 14, padding: 3, marginBottom: 14 }}>
-        {[['brl', 'R$'], ['usd', 'US$']].map(([id, lbl]) => (
-          <button key={id} onClick={() => setMoeda(id)} disabled={id === 'usd' && !cambioOk} style={{ flex: 1, border: 'none', borderRadius: 11, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: moeda === id ? 'var(--ui-teal)' : 'transparent', color: moeda === id ? '#fff' : 'var(--ui-muted)' }}>{lbl}</button>
-        ))}
-      </div>
+      {comDolar && (
+        <div style={{ display: 'flex', gap: 4, background: 'var(--ui-line)', borderRadius: 14, padding: 3, marginBottom: 14 }}>
+          {[['brl', 'R$'], ['usd', 'US$']].map(([id, lbl]) => (
+            <button key={id} onClick={() => setMoeda(id)} disabled={id === 'usd' && !cambioOk} style={{ flex: 1, border: 'none', borderRadius: 11, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: moeda === id ? 'var(--ui-teal)' : 'transparent', color: moeda === id ? '#fff' : 'var(--ui-muted)' }}>{lbl}</button>
+          ))}
+        </div>
+      )}
 
       {/* cards por pessoa */}
       {pessoas.map((p) => {

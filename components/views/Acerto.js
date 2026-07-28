@@ -2,11 +2,12 @@
 import { useState } from 'react';
 import { useData } from '../DataProvider';
 import { calcularSaldos, quemDeveParaQuem } from '../../lib/settle';
-import { fmtBRL, fmtUSD } from '../../lib/format';
+import { fmtBRL, fmtUSD, usaDolar } from '../../lib/format';
 export default function Acerto({ ir }) {
   const { viagem, gastos, divisoes, perfis, acertos, atualizarCotacao, registrarAcerto, removerAcerto } = useData();
   const cambio = Number(viagem.cotacao_usd);
-  const cambioOk = cambio > 0;
+  const comDolar = usaDolar(viagem);
+  const cambioOk = comDolar && cambio > 0;
   const [cambioStr, setCambioStr] = useState(String(cambio).replace('.', ','));
   const [buscando, setBuscando] = useState(false);
   const [cotMsg, setCotMsg] = useState('');
@@ -42,12 +43,14 @@ export default function Acerto({ ir }) {
       <div className="fab-back"><button onClick={() => ir('resumo')} aria-label="Voltar">←</button><span className="ttl">Acerto</span></div>
       <p style={{ fontSize: 13, color: 'var(--muted)', margin: '8px 0 14px' }}>Quem precisa pagar quem para todo mundo ficar quite. As dívidas já vêm com tudo abatido (uma compra compensa a outra).</p>
 
-      <div className="toggle" style={{ width: 170, marginBottom: 14 }}>
-        <button className={moedaView === 'BRL' ? 'on' : ''} onClick={() => setMoedaView('BRL')}>Em real</button>
-        <button className={moedaView === 'USD' ? 'on' : ''} onClick={() => setMoedaView('USD')} disabled={!cambioOk}>Em dólar</button>
-      </div>
+      {comDolar && (
+        <div className="toggle" style={{ width: 170, marginBottom: 14 }}>
+          <button className={moedaView === 'BRL' ? 'on' : ''} onClick={() => setMoedaView('BRL')}>Em real</button>
+          <button className={moedaView === 'USD' ? 'on' : ''} onClick={() => setMoedaView('USD')} disabled={!cambioOk}>Em dólar</button>
+        </div>
+      )}
 
-      {(temDolar || emUSD) && (
+      {comDolar && (temDolar || emUSD) && (
         <div className="card" style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>Câmbio usado na conversão (R$ por US$ 1)</label>
           <div style={{ display: 'flex', gap: 8 }}>
