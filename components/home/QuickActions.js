@@ -23,13 +23,15 @@ const TONS = {
 
 /**
  * Acerto de contas e checklist lado a lado, como tiles compactos.
- * "A acertar" segue um semáforo: laranja enquanto houver alguém devendo,
- * verde quando estiver tudo quite. Checklist mantém o destaque neutro de
- * antes (teal quando ainda tem item pendente).
+ * Os dois seguem o mesmo semáforo: laranja enquanto houver pendência
+ * (alguém devendo, ou checklist não 100% concluído), verde só quando
+ * estiver tudo resolvido (quite, ou checklist 100%).
  * @param {QuickActionsProps} props
  */
 export default function QuickActions({ tudoQuite, resumoAcerto, onAcerto, checklistFeitos, checklistTotal, onChecklist }) {
   const checklistPct = checklistTotal > 0 ? Math.round((checklistFeitos / checklistTotal) * 100) : null;
+  const checklistCompleto = checklistTotal > 0 && checklistPct === 100;
+  const checklistPendente = checklistTotal > 0 && checklistPct < 100;
 
   const Tile = ({ onClick, delay, emoji, label, valor, tom }) => {
     const t = TONS[tom] || TONS.neutro;
@@ -48,10 +50,10 @@ export default function QuickActions({ tudoQuite, resumoAcerto, onAcerto, checkl
       <Tile
         onClick={onChecklist}
         delay={0.1}
-        emoji="✅"
+        emoji={checklistCompleto ? '✅' : '🟠'}
         label="Checklist"
         valor={checklistTotal > 0 ? `${checklistFeitos}/${checklistTotal} · ${checklistPct}%` : 'Montar lista'}
-        tom={checklistTotal > 0 && checklistPct < 100 ? 'teal' : 'neutro'}
+        tom={checklistPendente ? 'alerta' : (checklistCompleto ? 'ok' : 'neutro')}
       />
     </div>
   );
