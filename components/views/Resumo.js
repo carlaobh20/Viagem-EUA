@@ -3,11 +3,12 @@ import { motion } from 'framer-motion';
 import { useData } from '../DataProvider';
 import { calcularSaldos, quemDeveParaQuem } from '../../lib/settle';
 import { valorEmBRL, fmtBRL, emojiCategoria, nomeCategoria, CATEGORIAS_MOTORHOME } from '../../lib/format';
-import { statusViagem, pulsoFinanceiro, ordenarRoteiro, janelaTimeline } from '../../lib/trip-metrics';
+import { statusViagem, pulsoFinanceiro, ordenarRoteiro } from '../../lib/trip-metrics';
 import { motion as motionTokens } from '../../lib/design-tokens';
 
 import HeroTravelCard from '../home/HeroTravelCard';
-import JourneyTimeline from '../home/JourneyTimeline';
+import ProximoEvento from '../home/ProximoEvento';
+import RotaViagem from '../home/RotaViagem';
 import FinancePulse from '../home/FinancePulse';
 import QuickActions from '../home/QuickActions';
 import MotorhomeBanner from '../home/MotorhomeBanner';
@@ -34,7 +35,8 @@ export default function Resumo({ ir }) {
   const financeiro = pulsoFinanceiro(gastos, cambio, status, orcamento, hoje);
 
   const ordPontos = ordenarRoteiro(pontos);
-  const { prox, janela } = janelaTimeline(ordPontos, hoje);
+  const prox = ordPontos.find((p) => p.data_inicio >= hoje) || ordPontos[ordPontos.length - 1] || null;
+  const rota = (pontos || []).slice().sort((a, b) => (a.ordem || 0) - (b.ordem || 0)).map((p) => ({ nome: p.nome, tipo: p.tipo })).filter((p) => p.nome);
 
   const mapaCat = {};
   gastos.forEach((g) => { mapaCat[g.categoria] = (mapaCat[g.categoria] || 0) + valorEmBRL(g, cambio); });
@@ -86,9 +88,11 @@ export default function Resumo({ ir }) {
         onEditarOrcamento={editarOrcamento}
       />
 
-      <div style={{ marginTop: 8 }}>
-        <JourneyTimeline janela={janela} atual={prox} onVerRoteiro={() => ir('roteiro')} onVerMapa={() => ir('mapa')} />
+      <div style={{ marginTop: 14 }}>
+        <ProximoEvento prox={prox} onClick={() => ir('roteiro')} />
       </div>
+
+      <RotaViagem rota={rota} prox={prox} onVerMapa={() => ir('mapa')} />
 
       <div style={{ marginTop: 8 }}>
         <FinancePulse
