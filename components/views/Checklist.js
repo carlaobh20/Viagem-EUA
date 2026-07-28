@@ -100,18 +100,40 @@ export default function Checklist({ ir, abaInicial }) {
   const [compForm, setCompForm] = useState(null); // { texto, cat }
   const [valorEdit, setValorEdit] = useState({}); // { [itemId]: texto sendo digitado no campo de valor }
 
+  // Escolha "sugestões prontas" x "montar do zero" — guardada no aparelho, por
+  // viagem+pessoa, pra não perguntar de novo depois de decidido uma vez.
+  // null = ainda não decidiu (ou ainda não terminou de checar o aparelho).
+  const [decisao, setDecisaoState] = useState(null);
+  const chaveDecisao = viagem && meu ? `checklist-decisao-${viagem.id}-${meu}` : null;
+  useEffect(() => {
+    if (!chaveDecisao || typeof window === 'undefined') return;
+    setDecisaoState(window.localStorage.getItem(chaveDecisao) || null);
+  }, [chaveDecisao]);
+
   const semeado = useRef(false);
   useEffect(() => {
-    if (semeado.current || !viagem) return;
+    // Só semeia sozinho, sem perguntar, quando a pessoa já tinha escolhido "prontas"
+    // antes (ex.: reabriu o app) — decisão "do zero" ou ainda pendente nunca semeia.
+    if (semeado.current || !viagem || decisao !== 'pronto') return;
     const meusTemas = (checklist || []).filter((i) => TEMAS.includes(i.tema) && souDono(i));
     if (meusTemas.length === 0) {
       semeado.current = true;
       semearChecklist(montarTemplate(viagem).map(([texto, tema, prazo], i) => ({ texto, tema, prazo, ordem: i })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viagem?.id, meu]);
+  }, [viagem?.id, meu, decisao]);
+
+  function decidir(valor) {
+    if (chaveDecisao && typeof window !== 'undefined') window.localStorage.setItem(chaveDecisao, valor);
+    setDecisaoState(valor);
+    if (valor === 'pronto') {
+      semeado.current = true;
+      semearChecklist(montarTemplate(viagem).map(([texto, tema, prazo], i) => ({ texto, tema, prazo, ordem: i })));
+    }
+  }
 
   const itens = (checklist || []).filter((i) => TEMAS.includes(i.tema) && souDono(i));
+  const precisaDecidir = decisao == null && itens.length === 0;
   const visiveis = filtro === 'todos' ? itens : itens.filter((i) => i.prazo === filtro);
   const feitos = visiveis.filter((i) => i.feito).length;
   const total = visiveis.length;
@@ -180,7 +202,17 @@ export default function Checklist({ ir, abaInicial }) {
         ))}
       </div>
 
-      {aba === 'tarefas' && (<>
+      {aba === 'tarefas' && precisaDecidir && (
+        <div style={{ ...card, padding: 22, textAlign: 'center' }}>
+          <div style={{ fontSize: 30, marginBottom: 10 }}>📝</div>
+          <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>Como você quer montar seu checklist?</div>
+          <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginBottom: 18, lineHeight: 1.4 }}>Pode começar com sugestões prontas pro perfil dessa viagem (dá pra editar e apagar depois) ou montar do zero, item por item.</div>
+          <button onClick={() => decidir('pronto')} style={{ width: '100%', border: 'none', borderRadius: 14, padding: '14px', background: 'var(--ui-teal)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 10 }}>✨ Começar com sugestões prontas</button>
+          <button onClick={() => decidir('zero')} style={{ width: '100%', border: '1.5px dashed var(--ui-line)', borderRadius: 14, padding: '14px', background: 'transparent', color: 'var(--ui-ink)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>📋 Montar do zero, do meu jeito</button>
+        </div>
+      )}
+
+      {aba === 'tarefas' && !precisaDecidir && (<>
       {/* progresso */}
       <div style={{ ...card, padding: 16, marginBottom: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 }}>
