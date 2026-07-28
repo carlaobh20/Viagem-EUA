@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
-import { valorEmBRL, fmtBRL } from '../../lib/format';
+import { valorEmBRL, fmtBRL, dataLocal, hojeLocal } from '../../lib/format';
 
 function iconeClima(code) {
   if (code == null) return '🌥️';
@@ -30,7 +30,7 @@ const STATUS = ['Confirmado', 'Reserva', 'A definir'];
 const CORES_DIA = ['#0F6E56', '#185FA5', '#534AB7', '#BA7517', '#1D9E75', '#D4537E', '#993C1D'];
 const corTipo = (t) => (TIPOS.find((x) => x.id === t) || TIPOS[6]).cor;
 const nomeTipo = (t) => (TIPOS.find((x) => x.id === t) || TIPOS[6]).nome;
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => hojeLocal();
 
 function StatusBadge({ st }) {
   if (!st) return null;
@@ -48,7 +48,7 @@ function fmtDiaData(d) {
 }
 function diffDias(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
 function fmtDur(min) { if (min < 60) return `${min} min`; const h = Math.floor(min / 60); const m = min % 60; return m ? `${h} h ${m} min` : `${h} h`; }
-function addDias(d, n) { const dt = new Date(d + 'T00:00:00'); dt.setDate(dt.getDate() + n); return dt.toISOString().slice(0, 10); }
+function addDias(d, n) { const dt = new Date(d + 'T00:00:00'); dt.setDate(dt.getDate() + n); return dataLocal(dt); }
 function fmtDM(d) { if (!d) return ''; const dt = new Date(d + 'T00:00:00'); const m = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][dt.getMonth()]; return `${String(dt.getDate()).padStart(2, '0')} ${m}`; }
 
 export default function Roteiro({ ir }) {
@@ -75,7 +75,7 @@ export default function Roteiro({ ir }) {
   const climaRef = useRef(new Set());
   useEffect(() => {
     const hoje = new Date(); const lim = new Date(); lim.setDate(hoje.getDate() + 16);
-    const hojeISO = hoje.toISOString().slice(0, 10); const limISO = lim.toISOString().slice(0, 10);
+    const hojeISO = dataLocal(hoje); const limISO = dataLocal(lim);
     (pontos || []).forEach(async (p) => {
       if (p.lat == null || p.lng == null || !p.data_inicio) return;
       if (p.data_inicio < hojeISO || p.data_inicio > limISO) return;

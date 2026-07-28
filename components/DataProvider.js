@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { hojeLocal } from '../lib/format';
 const DataContext = createContext(null);
 export const useData = () => useContext(DataContext);
 export function DataProvider({ session, children }) {
@@ -173,7 +174,7 @@ export function DataProvider({ session, children }) {
   }
 
   async function registrarAcerto({ de, para, valor, moeda }) {
-    await supabase.from('acertos').insert({ viagem_id: viagem.id, de, para, valor, moeda: moeda || 'BRL', data: new Date().toISOString().slice(0, 10) });
+    await supabase.from('acertos').insert({ viagem_id: viagem.id, de, para, valor, moeda: moeda || 'BRL', data: hojeLocal() });
     await carregar();
   }
   async function removerAcerto(id) { await supabase.from('acertos').delete().eq('id', id); await carregar(); }

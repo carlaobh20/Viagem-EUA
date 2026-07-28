@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
-import { valorEmBRL, fmtBRL, fmtUSD, nomeCategoria, emojiCategoria, CATEGORIAS_MOTORHOME } from '../../lib/format';
+import { valorEmBRL, fmtBRL, fmtUSD, nomeCategoria, emojiCategoria, CATEGORIAS_MOTORHOME, hojeLocal } from '../../lib/format';
 
 const CORES = ['#BA7517', '#0F6E56', '#534AB7', '#185FA5', '#1D9E75', '#D4537E', '#993C1D', '#5F5E5A'];
 
@@ -89,7 +89,7 @@ export default function Motorhome({ ir }) {
   const totalMH = gastosMH.reduce((s, g) => s + valorEmBRL(g, cambio), 0);
   const combustivelMH = gastos.filter((g) => g.categoria === 'combustivel').reduce((s, g) => s + valorEmBRL(g, cambio), 0);
 
-  const hojeISO = new Date().toISOString().slice(0, 10);
+  const hojeISO = hojeLocal();
   const ida = viagem.data_ida;
   let diasViagem = 1;
   if (ida) {
@@ -315,7 +315,7 @@ export default function Motorhome({ ir }) {
                   <button className="btn-ghost" style={{ width: '100%', marginTop: 6 }} onClick={() => setKmForm(null)}>Cancelar</button>
                 </div>
               ) : (
-                <button className="btn-outline" style={{ marginTop: 10 }} onClick={() => setKmForm({ valor: '', unidade: unKm, origem: '', destino: '', data: new Date().toISOString().slice(0, 10), nota: '' })}>+ registrar KM</button>
+                <button className="btn-outline" style={{ marginTop: 10 }} onClick={() => setKmForm({ valor: '', unidade: unKm, origem: '', destino: '', data: hojeLocal(), nota: '' })}>+ registrar KM</button>
               )}
             </div>
 

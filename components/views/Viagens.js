@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
-import { fmtBRL } from '../../lib/format';
+import { fmtBRL, hojeLocal } from '../../lib/format';
 
 const MS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const fmtDia = (d) => { if (!d) return ''; const [, m, dia] = d.split('-'); return `${Number(dia)} ${MS[Number(m) - 1]}`; };
@@ -22,7 +22,7 @@ export default function Viagens({ ir }) {
   const [metaForm, setMetaForm] = useState(null); // string do valor da meta em edição
   const [guardForm, setGuardForm] = useState(null); // { banco, valor }
   const [emailUser, setEmailUser] = useState('');
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = hojeLocal();
 
   // pega o e-mail como fallback para o nome
   useEffect(() => {
@@ -94,7 +94,7 @@ export default function Viagens({ ir }) {
   const guardado = (guardados || []).reduce((s, g) => s + Number(g.valor || 0), 0);
   const metaPct = meta > 0 ? Math.min(100, Math.round((guardado / meta) * 100)) : 0;
   const metaFalta = Math.max(0, (meta || 0) - guardado);
-  const hojeM = new Date().toISOString().slice(0, 10);
+  const hojeM = hojeLocal();
   const diasMeta = viagem && viagem.data_ida && viagem.data_ida > hojeM ? Math.ceil((new Date(viagem.data_ida + 'T00:00:00') - new Date(hojeM + 'T00:00:00')) / 86400000) : 0;
   const mesesMeta = Math.max(1, Math.ceil(diasMeta / 30));
   const mensalMeta = meta > 0 && diasMeta > 0 ? metaFalta / mesesMeta : 0;

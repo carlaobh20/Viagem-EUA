@@ -2,7 +2,7 @@
 import { motion } from 'framer-motion';
 import { useData } from '../DataProvider';
 import { calcularSaldos, quemDeveParaQuem } from '../../lib/settle';
-import { valorEmBRL, fmtBRL, emojiCategoria, nomeCategoria, CATEGORIAS_MOTORHOME } from '../../lib/format';
+import { valorEmBRL, fmtBRL, emojiCategoria, nomeCategoria, CATEGORIAS_MOTORHOME, hojeLocal } from '../../lib/format';
 import { statusViagem, pulsoFinanceiro, ordenarRoteiro } from '../../lib/trip-metrics';
 import { motion as motionTokens } from '../../lib/design-tokens';
 
@@ -28,7 +28,7 @@ import RecentActivity from '../home/RecentActivity';
 export default function Resumo({ ir }) {
   const { viagem, gastos, perfis, divisoes, acertos, pontos, checklist, atualizarOrcamento } = useData();
   const cambio = Number(viagem.cotacao_usd);
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = hojeLocal();
   const orcamento = Number(viagem.orcamento_brl) || 0;
 
   const status = statusViagem(viagem.data_ida, viagem.data_volta, hoje);

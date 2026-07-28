@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
-import { CATEGORIAS } from '../../lib/format';
+import { CATEGORIAS, hojeLocal } from '../../lib/format';
 
 export default function Novo({ ir }) {
   const { perfis, pontos, perfil, divisoes, gastoVistoPor, salvarGasto, atualizarGasto, gastoEditando, setGastoEditando } = useData();
@@ -190,5 +190,5 @@ function reduzirImagem(file) {
     img.src = url;
   });
 }
-function hoje() { return new Date().toISOString().slice(0, 10); }
+function hoje() { return hojeLocal(); }
 function nomeDe(catId) { const c = CATEGORIAS.find((x) => x.id === catId); return c ? c.nome : 'Gasto'; }
