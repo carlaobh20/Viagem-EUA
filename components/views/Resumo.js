@@ -34,7 +34,7 @@ export default function Resumo({ ir }) {
   const financeiro = pulsoFinanceiro(gastos, cambio, status, orcamento, hoje);
 
   const ordPontos = ordenarRoteiro(pontos);
-  const { prox, janela, localAtual } = janelaTimeline(ordPontos, hoje);
+  const { prox, janela } = janelaTimeline(ordPontos, hoje);
 
   const mapaCat = {};
   gastos.forEach((g) => { mapaCat[g.categoria] = (mapaCat[g.categoria] || 0) + valorEmBRL(g, cambio); });
@@ -79,10 +79,8 @@ export default function Resumo({ ir }) {
       </motion.div>
 
       <HeroTravelCard
-        nome={viagem?.nome || 'Minha viagem'}
         fotoUrl={viagem?.foto || null}
         status={status}
-        localAtualNome={localAtual ? (localAtual.local || localAtual.nome) : null}
         financeiro={financeiro}
         orcamento={orcamento}
         onEditarOrcamento={editarOrcamento}
