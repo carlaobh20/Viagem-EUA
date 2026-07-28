@@ -90,7 +90,7 @@ const CHECKLIST_FINANCEIRO = [
 const PLANEJAMENTO = [
   ['Checklist inteligente', 'Por tema, compartilhado', <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h5M8 12h8M8 16h6" /></>],
   ['Roteiro completo', 'Dia a dia, com clima', <path d="M9 20 3 18V4l6 2m0 14 6-2m-6 2V6m6 12 6 2V6l-6-2m0 16V4" />],
-  ['Contagem regressiva', 'Dias até embarcar', <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></>],
+  ['Contagem regressiva', 'Dias até a viagem', <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></>],
   ['Alertas importantes', 'Próximo evento sempre à vista', <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></>],
   ['Convite instantâneo', 'Um código, todo mundo dentro', <><circle cx="9" cy="8" r="3.2" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><circle cx="18" cy="9" r="2.6" /><path d="M15.5 20a5 5 0 0 1 6.7-4.7" /></>],
   ['Tudo em tempo real', 'Sincronizado pra família toda', <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z" />],

@@ -3,10 +3,21 @@ import { useEffect, useState, useRef } from 'react';
 import { useData } from '../DataProvider';
 import { fmtBRL } from '../../lib/format';
 
-const TEMAS = ['Documentos', 'Dinheiro', 'Saúde', 'Bagagem', 'Carro', 'Antes de embarcar'];
-const ICON_TEMA = { Documentos: '📄', Dinheiro: '💳', 'Saúde': '💊', Bagagem: '🧳', Carro: '🚗', 'Antes de embarcar': '🛫' };
+// "Antes de embarcar" (🛫) só faz sentido pra quem vai de avião — viagem sem
+// avião no transporte usa "Antes de sair" (🎒) no lugar, sem nada de avião.
+const TEMAS = ['Documentos', 'Dinheiro', 'Saúde', 'Bagagem', 'Carro', 'Antes de embarcar', 'Antes de sair'];
+const ICON_TEMA = { Documentos: '📄', Dinheiro: '💳', 'Saúde': '💊', Bagagem: '🧳', Carro: '🚗', 'Antes de embarcar': '🛫', 'Antes de sair': '🎒' };
 const PRAZO_LABEL = { '30d': '30 dias', '7d': '7 dias', '1d': '1 dia' };
 const PRAZO_COR = { '30d': '#2F6FE4', '7d': '#E0A22B', '1d': '#00C7B1' };
+
+// Viagem sem avião marcado no transporte não deve ver nada de "embarcar"/avião.
+// Viagem sem perfil de transporte definido ainda (todas as existentes até essa
+// personalização existir) continua assumindo avião, igual sempre foi.
+function deAviaoDaViagem(viagem) {
+  const transporte = Array.isArray(viagem?.transporte) ? viagem.transporte : [];
+  return transporte.length === 0 || transporte.includes('aviao');
+}
+function temaEmbarque(viagem) { return deAviaoDaViagem(viagem) ? 'Antes de embarcar' : 'Antes de sair'; }
 
 // Quantidade de dias da viagem, a partir de data_ida/data_volta (perguntados
 // no assistente de criação — ver NovaViagemWizard). null se ainda não souber.
@@ -26,9 +37,9 @@ function diasDaViagem(viagem) {
 function montarTemplate(viagem) {
   const nacional = viagem?.tipo_viagem === 'nacional';
   const transporte = Array.isArray(viagem?.transporte) ? viagem.transporte : [];
-  const semPerfilTransporte = transporte.length === 0;
   const deCarro = transporte.includes('carro');
-  const deAviao = semPerfilTransporte || transporte.includes('aviao');
+  const deAviao = deAviaoDaViagem(viagem);
+  const tema = temaEmbarque(viagem);
   const dias = diasDaViagem(viagem);
 
   const t = [];
@@ -58,8 +69,8 @@ function montarTemplate(viagem) {
     );
   }
 
-  if (deAviao) t.push(['Check-in online feito', 'Antes de embarcar', '1d'], ['Bagagem dentro do peso', 'Antes de embarcar', '1d']);
-  t.push(['Documentos na mão (não na mala)', 'Antes de embarcar', '1d'], ['Casa fechada (luz, água, gás)', 'Antes de embarcar', '1d']);
+  if (deAviao) t.push(['Check-in online feito', tema, '1d'], ['Bagagem dentro do peso', tema, '1d']);
+  t.push(['Documentos na mão (não na mala)', tema, '1d'], ['Casa fechada (luz, água, gás)', tema, '1d']);
 
   return t;
 }
@@ -70,7 +81,7 @@ const COMPRAR_CATS = [
   ['eletronicos', '🔌', 'Eletrônicos'],
   ['roupas', '👕', 'Roupas'],
   ['higiene', '🧴', 'Higiene'],
-  ['viagem', '✈️', 'Viagem'],
+  ['viagem', '🗺️', 'Viagem'],
   ['outros', '📦', 'Outros'],
 ];
 const COMPRAR_LABEL = Object.fromEntries(COMPRAR_CATS.map(([id, , l]) => [id, l]));
@@ -94,6 +105,10 @@ export default function Checklist({ ir, abaInicial }) {
   const { viagem, perfil, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorItem } = useData();
   const meu = perfil?.user_id;
   const souDono = (i) => i.user_id === meu || i.user_id == null; // meus itens + itens antigos (compartilhados)
+  // Viagem de carro (sem avião) não usa o tema "Antes de embarcar" (nem em
+  // seção nem no seletor de novo item); viagem de avião não usa "Antes de sair".
+  const temaAusente = deAviaoDaViagem(viagem) ? 'Antes de sair' : 'Antes de embarcar';
+  const temasVisiveis = TEMAS.filter((t) => t !== temaAusente);
   const [filtro, setFiltro] = useState('todos');
   const [add, setAdd] = useState(null);
   const [aba, setAba] = useState(abaInicial === 'comprar' ? 'comprar' : 'tarefas'); // 'tarefas' | 'comprar'
@@ -230,7 +245,7 @@ export default function Checklist({ ir, abaInicial }) {
       </div>
 
       {/* seções por tema */}
-      {TEMAS.map((tema) => {
+      {temasVisiveis.map((tema) => {
         const lista = visiveis.filter((i) => i.tema === tema);
         if (lista.length === 0) return null;
         return (
@@ -261,7 +276,7 @@ export default function Checklist({ ir, abaInicial }) {
         <div style={{ ...card, padding: 16 }}>
           <input autoFocus value={add.texto} onChange={(e) => setAdd({ ...add, texto: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && novoItem()} placeholder="O que não pode esquecer?" style={{ width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 14, marginBottom: 9, background: 'var(--ui-bg)', color: 'var(--ui-ink)' }} />
           <div style={{ display: 'flex', gap: 8, marginBottom: 11 }}>
-            <select value={add.tema} onChange={(e) => setAdd({ ...add, tema: e.target.value })} style={{ flex: 1, border: '1px solid var(--ui-line)', borderRadius: 12, padding: '10px', fontSize: 13, background: 'var(--ui-bg)', color: 'var(--ui-ink)' }}>{TEMAS.map((t) => <option key={t} value={t}>{t}</option>)}</select>
+            <select value={add.tema} onChange={(e) => setAdd({ ...add, tema: e.target.value })} style={{ flex: 1, border: '1px solid var(--ui-line)', borderRadius: 12, padding: '10px', fontSize: 13, background: 'var(--ui-bg)', color: 'var(--ui-ink)' }}>{temasVisiveis.map((t) => <option key={t} value={t}>{t}</option>)}</select>
             <select value={add.prazo} onChange={(e) => setAdd({ ...add, prazo: e.target.value })} style={{ width: 110, border: '1px solid var(--ui-line)', borderRadius: 12, padding: '10px', fontSize: 13, background: 'var(--ui-bg)', color: 'var(--ui-ink)' }}><option value="">sem prazo</option><option value="30d">30 dias</option><option value="7d">7 dias</option><option value="1d">1 dia</option></select>
           </div>
           <button onClick={novoItem} style={{ width: '100%', border: 'none', borderRadius: 12, padding: '12px', background: 'var(--ui-teal)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Adicionar</button>

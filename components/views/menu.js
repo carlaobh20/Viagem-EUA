@@ -76,7 +76,7 @@ export default function Menu({ ir }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '2px 2px 20px' }}>
         <div>
           <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px' }}>Menu</div>
-          <div style={{ fontSize: 14, color: 'var(--ui-muted)', marginTop: 2 }}>Tudo da viagem num lugar só ✈️</div>
+          <div style={{ fontSize: 14, color: 'var(--ui-muted)', marginTop: 2 }}>Tudo da viagem num lugar só 🧳</div>
         </div>
         <div style={{ display: 'flex', gap: 10, flex: '0 0 auto' }}>
           <button onClick={() => setBuscaAberta((v) => !v)} aria-label="Buscar" style={{ width: 42, height: 42, borderRadius: 14, border: 'none', background: 'var(--ui-card)', boxShadow: 'var(--ui-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--ui-ink)' }}>

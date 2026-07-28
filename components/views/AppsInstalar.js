@@ -129,7 +129,7 @@ export default function AppsInstalar({ ir }) {
         <button onClick={() => ir('menu')} aria-label="Voltar" style={{ border: 'none', background: 'var(--ui-card)', width: 34, height: 34, borderRadius: 11, boxShadow: 'var(--ui-shadow)', fontSize: 18, cursor: 'pointer', flex: '0 0 auto' }}>←</button>
         <div>
           <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.5px' }}>Apps pra instalar</div>
-          <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 1 }}>Baixe antes de embarcar</div>
+          <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 1 }}>Baixe antes da viagem</div>
         </div>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ui-teal)', flex: '0 0 auto' }}>{totalInstalados}/{totalApps}</div>
       </div>
