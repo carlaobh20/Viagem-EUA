@@ -3,6 +3,10 @@ import GlassCard from '../ui/GlassCard';
 
 /**
  * @typedef {Object} QuickActionsProps
+ * @property {boolean} sozinho - true quando a viagem tem só uma pessoa registrada (nenhuma
+ *   outra em "Pessoas") — nesse caso não existe ninguém pra acertar conta com quem viaja
+ *   sozinho, então o card "A acertar" some e o Checklist volta a ser um card simples,
+ *   sem foto de fundo (fica estranho um card de foto sozinho na grade).
  * @property {boolean} tudoQuite - se não há ninguém a acertar.
  * @property {string} resumoAcerto - texto do maior acerto pendente, ou "Tudo quite".
  * @property {() => void} onAcerto
@@ -33,7 +37,7 @@ const TONS = {
  * na cor do estado (laranja/verde/neutro) sem esconder a imagem.
  * @param {QuickActionsProps} props
  */
-export default function QuickActions({ tudoQuite, resumoAcerto, onAcerto, checklistFeitos, checklistTotal, onChecklist }) {
+export default function QuickActions({ sozinho, tudoQuite, resumoAcerto, onAcerto, checklistFeitos, checklistTotal, onChecklist }) {
   const checklistPct = checklistTotal > 0 ? Math.round((checklistFeitos / checklistTotal) * 100) : null;
   const checklistCompleto = checklistTotal > 0 && checklistPct === 100;
   const checklistPendente = checklistTotal > 0 && checklistPct < 100;
@@ -63,16 +67,18 @@ export default function QuickActions({ tudoQuite, resumoAcerto, onAcerto, checkl
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-      <Tile onClick={onAcerto} delay={0.05} emoji={tudoQuite ? '✅' : '🟠'} label="A acertar" valor={resumoAcerto} tom={tudoQuite ? 'ok' : 'alerta'} foto="/acerto-bg.jpg" />
+    <div style={{ display: 'grid', gridTemplateColumns: sozinho ? '1fr' : '1fr 1fr', gap: 10 }}>
+      {!sozinho && (
+        <Tile onClick={onAcerto} delay={0.05} emoji={tudoQuite ? '✅' : '🟠'} label="A acertar" valor={resumoAcerto} tom={tudoQuite ? 'ok' : 'alerta'} foto="/acerto-bg.jpg" />
+      )}
       <Tile
         onClick={onChecklist}
-        delay={0.1}
+        delay={sozinho ? 0.05 : 0.1}
         emoji={checklistCompleto ? '✅' : '🟠'}
         label="Checklist"
         valor={checklistTotal > 0 ? `${checklistFeitos}/${checklistTotal} · ${checklistPct}%` : 'Montar lista'}
         tom={checklistPendente ? 'alerta' : (checklistCompleto ? 'ok' : 'neutro')}
-        foto="/checklist-bg.jpg"
+        foto={sozinho ? undefined : '/checklist-bg.jpg'}
       />
     </div>
   );

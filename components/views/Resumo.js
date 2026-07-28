@@ -129,6 +129,7 @@ export default function Resumo({ ir }) {
 
       <div style={{ marginTop: 24 }}>
         <QuickActions
+          sozinho={(perfis || []).length <= 1}
           tudoQuite={transf.length === 0}
           resumoAcerto={transf.length === 0 ? 'Tudo quite ✅' : `${nomeP(transf[0].de)} → ${nomeP(transf[0].para)} · ${fmtBRL(transf[0].valor)}`}
           onAcerto={() => ir('acerto')}
