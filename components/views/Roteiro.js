@@ -48,8 +48,6 @@ function fmtDiaData(d) {
 }
 function diffDias(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
 function fmtDur(min) { if (min < 60) return `${min} min`; const h = Math.floor(min / 60); const m = min % 60; return m ? `${h} h ${m} min` : `${h} h`; }
-function addDias(d, n) { const dt = new Date(d + 'T00:00:00'); dt.setDate(dt.getDate() + n); return dataLocal(dt); }
-function fmtDM(d) { if (!d) return ''; const dt = new Date(d + 'T00:00:00'); const m = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][dt.getMonth()]; return `${String(dt.getDate()).padStart(2, '0')} ${m}`; }
 
 export default function Roteiro({ ir }) {
   const { viagem, pontos, gastos, perfis, checklist, recarregar } = useData();
@@ -98,13 +96,37 @@ export default function Roteiro({ ir }) {
     if (da !== db) return da < db ? -1 : 1;
     return (a.ordem || 0) - (b.ordem || 0);
   });
-  const grupos = [];
-  ordenados.forEach((p) => {
-    const key = p.data_inicio || 'sem-data';
-    let g = grupos.find((x) => x.key === key);
-    if (!g) { g = { key, data: p.data_inicio || '', stops: [] }; grupos.push(g); }
-    g.stops.push(p);
-  });
+
+  // Assim que ida e volta estão definidas, o roteiro já mostra um card pra cada
+  // dia da viagem (mesmo vazio) — não só os dias que já têm parada. A ideia é
+  // que a tela vire só de editar/preencher, sem precisar "criar o dia" à parte.
+  const diasViagem = [];
+  if (viagem.data_ida && viagem.data_volta) {
+    let d = new Date(viagem.data_ida + 'T00:00:00');
+    const fim = new Date(viagem.data_volta + 'T00:00:00');
+    while (d <= fim) { diasViagem.push(dataLocal(d)); d.setDate(d.getDate() + 1); }
+  }
+  const stopsPorData = {};
+  ordenados.forEach((p) => { const key = p.data_inicio || ''; (stopsPorData[key] = stopsPorData[key] || []).push(p); });
+
+  let grupos;
+  if (diasViagem.length > 0) {
+    const cobertos = new Set(diasViagem);
+    grupos = diasViagem.map((data) => ({ key: data, data, stops: stopsPorData[data] || [] }));
+    // parada com data fora do intervalo ida–volta, ou sem data nenhuma: aparece no fim
+    Object.keys(stopsPorData).filter((k) => !cobertos.has(k)).sort().forEach((k) => {
+      grupos.push({ key: k || 'sem-data', data: k, stops: stopsPorData[k] });
+    });
+  } else {
+    // sem datas ainda: comportamento de sempre, só os dias que já têm parada
+    grupos = [];
+    ordenados.forEach((p) => {
+      const key = p.data_inicio || 'sem-data';
+      let g = grupos.find((x) => x.key === key);
+      if (!g) { g = { key, data: p.data_inicio || '', stops: [] }; grupos.push(g); }
+      g.stops.push(p);
+    });
+  }
   const ultimaData = () => (grupos.length ? grupos[grupos.length - 1].data : '') || hoje();
 
   function abrirNovo(dataPadrao, inserirApos) {
@@ -323,31 +345,19 @@ export default function Roteiro({ ir }) {
             {grupos.map((g, gi) => {
               const cor = g.data ? CORES_DIA[gi % CORES_DIA.length] : '#5F5E5A';
               const dn = (g.data && ida) ? diffDias(ida, g.data) + 1 : gi + 1;
-              // faixa colapsada dos dias vazios entre o grupo anterior (com data) e este
-              let gap = null;
-              const ant = grupos[gi - 1];
-              if (g.data && ida && ant && ant.data && diffDias(ant.data, g.data) > 1) {
-                const ini = addDias(ant.data, 1), fim = addDias(g.data, -1);
-                gap = { ini, fim, dIni: diffDias(ida, ini) + 1, dFim: diffDias(ida, fim) + 1, n: diffDias(ini, fim) + 1 };
-              }
               return (
                 <div key={g.key}>
-                  {gap && (
-                    <div onClick={() => abrirNovo(gap.ini, null)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg)', border: '0.5px dashed var(--line-strong)', borderRadius: 16, padding: '12px 14px', marginBottom: 14, cursor: 'pointer' }}>
-                      <span style={{ width: 34, height: 34, borderRadius: 11, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flex: '0 0 auto' }}>📅</span>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--muted)' }}>{gap.dIni === gap.dFim ? `Dia ${gap.dIni}` : `Dia ${gap.dIni} – ${gap.dFim}`} · {gap.ini === gap.fim ? fmtDM(gap.ini) : `${fmtDM(gap.ini)} → ${fmtDM(gap.fim)}`}</div>
-                        <div style={{ fontSize: 12, color: 'var(--faint)', marginTop: 1 }}>{gap.n} {gap.n === 1 ? 'dia sem parada' : 'dias sem paradas'}</div>
-                      </div>
-                      <span style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--brand)', fontWeight: 700, whiteSpace: 'nowrap', flex: '0 0 auto' }}>+ parada</span>
-                    </div>
-                  )}
                   <div style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 18, overflow: 'hidden', marginBottom: 14, boxShadow: '0 2px 12px rgba(27,42,47,0.06)' }}>
                     <div style={{ background: cor, color: '#fff', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: 14, fontWeight: 600 }}>{g.data ? `Dia ${dn}` : 'Sem data'} <span style={{ opacity: 0.85, fontWeight: 400 }}>· {fmtDiaData(g.data)}</span></span>
                       <span style={{ fontSize: 11, opacity: 0.85 }}>{g.stops.length} {g.stops.length === 1 ? 'parada' : 'paradas'}</span>
                     </div>
                   <div style={{ padding: '6px 14px 12px' }}>
+                    {g.stops.length === 0 && (
+                      <div onClick={() => abrirNovo(g.data, null)} style={{ padding: '16px 4px', textAlign: 'center', color: 'var(--muted)', fontSize: 13, cursor: 'pointer' }}>
+                        Nada planejado ainda — <span style={{ color: 'var(--brand)', fontWeight: 700 }}>+ adicionar parada</span>
+                      </div>
+                    )}
                     {g.stops.map((p, i) => (
                       <div key={p.id} style={{ display: 'flex', gap: 10, paddingTop: 12, borderTop: i > 0 ? '0.5px solid var(--line)' : 'none', marginTop: i > 0 ? 12 : 0 }}>
                         <div style={{ width: 11, height: 11, borderRadius: '50%', background: corTipo(p.tipo), marginTop: 5, flex: '0 0 auto' }} />
