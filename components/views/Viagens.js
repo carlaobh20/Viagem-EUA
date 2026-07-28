@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
 import { fmtBRL, hojeLocal } from '../../lib/format';
+import NovaViagemWizard from '../viagens/NovaViagemWizard';
 
 const MS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const fmtDia = (d) => { if (!d) return ''; const [, m, dia] = d.split('-'); return `${Number(dia)} ${MS[Number(m) - 1]}`; };
@@ -18,10 +19,10 @@ export default function Viagens({ ir }) {
   const { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, guardados, definirMeta, adicionarGuardado, removerGuardado } = useData();
   const [totais, setTotais] = useState({});
   const [msg, setMsg] = useState('');
-  const [busy, setBusy] = useState(false);
   const [metaForm, setMetaForm] = useState(null); // string do valor da meta em edição
   const [guardForm, setGuardForm] = useState(null); // { banco, valor }
   const [emailUser, setEmailUser] = useState('');
+  const [wizardAberto, setWizardAberto] = useState(false);
   const hoje = hojeLocal();
 
   // pega o e-mail como fallback para o nome
@@ -74,7 +75,7 @@ export default function Viagens({ ir }) {
   const passadas = lista.filter((v) => info(v).passada);
 
   function abrir(v) { trocarViagem(v.id); ir('resumo'); }
-  async function criar() { const nome = window.prompt('Nome da nova viagem (ex.: Europa 2027)'); if (!nome || !nome.trim()) return; setBusy(true); try { await criarViagem(nome); setMsg('Viagem criada!'); } catch (e) { setMsg('Não consegui criar.'); } setBusy(false); }
+  async function criarComPerfil(dados) { await criarViagem(dados); setWizardAberto(false); setMsg('Viagem criada!'); }
   async function apagar(v, e) { e.stopPropagation(); if (!window.confirm(`Apagar "${v.nome}"? Remove a viagem e todos os dados dela para todos. Não dá pra desfazer.`)) return; const r = await apagarViagem(v.id); setMsg(r.ok ? 'Viagem apagada.' : (r.erro || 'Falhou.')); }
   async function trocarFoto(v, e) { e.stopPropagation(); const url = window.prompt('Cole o link de uma foto (URL de imagem) para a capa da viagem. Deixe em branco para remover.', v.foto || ''); if (url === null) return; await definirFotoViagem(v.id, url.trim()); }
   async function convidarCard(v, e) {
@@ -106,7 +107,7 @@ export default function Viagens({ ir }) {
       {/* HEADER com foto ao fundo + degradê dissolvendo no app */}
       <div style={{ position: 'relative', minHeight: 248, backgroundImage: "url('/header-home.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(0,24,44,.72) 0%,rgba(0,26,48,.50) 30%,rgba(0,28,50,.20) 50%,rgba(244,248,251,.30) 74%,rgba(244,248,251,.88) 90%,#F4F8FB 100%)' }} />
-        <button onClick={criar} aria-label="Criar nova viagem" style={{ position: 'absolute', top: 22, right: 20, width: 54, height: 54, borderRadius: '50%', background: 'linear-gradient(135deg,#00D4BC,#0E9F97)', color: '#fff', fontSize: 30, fontWeight: 300, lineHeight: 1, border: '2px solid rgba(255,255,255,.35)', cursor: 'pointer', boxShadow: '0 10px 24px rgba(0,90,80,.55), 0 2px 6px rgba(0,0,0,.15)', zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: 3 }}>+</button>
+        <button onClick={() => setWizardAberto(true)} aria-label="Criar nova viagem" style={{ position: 'absolute', top: 22, right: 20, width: 54, height: 54, borderRadius: '50%', background: 'linear-gradient(135deg,#00D4BC,#0E9F97)', color: '#fff', fontSize: 30, fontWeight: 300, lineHeight: 1, border: '2px solid rgba(255,255,255,.35)', cursor: 'pointer', boxShadow: '0 10px 24px rgba(0,90,80,.55), 0 2px 6px rgba(0,0,0,.15)', zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: 3 }}>+</button>
         <div style={{ position: 'relative', zIndex: 2, padding: '28px 22px 18px', color: '#fff' }}>
           <div style={{ fontSize: 15, fontWeight: 600, textShadow: '0 2px 8px rgba(0,0,0,.55)' }}>Olá, {primeiroNome}!</div>
           <div style={{ fontSize: 33, fontWeight: 800, letterSpacing: '-1px', lineHeight: 1.04, marginTop: 6, maxWidth: 250, textShadow: '0 2px 12px rgba(0,0,0,.6)' }}>Suas <span style={{ color: '#5EEAD9' }}>próximas viagens</span></div>
@@ -192,6 +193,8 @@ export default function Viagens({ ir }) {
 
         {msg && <div style={{ fontSize: 12.5, color: '#00A99B', textAlign: 'center', marginTop: 14 }}>{msg}</div>}
       </div>
+
+      {wizardAberto && <NovaViagemWizard onCancelar={() => setWizardAberto(false)} onCriar={criarComPerfil} />}
     </div>
   );
 }

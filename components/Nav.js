@@ -1,4 +1,5 @@
 'use client';
+import { useData } from './DataProvider';
 
 const PATHS = {
   resumo: <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></>,
@@ -11,6 +12,14 @@ const PATHS = {
 const NO_MENU = ['menu', 'gastos', 'checklist', 'compras', 'pessoas', 'acerto', 'conta', 'diario', 'lugares', 'frases', 'appsinstalar'];
 
 export default function Nav({ view, setView }) {
+  const { viagem } = useData();
+  // Aba Motorhome só aparece se a viagem tiver "Motorhome / RV" marcado no
+  // perfil (definido na criação, ver NovaViagemWizard). Viagem sem perfil
+  // definido ainda (transporte vazio/ausente) mostra por padrão — não some
+  // aba de viagem já em uso antes dessa personalização existir.
+  const semPerfilTransporte = !viagem || !Array.isArray(viagem.transporte) || viagem.transporte.length === 0;
+  const mostrarMotorhome = semPerfilTransporte || viagem.transporte.includes('motorhome');
+
   const ativo = NO_MENU.includes(view) ? 'menu' : view;
   const item = (id, label) => (
     <button onClick={() => setView(id)} aria-label={label} style={{ color: ativo === id ? 'var(--ui-teal)' : 'var(--ui-faint)' }}>
@@ -21,7 +30,7 @@ export default function Nav({ view, setView }) {
   return (
     <nav className="nav">
       {item('resumo', 'Início')}
-      {item('motorhome', 'Motorhome')}
+      {mostrarMotorhome && item('motorhome', 'Motorhome')}
       <button onClick={() => setView('novo')} aria-label="Novo gasto"
         style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg,#10B981,#0EA5E9)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: -26, boxShadow: '0 8px 20px rgba(14,165,180,.45)', border: 'none' }}>
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>

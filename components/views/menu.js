@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useData } from '../DataProvider';
 
 const SVG = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
 function Ic({ paths, size = 20 }) {
@@ -23,8 +24,16 @@ const INDIVIDUAL = [IT.checklist, IT.compras];
 const COMPARTILHADO = [IT.diario, IT.gastos, IT.acerto, IT.lugares, IT.frases, IT.appsinstalar, IT.pessoas];
 
 export default function Menu({ ir }) {
+  const { viagem } = useData();
   const [buscaAberta, setBuscaAberta] = useState(false);
   const [busca, setBusca] = useState('');
+
+  // Card "Conversar em inglês" só some se a viagem tiver perfil definido como
+  // nacional (ver NovaViagemWizard). Viagem sem perfil ainda (tipo_viagem
+  // ausente) continua mostrando — não some card de viagem já em uso antes
+  // dessa personalização existir.
+  const semPerfilTipo = !viagem || !viagem.tipo_viagem;
+  const mostrarFrases = semPerfilTipo || viagem.tipo_viagem !== 'nacional';
 
   const bate = (it) => {
     const q = busca.trim().toLowerCase();
@@ -32,7 +41,8 @@ export default function Menu({ ir }) {
     return it.label.toLowerCase().includes(q) || it.sub.toLowerCase().includes(q);
   };
   const individualFiltrado = INDIVIDUAL.filter(bate);
-  const compartilhadoFiltrado = [...COMPARTILHADO, IT.viagens].filter(bate);
+  const compartilhado = mostrarFrases ? COMPARTILHADO : COMPARTILHADO.filter((it) => it.id !== 'frases');
+  const compartilhadoFiltrado = [...compartilhado, IT.viagens].filter(bate);
   const semResultado = busca.trim() && individualFiltrado.length === 0 && compartilhadoFiltrado.length === 0;
 
   const CardGrande = ({ it }) => (

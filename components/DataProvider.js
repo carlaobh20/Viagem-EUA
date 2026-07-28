@@ -323,9 +323,17 @@ export function DataProvider({ session, children }) {
 
   function trocarViagem(id) { if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', id); carregar(); }
   async function definirFotoViagem(id, url) { await supabase.from('viagens').update({ foto: url || null }).eq('id', id); await carregar(); }
-  async function criarViagem(nome) {
+  // Aceita string (compatibilidade antiga: só o nome) ou objeto com o perfil
+  // completo da viagem, coletado no assistente de criação (ver NovaViagemWizard).
+  async function criarViagem(dadosOuNome) {
     const uid = session.user.id;
-    const { data: nv, error } = await supabase.from('viagens').insert({ nome: (nome || 'Nova viagem').trim(), orcamento_brl: 0, cotacao_usd: 5.4, owner_id: uid }).select().single();
+    const dados = typeof dadosOuNome === 'string' ? { nome: dadosOuNome } : (dadosOuNome || {});
+    const { nome, tipoViagem, destino, motivo, transporte } = dados;
+    const { data: nv, error } = await supabase.from('viagens').insert({
+      nome: (nome || 'Nova viagem').trim(), orcamento_brl: 0, cotacao_usd: 5.4, owner_id: uid,
+      tipo_viagem: tipoViagem || null, destino: (destino || '').trim() || null, motivo: motivo || null,
+      transporte: Array.isArray(transporte) ? transporte : [],
+    }).select().single();
     if (error) throw error;
     await supabase.from('viagem_membros').insert({ viagem_id: nv.id, user_id: uid, papel: 'dono' });
     if (typeof window !== 'undefined') window.localStorage.setItem('viagemAtiva', nv.id);
