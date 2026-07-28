@@ -305,6 +305,19 @@ export function DataProvider({ session, children }) {
     }
     await carregar();
   }
+  // Esconder/reexibir uma sugestão de app (a lista fixa em AppsInstalar.js, não os
+  // apps adicionados à mão). Reaproveita a mesma tabela apps_marcados de
+  // alternarAppInstalado, só com um prefixo diferente na chave — não precisa de
+  // tabela nova, e fica por pessoa (cada um esconde só pra si).
+  async function ocultarAppSugestao(appKey) {
+    if (!viagem || !session) return;
+    await supabase.from('apps_marcados').insert({ viagem_id: viagem.id, user_id: session.user.id, app_key: 'oculto:' + appKey });
+    await carregar();
+  }
+  async function reexibirAppSugestao(appKey) {
+    const m = (appsMarcados || []).find((x) => x.app_key === 'oculto:' + appKey);
+    if (m) { await supabase.from('apps_marcados').delete().eq('id', m.id); await carregar(); }
+  }
 
   // ===== Diário da viagem (texto, fotos, áudio, por dia) =====
   // Bucket 'diario' é público — guardamos só o caminho e resolvemos a URL na hora de mostrar.
@@ -413,7 +426,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome, diario, adicionarEntradaDiario, removerEntradaDiario, urlDiario };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, ocultarAppSugestao, reexibirAppSugestao, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome, diario, adicionarEntradaDiario, removerEntradaDiario, urlDiario };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }

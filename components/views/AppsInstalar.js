@@ -93,17 +93,22 @@ function gruposDoPerfil(viagem) {
 }
 
 export default function AppsInstalar({ ir }) {
-  const { viagem, appsInstalar, adicionarApp, removerApp, appsMarcados, alternarAppInstalado } = useData();
+  const { viagem, appsInstalar, adicionarApp, removerApp, appsMarcados, alternarAppInstalado, ocultarAppSugestao, reexibirAppSugestao } = useData();
   const [aberto, setAberto] = useState('essencial');
   const [addForm, setAddForm] = useState(null); // { nome, funcao, beneficio }
   const card = { background: 'var(--ui-card)', borderRadius: 18, boxShadow: 'var(--ui-shadow)' };
   const inp = { width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 14, background: 'var(--ui-bg)', color: 'var(--ui-ink)' };
   const marcadosSet = new Set((appsMarcados || []).map((m) => m.app_key));
   const instalado = (key) => marcadosSet.has(key);
+  // Sugestões que essa pessoa apagou — ficam escondidas só pra ela (ver
+  // ocultarAppSugestao no DataProvider). Base da chave é "grupoId:nome do app".
+  const ocultos = new Set((appsMarcados || []).filter((m) => m.app_key.startsWith('oculto:')).map((m) => m.app_key.slice('oculto:'.length)));
   const nacional = viagem?.tipo_viagem === 'nacional';
-  const grupos = gruposDoPerfil(viagem);
+  const grupos = gruposDoPerfil(viagem)
+    .map((g) => ({ ...g, apps: g.apps.filter((a) => !ocultos.has(g.id + ':' + a.nome)) }))
+    .filter((g) => g.apps.length > 0);
   const totalApps = grupos.reduce((s, g) => s + g.apps.length, 0) + (appsInstalar || []).length;
-  const totalInstalados = marcadosSet.size;
+  const totalInstalados = [...marcadosSet].filter((k) => !k.startsWith('oculto:')).length;
 
   const Check = ({ appKey }) => {
     const on = instalado(appKey);
@@ -189,6 +194,7 @@ export default function AppsInstalar({ ir }) {
                         <span>✓</span><span>{a.beneficio}</span>
                       </div>
                     </div>
+                    <button onClick={() => { if (window.confirm(`Apagar a sugestão "${a.nome}"? Some só pra você — dá pra restaurar depois, lá embaixo da lista.`)) ocultarAppSugestao(g.id + ':' + a.nome); }} aria-label={`Apagar sugestão ${a.nome}`} style={{ border: 'none', background: 'none', color: 'var(--ui-faint)', fontSize: 15, cursor: 'pointer', flex: '0 0 auto', padding: '2px 4px' }}>✕</button>
                   </div>
                 ))}
               </div>
@@ -196,6 +202,15 @@ export default function AppsInstalar({ ir }) {
           </div>
         );
       })}
+
+      {ocultos.size > 0 && (
+        <button
+          onClick={() => { if (window.confirm(`Voltar a mostrar ${ocultos.size} sugestão${ocultos.size === 1 ? '' : 'ões'} que você apagou?`)) [...ocultos].forEach((k) => reexibirAppSugestao(k)); }}
+          style={{ width: '100%', border: 'none', background: 'none', color: 'var(--ui-teal)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: '8px 0' }}
+        >
+          ↺ Restaurar {ocultos.size} sugestão{ocultos.size === 1 ? '' : 'ões'} escondida{ocultos.size === 1 ? '' : 's'}
+        </button>
+      )}
     </div>
   );
 }
