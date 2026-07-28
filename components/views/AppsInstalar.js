@@ -3,7 +3,12 @@ import { useState } from 'react';
 import { useData } from '../DataProvider';
 
 // Conteúdo estático (sem banco, sem dado de usuário, zero risco novo).
-const GRUPOS = [
+// Duas listas, uma pra cada perfil de viagem (ver NovaViagemWizard) — os apps de
+// desconto em loja americana, câmbio de dólar e eSIM internacional não fazem
+// sentido numa viagem nacional, então viagem nacional recebe uma lista própria,
+// voltada pra Brasil. Viagem sem perfil definido (todas as existentes até essa
+// personalização existir) continua caindo na lista internacional de sempre.
+const GRUPOS_INTERNACIONAL = [
   { id: 'essencial', label: 'Essencial', emoji: '⭐', apps: [
     { nome: 'Google Maps', funcao: 'Navegação e trajeto no carro/motorhome.', beneficio: 'Funciona com mapa baixado offline — salva quando o sinal falhar na estrada.' },
     { nome: 'Google Tradutor', funcao: 'Traduzir texto, voz e placas pela câmera.', beneficio: 'Baixa o pacote de inglês offline antes de viajar; usa sem internet.' },
@@ -47,15 +52,57 @@ const GRUPOS = [
   ] },
 ];
 
+// Viagem nacional: nada de câmbio, eSIM internacional ou desconto de loja americana.
+// O grupo "carro" só aparece se a viagem tiver carro marcado no transporte (ver
+// gruposDoPerfil abaixo) — igual ao tema "Carro" que já existe no Checklist.
+const GRUPOS_NACIONAL = [
+  { id: 'essencial', label: 'Essencial', emoji: '⭐', apps: [
+    { nome: 'Google Maps', funcao: 'Navegação e trajeto.', beneficio: 'Baixa a região offline antes de sair — funciona sem sinal na estrada.' },
+    { nome: 'Waze', funcao: 'Trânsito em tempo real e alerta de rota.', beneficio: 'Avisa de acidente, obra e bloqueio antes de você chegar lá.' },
+    { nome: 'Uber ou 99', funcao: 'Corridas quando não estiver com o carro.', beneficio: 'Cadastra o cartão antes de viajar — evita ficar sem opção na hora.' },
+  ] },
+  { id: 'carro', label: 'Carro na estrada', emoji: '🚗', condicao: 'carro', apps: [
+    { nome: 'Sem Parar, ConectCar ou Veloe', funcao: 'Tag automática de pedágio.', beneficio: 'Passa direto na cabine, sem precisar parar pra pagar em dinheiro.' },
+    { nome: 'App do seu seguro do carro', funcao: 'Acionar guincho ou abrir sinistro pelo celular.', beneficio: 'Em pane ou batida na estrada, resolve mais rápido do que pelo telefone.' },
+  ] },
+  { id: 'dinheiro', label: 'Dinheiro', emoji: '💳', apps: [
+    { nome: 'App do seu banco', funcao: 'Pix, extrato e bloqueio de cartão na hora.', beneficio: 'Ativa notificação de compra — percebe qualquer cobrança estranha na hora.' },
+  ] },
+  { id: 'hospedagem', label: 'Hospedagem', emoji: '🏨', apps: [
+    { nome: 'Booking.com ou Airbnb', funcao: 'Reservar e conferir os detalhes da hospedagem.', beneficio: 'Tem check-in, endereço e contato do anfitrião à mão, mesmo sem internet no local.' },
+  ] },
+  { id: 'lugares', label: 'Lugares e passeio', emoji: '🏞️', apps: [
+    { nome: 'Google (avaliações)', funcao: 'Ver nota e foto de restaurante/atração antes de ir.', beneficio: 'Evita perder tempo em lugar ruim.' },
+    { nome: 'AllTrails', funcao: 'Trilhas e cachoeiras com mapa e dificuldade.', beneficio: 'Mostra a trilha certa pro nível da família, com avaliação de quem já foi.' },
+    { nome: 'App do parque (ex.: ICMBio, fundação florestal do estado)', funcao: 'Horário e reserva do parque nacional/estadual que for visitar.', beneficio: 'Vários parques exigem reserva de horário — evita ser barrado na entrada.' },
+  ] },
+  { id: 'comunicacao', label: 'Comunicação', emoji: '📶', apps: [
+    { nome: 'WhatsApp', funcao: 'Manter contato e compartilhar localização com quem ficou em casa.', beneficio: 'Dá pra avisar em tempo real num trecho mais isolado da estrada.' },
+  ] },
+  { id: 'comida', label: 'Comida na estrada', emoji: '🍔', apps: [
+    { nome: 'iFood', funcao: 'Pedir comida sem sair do hotel/pousada.', beneficio: 'Útil pra quem chega cansado depois de um trecho longo de estrada.' },
+  ] },
+];
+
+function gruposDoPerfil(viagem) {
+  const nacional = viagem?.tipo_viagem === 'nacional';
+  const transporte = Array.isArray(viagem?.transporte) ? viagem.transporte : [];
+  const deCarro = transporte.length === 0 || transporte.includes('carro');
+  const base = nacional ? GRUPOS_NACIONAL : GRUPOS_INTERNACIONAL;
+  return base.filter((g) => !g.condicao || (g.condicao === 'carro' && deCarro));
+}
+
 export default function AppsInstalar({ ir }) {
-  const { appsInstalar, adicionarApp, removerApp, appsMarcados, alternarAppInstalado } = useData();
+  const { viagem, appsInstalar, adicionarApp, removerApp, appsMarcados, alternarAppInstalado } = useData();
   const [aberto, setAberto] = useState('essencial');
   const [addForm, setAddForm] = useState(null); // { nome, funcao, beneficio }
   const card = { background: 'var(--ui-card)', borderRadius: 18, boxShadow: 'var(--ui-shadow)' };
   const inp = { width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 14, background: 'var(--ui-bg)', color: 'var(--ui-ink)' };
   const marcadosSet = new Set((appsMarcados || []).map((m) => m.app_key));
   const instalado = (key) => marcadosSet.has(key);
-  const totalApps = GRUPOS.reduce((s, g) => s + g.apps.length, 0) + (appsInstalar || []).length;
+  const nacional = viagem?.tipo_viagem === 'nacional';
+  const grupos = gruposDoPerfil(viagem);
+  const totalApps = grupos.reduce((s, g) => s + g.apps.length, 0) + (appsInstalar || []).length;
   const totalInstalados = marcadosSet.size;
 
   const Check = ({ appKey }) => {
@@ -118,9 +165,9 @@ export default function AppsInstalar({ ir }) {
       )}
 
       <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: 'var(--ui-muted)', margin: '0 4px 6px' }}>SUGESTÕES</div>
-      <div style={{ fontSize: 12, color: 'var(--ui-faint)', margin: '0 4px 10px', lineHeight: 1.4 }}>💡 Vários apps de economia (combustível, mercado, fast food, outlets) só liberam o desconto com um <strong>número de celular americano</strong> — vale ativar um chip local antes de embarcar.</div>
+      {!nacional && <div style={{ fontSize: 12, color: 'var(--ui-faint)', margin: '0 4px 10px', lineHeight: 1.4 }}>💡 Vários apps de economia (combustível, mercado, fast food, outlets) só liberam o desconto com um <strong>número de celular americano</strong> — vale ativar um chip local antes de embarcar.</div>}
 
-      {GRUPOS.map((g) => {
+      {grupos.map((g) => {
         const on = aberto === g.id;
         return (
           <div key={g.id} style={{ ...card, marginBottom: 12, overflow: 'hidden' }}>
