@@ -8,6 +8,9 @@ export default function Acerto({ ir }) {
   const cambio = Number(viagem.cotacao_usd);
   const comDolar = usaDolar(viagem);
   const cambioOk = comDolar && cambio > 0;
+  // Viagem sozinha não tem com quem acertar conta — some a parte de dívida
+  // (transferências e histórico), fica só o câmbio (se a viagem usa dólar).
+  const sozinho = (perfis || []).length <= 1;
   const [cambioStr, setCambioStr] = useState(String(cambio).replace('.', ','));
   const [buscando, setBuscando] = useState(false);
   const [cotMsg, setCotMsg] = useState('');
@@ -40,8 +43,10 @@ export default function Acerto({ ir }) {
   function desfazer(a) { if (window.confirm('Desfazer este acerto? A dívida volta a aparecer.')) removerAcerto(a.id); }
   return (
     <div className="screen" style={{ paddingTop: 18 }}>
-      <div className="fab-back"><button onClick={() => ir('resumo')} aria-label="Voltar">←</button><span className="ttl">Acerto</span></div>
-      <p style={{ fontSize: 13, color: 'var(--muted)', margin: '8px 0 14px' }}>Quem precisa pagar quem para todo mundo ficar quite. As dívidas já vêm com tudo abatido (uma compra compensa a outra).</p>
+      <div className="fab-back"><button onClick={() => ir('resumo')} aria-label="Voltar">←</button><span className="ttl">{sozinho ? 'Câmbio' : 'Acerto'}</span></div>
+      {!sozinho && (
+        <p style={{ fontSize: 13, color: 'var(--muted)', margin: '8px 0 14px' }}>Quem precisa pagar quem para todo mundo ficar quite. As dívidas já vêm com tudo abatido (uma compra compensa a outra).</p>
+      )}
 
       {comDolar && (
         <div className="toggle" style={{ width: 170, marginBottom: 14 }}>
@@ -62,7 +67,7 @@ export default function Acerto({ ir }) {
         </div>
       )}
 
-      {transferencias.length === 0 ? (
+      {!sozinho && (transferencias.length === 0 ? (
         <div className="card"><div className="empty">Tudo quite! Ninguém deve nada. ✅</div></div>
       ) : (
         <div className="card" style={{ padding: '4px 0' }}>
@@ -81,9 +86,9 @@ export default function Acerto({ ir }) {
             </div>
           ))}
         </div>
-      )}
+      ))}
 
-      {acertos && acertos.length > 0 && (
+      {!sozinho && acertos && acertos.length > 0 && (
         <>
           <div className="section-title">Histórico de acertos</div>
           <div className="card" style={{ padding: '4px 0' }}>

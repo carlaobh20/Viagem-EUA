@@ -24,7 +24,7 @@ const INDIVIDUAL = [IT.checklist, IT.compras];
 const COMPARTILHADO = [IT.diario, IT.gastos, IT.acerto, IT.lugares, IT.frases, IT.appsinstalar, IT.pessoas];
 
 export default function Menu({ ir }) {
-  const { viagem } = useData();
+  const { viagem, perfis } = useData();
   const [buscaAberta, setBuscaAberta] = useState(false);
   const [busca, setBusca] = useState('');
 
@@ -35,13 +35,20 @@ export default function Menu({ ir }) {
   const semPerfilTipo = !viagem || !viagem.tipo_viagem;
   const mostrarFrases = semPerfilTipo || viagem.tipo_viagem !== 'nacional';
 
+  // "Acerto de contas" só faz sentido com mais de uma pessoa na viagem —
+  // sozinho não tem com quem acertar. O botão de câmbio (Resumo/Gastos)
+  // continua funcionando pra viagem internacional sozinha, só esse atalho
+  // no Menu que some.
+  const sozinho = (perfis || []).length <= 1;
+
   const bate = (it) => {
     const q = busca.trim().toLowerCase();
     if (!q) return true;
     return it.label.toLowerCase().includes(q) || it.sub.toLowerCase().includes(q);
   };
   const individualFiltrado = INDIVIDUAL.filter(bate);
-  const compartilhado = mostrarFrases ? COMPARTILHADO : COMPARTILHADO.filter((it) => it.id !== 'frases');
+  let compartilhado = mostrarFrases ? COMPARTILHADO : COMPARTILHADO.filter((it) => it.id !== 'frases');
+  if (sozinho) compartilhado = compartilhado.filter((it) => it.id !== 'acerto');
   const compartilhadoFiltrado = [...compartilhado, IT.viagens].filter(bate);
   const semResultado = busca.trim() && individualFiltrado.length === 0 && compartilhadoFiltrado.length === 0;
 
