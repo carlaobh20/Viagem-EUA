@@ -21,7 +21,7 @@ const TONS = {
   alerta: { grad: 'linear-gradient(160deg, rgba(232,135,30,.16) 0%, var(--ui-card) 72%)', ring: '1px solid rgba(232,135,30,.38)', iconBg: 'rgba(232,135,30,.18)', fundoTint: '#C2410C' },
   ok: { grad: 'linear-gradient(160deg, rgba(0,199,177,.14) 0%, var(--ui-card) 72%)', ring: '1px solid rgba(0,199,177,.32)', iconBg: 'rgba(0,199,177,.16)', fundoTint: '#0E9C8C' },
   teal: { grad: 'linear-gradient(160deg, rgba(0,199,177,.12) 0%, var(--ui-card) 70%)', ring: '1px solid transparent', iconBg: 'var(--ui-bg)' },
-  neutro: { grad: 'var(--ui-card)', ring: '1px solid transparent', iconBg: 'var(--ui-bg)' },
+  neutro: { grad: 'var(--ui-card)', ring: '1px solid transparent', iconBg: 'var(--ui-bg)', fundoTint: '#64748B' },
 };
 
 /**
@@ -29,8 +29,8 @@ const TONS = {
  * Os dois seguem o mesmo semáforo: laranja enquanto houver pendência
  * (alguém devendo, ou checklist não 100% concluído), verde só quando
  * estiver tudo resolvido (quite, ou checklist 100%).
- * O tile "A acertar" usa uma foto desfocada de fundo (troca de dinheiro)
- * em vez do ícone, com um véu laranja/verde por cima pra manter a cor.
+ * Os dois tiles usam uma foto nítida de fundo (em vez do ícone), tingida
+ * na cor do estado (laranja/verde/neutro) sem esconder a imagem.
  * @param {QuickActionsProps} props
  */
 export default function QuickActions({ tudoQuite, resumoAcerto, onAcerto, checklistFeitos, checklistTotal, onChecklist }) {
@@ -72,6 +72,7 @@ export default function QuickActions({ tudoQuite, resumoAcerto, onAcerto, checkl
         label="Checklist"
         valor={checklistTotal > 0 ? `${checklistFeitos}/${checklistTotal} · ${checklistPct}%` : 'Montar lista'}
         tom={checklistPendente ? 'alerta' : (checklistCompleto ? 'ok' : 'neutro')}
+        foto="/checklist-bg.jpg"
       />
     </div>
   );
