@@ -50,7 +50,10 @@ function reduzirImagem(file) {
 export default function Diario({ ir }) {
   const { viagem, diario, perfis, perfil, adicionarEntradaDiario, removerEntradaDiario, urlDiario } = useData();
 
-  const diasComEntrada = Array.from(new Set((diario || []).map((e) => e.data))).sort();
+  const [modo, setModo] = useState('grupo'); // 'grupo' | 'individual'
+  const diarioDoModo = (diario || []).filter((e) => (e.modo || 'grupo') === modo);
+
+  const diasComEntrada = Array.from(new Set(diarioDoModo.map((e) => e.data))).sort();
   const diasBase = (() => {
     if (viagem && viagem.data_ida && viagem.data_volta) {
       const lista = [];
@@ -68,7 +71,7 @@ export default function Diario({ ir }) {
   const [diaSel, setDiaSel] = useState(() => (diasBase.includes(hojeLocal()) ? hojeLocal() : (diasBase[diasBase.length - 1] || hojeLocal())));
   const dataInputRef = useRef(null);
 
-  const entradasDoDia = (diario || [])
+  const entradasDoDia = diarioDoModo
     .filter((e) => e.data === diaSel)
     .sort((a, b) => new Date(a.criado_em) - new Date(b.criado_em));
 
@@ -168,6 +171,7 @@ export default function Diario({ ir }) {
         audioBlob: audioBlob || null,
         audioExt: audioBlob ? extDeMime(audioBlob.type) : null,
         audioDuracao: audioBlob ? (audioSeg || tempoGrav) : null,
+        modo,
       });
       setTexto('');
       fotos.forEach((f) => URL.revokeObjectURL(f.preview));
@@ -191,6 +195,15 @@ export default function Diario({ ir }) {
       <div style={{ padding: '4px 2px 16px' }}>
         <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.5px' }}>Diário da viagem</div>
         <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 2 }}>Escreva, grave um áudio ou guarde uma foto de cada dia</div>
+      </div>
+
+      {/* individual x grupo */}
+      <div className="toggle" style={{ marginBottom: 6 }}>
+        <button className={modo === 'grupo' ? 'on' : ''} onClick={() => setModo('grupo')}>👥 Em grupo</button>
+        <button className={modo === 'individual' ? 'on' : ''} onClick={() => setModo('individual')}>🔒 Individual</button>
+      </div>
+      <div style={{ fontSize: 11.5, color: 'var(--ui-faint)', margin: '0 2px 16px' }}>
+        {modo === 'grupo' ? 'Todo mundo da viagem vê e participa dessa conversa.' : 'Só você vê o que escrever aqui — seu diário particular da viagem.'}
       </div>
 
       {/* seletor de dias */}
@@ -229,7 +242,7 @@ export default function Diario({ ir }) {
         <textarea
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          placeholder="O que aconteceu nesse dia?"
+          placeholder={modo === 'individual' ? 'Escreva algo só seu sobre esse dia...' : 'O que aconteceu nesse dia?'}
           rows={3}
           style={{ width: '100%', border: 'none', outline: 'none', resize: 'vertical', fontSize: 14, fontFamily: 'inherit', background: 'transparent', color: 'var(--ui-ink)', minHeight: 60 }}
         />
@@ -289,7 +302,9 @@ export default function Diario({ ir }) {
 
       {/* feed do dia */}
       {entradasDoDia.length === 0 && (
-        <div style={{ textAlign: 'center', color: 'var(--ui-faint)', fontSize: 13, padding: '30px 10px' }}>Nada registrado nesse dia ainda. Comece escrevendo, gravando um áudio ou adicionando uma foto acima.</div>
+        <div style={{ textAlign: 'center', color: 'var(--ui-faint)', fontSize: 13, padding: '30px 10px' }}>
+          {modo === 'individual' ? 'Nada no seu diário particular nesse dia ainda.' : 'Ninguém escreveu nada nesse dia ainda.'} Comece escrevendo, gravando um áudio ou adicionando uma foto acima.
+        </div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

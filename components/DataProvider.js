@@ -296,7 +296,7 @@ export function DataProvider({ session, children }) {
     if (error) throw error;
     return path;
   }
-  async function adicionarEntradaDiario({ data, texto, fotos, audioBlob, audioExt, audioDuracao }) {
+  async function adicionarEntradaDiario({ data, texto, fotos, audioBlob, audioExt, audioDuracao, modo }) {
     if (!viagem || !perfil) return;
     const fotoPaths = [];
     if (fotos && fotos.length) { for (const f of fotos) fotoPaths.push(await subirArquivoDiario(f, 'jpg')); }
@@ -306,6 +306,7 @@ export function DataProvider({ session, children }) {
       viagem_id: viagem.id, perfil_id: perfil.id, user_id: session.user.id,
       data: data || hojeLocal(), texto: (texto || '').trim() || null,
       fotos: fotoPaths, audio_url: audioPath, audio_duracao: audioDuracao || null,
+      modo: modo === 'individual' ? 'individual' : 'grupo',
     });
     if (error) throw error;
     await carregar();
