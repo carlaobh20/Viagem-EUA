@@ -155,10 +155,13 @@ export async function POST(request) {
     if (aerr || !udata || !udata.user) return Response.json({ ok: false, erro: 'Sessão inválida' }, { status: 401 });
     // ----------------------------------------------------------
 
-    // aceita o nome em MAIÚSCULAS (padrão) ou em minúsculas (como foi salvo na Vercel)
+    // Acha a chave pelo nome (GROQ_API_KEY / GEMINI_API_KEY, em qualquer caixa) ou,
+    // se foi salva na Vercel com outro nome, pelo formato: Groq começa com "gsk_",
+    // Gemini com "AIza" ou "AQ.". Assim a pessoa não precisa acertar o nome exato.
     const env = (k) => (process.env[k] || process.env[k.toLowerCase()] || '').trim();
-    const groqKey = env('GROQ_API_KEY');
-    const geminiKey = env('GEMINI_API_KEY');
+    const porFormato = (re) => { for (const [k, v] of Object.entries(process.env)) { if (typeof v === 'string' && re.test(v.trim()) && !/^NEXT_PUBLIC_/.test(k)) return v.trim(); } return ''; };
+    const groqKey = env('GROQ_API_KEY') || porFormato(/^gsk_[A-Za-z0-9]{20,}$/);
+    const geminiKey = env('GEMINI_API_KEY') || porFormato(/^(AIza[0-9A-Za-z_-]{20,}|AQ\.[0-9A-Za-z_-]{20,})$/);
     if (!groqKey && !geminiKey) return Response.json({ ok: false, erro: 'Nenhuma chave de IA configurada na Vercel (GROQ_API_KEY ou GEMINI_API_KEY).' }, { status: 500 });
 
     const { modo, de, para, texto, base64, mime } = await request.json();
