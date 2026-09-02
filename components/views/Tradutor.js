@@ -34,14 +34,23 @@ async function lerTextoDaFoto(file, codOcr, onProgresso) {
   }
 }
 
+// Ditado por voz (Web Speech Recognition). Chrome no Android tem; o Safari do
+// iPhone é instável / não tem no app instalado. Quando não tem, o caminho é o
+// microfone do próprio teclado do celular (que dita direto no campo de texto).
+function reconhecedor() {
+  if (typeof window === 'undefined') return null;
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
 const LS_DE = 'tradutor-de', LS_PARA = 'tradutor-para';
 function lerLS(k, padrao) { try { return localStorage.getItem(k) || padrao; } catch (e) { return padrao; } }
 function gravarLS(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
 export default function Tradutor({ idiomaDestino }) {
-  // padrão: da língua do destino pra português (ler cardápio/placa); ⇄ inverte
-  const [de, setDe] = useState(() => lerLS(LS_DE, idiomaDestino || 'en-US'));
-  const [para, setPara] = useState(() => lerLS(LS_PARA, 'pt-BR'));
+  // padrão: português → língua do destino (falar com alguém). Foto inverte sozinha
+  // (foto quase sempre é cardápio/placa na língua de lá → português). ⇄ troca na mão.
+  const [de, setDe] = useState(() => lerLS(LS_DE, 'pt-BR'));
+  const [para, setPara] = useState(() => lerLS(LS_PARA, idiomaDestino || 'en-US'));
   const [texto, setTexto] = useState('');
   const [resultado, setResultado] = useState('');
   const [erro, setErro] = useState('');
@@ -52,6 +61,12 @@ export default function Tradutor({ idiomaDestino }) {
   const camRef = useRef(null), galRef = useRef(null);
   const timer = useRef(null);
   const pedido = useRef(0);
+  const [ouvindo, setOuvindo] = useState(false);
+  const recRef = useRef(null);
+  const falarDepois = useRef(false); // veio do microfone → lê a tradução em voz alta sozinho
+  const [temDitado, setTemDitado] = useState(true);
+  useEffect(() => { setTemDitado(!!reconhecedor()); }, []);
+  useEffect(() => () => { try { recRef.current && recRef.current.abort(); } catch (e) {} }, []);
 
   useEffect(() => { gravarLS(LS_DE, de); gravarLS(LS_PARA, para); }, [de, para]);
 
@@ -67,6 +82,10 @@ export default function Tradutor({ idiomaDestino }) {
         const out = await traduzir(t, de, para);
         if (meu !== pedido.current) return; // já veio outro texto depois
         setResultado(out); setErro('');
+        if (falarDepois.current && out) {
+          falarDepois.current = false;
+          falar(out, idioma(para).voz, (st) => setFalando(st === 'falando' ? 'para' : null));
+        }
       } catch (e) {
         if (meu !== pedido.current) return;
         setResultado(''); setErro(e.message || 'Não deu pra traduzir.');
@@ -82,8 +101,11 @@ export default function Tradutor({ idiomaDestino }) {
     e.target.value = '';
     if (!file) return;
     setErro(''); setLendo('preparando');
+    // foto é quase sempre texto na língua de lá: se estava "português → X", vira "X → português"
+    let deFoto = de;
+    if (de === 'pt-BR' && para !== 'pt-BR') { deFoto = para; setDe(para); setPara('pt-BR'); }
     try {
-      const txt = await lerTextoDaFoto(file, idioma(de).ocr, (p) => setLendo(p));
+      const txt = await lerTextoDaFoto(file, idioma(deFoto).ocr, (p) => setLendo(p));
       if (!txt) { setErro('Não achei texto legível na foto. Tenta mais perto, com luz e sem tremer.'); }
       else setTexto(txt);
     } catch (err) {
@@ -101,6 +123,46 @@ export default function Tradutor({ idiomaDestino }) {
       else if (st === 'sem-voz' || st === 'erro') { setFalando(null); setAvisoVoz(dicaInstalarVoz(nome)); }
       else setFalando(null);
     });
+  }
+
+  function ditar() {
+    const SR = reconhecedor();
+    if (!SR) {
+      setErro('Este navegador não tem ditado por voz. Toque no campo de texto e use o microfone 🎤 do teclado do celular pra ditar — a tradução sai sozinha.');
+      return;
+    }
+    if (ouvindo) { try { recRef.current && recRef.current.stop(); } catch (e) {} return; }
+    const rec = new SR();
+    rec.lang = idioma(de).voz;
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+    let finalTxt = '';
+    rec.onresult = (ev) => {
+      let interim = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const r = ev.results[i];
+        if (r.isFinal) finalTxt += r[0].transcript; else interim += r[0].transcript;
+      }
+      setTexto((finalTxt + ' ' + interim).trim());
+    };
+    rec.onerror = (ev) => {
+      setOuvindo(false);
+      const e = ev && ev.error;
+      if (e === 'not-allowed' || e === 'service-not-allowed') setErro('Preciso de permissão pro microfone. Toque no cadeado/ícone ao lado do endereço e libere o microfone.');
+      else if (e === 'no-speech') setErro('Não ouvi nada. Toque em 🎤 e fale logo em seguida.');
+      else if (e === 'network') setErro('O ditado precisa de internet.');
+      else if (e !== 'aborted') setErro('Não consegui ouvir (' + e + ').');
+    };
+    rec.onend = () => {
+      setOuvindo(false);
+      const t = finalTxt.trim();
+      if (t) { falarDepois.current = true; setTexto(t); }
+    };
+    recRef.current = rec;
+    setErro(''); setResultado(''); setTexto('');
+    setOuvindo(true);
+    try { rec.start(); } catch (e) { setOuvindo(false); setErro('Não consegui ligar o microfone.'); }
   }
 
   async function copiar() { try { await navigator.clipboard.writeText(resultado); } catch (e) {} }
@@ -136,9 +198,17 @@ export default function Tradutor({ idiomaDestino }) {
         <textarea value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={`Digite ou cole em ${idioma(de).nome.toLowerCase()}… ou tire uma foto do texto`} rows={4}
           style={{ width: '100%', border: 'none', outline: 'none', resize: 'vertical', fontSize: 16, fontFamily: 'inherit', background: 'transparent', color: 'var(--ui-ink)', minHeight: 70 }} />
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <button onClick={() => camRef.current && camRef.current.click()} disabled={ocupado} style={{ ...btnFoto, opacity: ocupado ? 0.6 : 1 }}>📷 Tirar foto</button>
-          <button onClick={() => galRef.current && galRef.current.click()} disabled={ocupado} style={{ ...btnFoto, opacity: ocupado ? 0.6 : 1 }}>🖼️ Galeria</button>
+          <button onClick={ditar} disabled={ocupado} style={{ ...btnFoto, flex: 1.3, background: ouvindo ? '#E14B5A' : 'var(--ui-teal)', color: '#fff', border: 'none', opacity: ocupado ? 0.6 : 1 }}>
+            {ouvindo ? '● Ouvindo… toque pra parar' : `🎤 Falar em ${idioma(de).nome.toLowerCase()}`}
+          </button>
+          <button onClick={() => camRef.current && camRef.current.click()} disabled={ocupado || ouvindo} style={{ ...btnFoto, opacity: (ocupado || ouvindo) ? 0.6 : 1 }}>📷 Foto</button>
+          <button onClick={() => galRef.current && galRef.current.click()} disabled={ocupado || ouvindo} style={{ ...btnFoto, opacity: (ocupado || ouvindo) ? 0.6 : 1 }}>🖼️</button>
         </div>
+        {!temDitado && (
+          <div style={{ fontSize: 11.5, color: 'var(--ui-faint)', marginTop: 8, lineHeight: 1.4 }}>
+            No iPhone o ditado é pelo teclado: toque no campo de texto, depois no 🎤 do teclado, e fale — a tradução aparece sozinha.
+          </div>
+        )}
         <input ref={camRef} type="file" accept="image/*" capture="environment" onChange={escolherFoto} style={{ display: 'none' }} />
         <input ref={galRef} type="file" accept="image/*" onChange={escolherFoto} style={{ display: 'none' }} />
         {lendo !== null && (
