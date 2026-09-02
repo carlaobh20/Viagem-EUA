@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { IDIOMAS, idioma, traduzir } from '../../lib/traduzir';
+import { IDIOMAS, idioma, traduzir, pedirIA } from '../../lib/traduzir';
 import { falar, dicaInstalarVoz } from '../../lib/voz';
+import { iniciarGravacao, blobParaBase64 } from '../../lib/gravadorWav';
 
 // Reduz a foto antes de ler (celular manda foto de 12 MP; o leitor fica lento e
 // não fica mais preciso com isso). Também corrige orientação via createImageBitmap.
@@ -17,29 +18,11 @@ async function fotoParaCanvas(file, max = 1600) {
   return c;
 }
 
-// Leitor de texto em foto (OCR) — tesseract.js, roda no próprio celular, sem
-// servidor. Carregado só quando a pessoa usa a câmera (é pesado: baixa o motor e
-// o pacote do idioma na primeira vez, ~5–10 MB).
-async function lerTextoDaFoto(file, codOcr, onProgresso) {
-  const { createWorker } = await import('tesseract.js');
-  const worker = await createWorker(codOcr, 1, {
-    logger: (m) => { if (m && m.status === 'recognizing text' && onProgresso) onProgresso(Math.round((m.progress || 0) * 100)); },
-  });
-  try {
-    const canvas = await fotoParaCanvas(file);
-    const { data } = await worker.recognize(canvas);
-    return (data && data.text ? data.text : '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-  } finally {
-    await worker.terminate().catch(() => {});
-  }
-}
-
-// Ditado por voz (Web Speech Recognition). Chrome no Android tem; o Safari do
-// iPhone é instável / não tem no app instalado. Quando não tem, o caminho é o
-// microfone do próprio teclado do celular (que dita direto no campo de texto).
-function reconhecedor() {
-  if (typeof window === 'undefined') return null;
-  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+// Foto → JPEG pequeno em base64 pra mandar pra IA (ela lê o texto e já traduz).
+async function fotoParaBase64(file) {
+  const c = await fotoParaCanvas(file, 1600);
+  const dataUrl = c.toDataURL('image/jpeg', 0.85);
+  return dataUrl.split(',')[1] || '';
 }
 
 const LS_DE = 'tradutor-de', LS_PARA = 'tradutor-para';
@@ -55,18 +38,18 @@ export default function Tradutor({ idiomaDestino }) {
   const [resultado, setResultado] = useState('');
   const [erro, setErro] = useState('');
   const [traduzindo, setTraduzindo] = useState(false);
-  const [lendo, setLendo] = useState(null); // null | 'preparando' | 0..100
   const [falando, setFalando] = useState(null); // 'de' | 'para' | null
   const [avisoVoz, setAvisoVoz] = useState('');
   const camRef = useRef(null), galRef = useRef(null);
   const timer = useRef(null);
   const pedido = useRef(0);
-  const [ouvindo, setOuvindo] = useState(false);
-  const recRef = useRef(null);
-  const falarDepois = useRef(false); // veio do microfone → lê a tradução em voz alta sozinho
-  const [temDitado, setTemDitado] = useState(true);
-  useEffect(() => { setTemDitado(!!reconhecedor()); }, []);
-  useEffect(() => () => { try { recRef.current && recRef.current.abort(); } catch (e) {} }, []);
+  const [ouvindo, setOuvindo] = useState(false);   // gravando a voz
+  const [pensando, setPensando] = useState('');    // IA trabalhando: mensagem de status
+  const [nivel, setNivel] = useState(0);           // volume do microfone (só visual)
+  const gravRef = useRef(null);
+  const timerGrav = useRef(null);
+  const [segs, setSegs] = useState(0);
+  useEffect(() => () => { try { gravRef.current && gravRef.current.cancelar(); } catch (e) {} clearInterval(timerGrav.current); }, []);
 
   useEffect(() => { gravarLS(LS_DE, de); gravarLS(LS_PARA, para); }, [de, para]);
 
@@ -82,10 +65,6 @@ export default function Tradutor({ idiomaDestino }) {
         const out = await traduzir(t, de, para);
         if (meu !== pedido.current) return; // já veio outro texto depois
         setResultado(out); setErro('');
-        if (falarDepois.current && out) {
-          falarDepois.current = false;
-          falar(out, idioma(para).voz, (st) => setFalando(st === 'falando' ? 'para' : null));
-        }
       } catch (e) {
         if (meu !== pedido.current) return;
         setResultado(''); setErro(e.message || 'Não deu pra traduzir.');
@@ -100,17 +79,56 @@ export default function Tradutor({ idiomaDestino }) {
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!file) return;
-    setErro(''); setLendo('preparando');
+    setErro('');
     // foto é quase sempre texto na língua de lá: se estava "português → X", vira "X → português"
-    let deFoto = de;
-    if (de === 'pt-BR' && para !== 'pt-BR') { deFoto = para; setDe(para); setPara('pt-BR'); }
+    let deFoto = de, paraFoto = para;
+    if (de === 'pt-BR' && para !== 'pt-BR') { deFoto = para; paraFoto = 'pt-BR'; setDe(para); setPara('pt-BR'); }
+    setPensando('📖 Lendo a foto e traduzindo…');
     try {
-      const txt = await lerTextoDaFoto(file, idioma(deFoto).ocr, (p) => setLendo(p));
-      if (!txt) { setErro('Não achei texto legível na foto. Tenta mais perto, com luz e sem tremer.'); }
-      else setTexto(txt);
+      const base64 = await fotoParaBase64(file);
+      const { original, traduzido } = await pedirIA({ modo: 'imagem', de: deFoto, para: paraFoto, base64, mime: 'image/jpeg' });
+      if (!original && !traduzido) { setErro('Não achei texto legível na foto. Tenta mais perto, com luz e sem tremer.'); return; }
+      pedido.current += 1; // não deixa o tradutor automático refazer o que a IA já fez
+      setTexto(original); setResultado(traduzido);
+    } catch (err) { setErro(err.message || 'Não consegui ler a foto.'); }
+    finally { setPensando(''); }
+  }
+
+  // 🎤: grava em WAV (funciona no iPhone e no Android), manda pra IA, que devolve
+  // o que foi dito + a tradução. Depois lê a tradução em voz alta.
+  async function ditar() {
+    if (ouvindo) { await pararGravacao(); return; }
+    setErro(''); setResultado(''); setTexto('');
+    try {
+      const g = await iniciarGravacao({ maxSegundos: 60, onNivel: (n) => setNivel(n) });
+      gravRef.current = g;
+      setOuvindo(true); setSegs(0);
+      timerGrav.current = setInterval(() => setSegs((x) => { if (x + 1 >= 60) pararGravacao(); return x + 1; }), 1000);
     } catch (err) {
-      setErro('Não consegui ler a foto' + (navigator.onLine ? '' : ' (o leitor precisa de internet na primeira vez)') + '.');
-    } finally { setLendo(null); }
+      const m = String(err && err.name || '');
+      if (m === 'NotAllowedError' || m === 'SecurityError') setErro('Preciso de permissão pro microfone. Toque no cadeado ao lado do endereço (ou em Ajustes → Safari/Chrome) e libere o microfone.');
+      else if (m === 'NotFoundError') setErro('Não achei microfone neste aparelho.');
+      else setErro(err.message || 'Não consegui ligar o microfone.');
+    }
+  }
+
+  async function pararGravacao() {
+    clearInterval(timerGrav.current);
+    const g = gravRef.current; gravRef.current = null;
+    setOuvindo(false); setNivel(0);
+    if (!g) return;
+    setPensando('🧠 Entendendo o que você disse…');
+    try {
+      const blob = await g.parar();
+      if (segs < 1 && blob.size < 20000) { setErro('Gravação curta demais. Toque em 🎤, fale a frase, e toque de novo pra parar.'); return; }
+      const base64 = await blobParaBase64(blob);
+      const { original, traduzido } = await pedirIA({ modo: 'audio', de, para, base64, mime: 'audio/wav' });
+      if (!original && !traduzido) { setErro('Não entendi o áudio. Fala um pouco mais perto do microfone e tenta de novo.'); return; }
+      pedido.current += 1; // a IA já traduziu; não refaz
+      setTexto(original); setResultado(traduzido);
+      if (traduzido) falar(traduzido, idioma(para).voz, (st) => setFalando(st === 'falando' ? 'para' : null));
+    } catch (err) { setErro(err.message || 'Não consegui entender o áudio.'); }
+    finally { setPensando(''); }
   }
 
   function ouvir(lado) {
@@ -125,53 +143,13 @@ export default function Tradutor({ idiomaDestino }) {
     });
   }
 
-  function ditar() {
-    const SR = reconhecedor();
-    if (!SR) {
-      setErro('Este navegador não tem ditado por voz. Toque no campo de texto e use o microfone 🎤 do teclado do celular pra ditar — a tradução sai sozinha.');
-      return;
-    }
-    if (ouvindo) { try { recRef.current && recRef.current.stop(); } catch (e) {} return; }
-    const rec = new SR();
-    rec.lang = idioma(de).voz;
-    rec.interimResults = true;
-    rec.continuous = false;
-    rec.maxAlternatives = 1;
-    let finalTxt = '';
-    rec.onresult = (ev) => {
-      let interim = '';
-      for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        const r = ev.results[i];
-        if (r.isFinal) finalTxt += r[0].transcript; else interim += r[0].transcript;
-      }
-      setTexto((finalTxt + ' ' + interim).trim());
-    };
-    rec.onerror = (ev) => {
-      setOuvindo(false);
-      const e = ev && ev.error;
-      if (e === 'not-allowed' || e === 'service-not-allowed') setErro('Preciso de permissão pro microfone. Toque no cadeado/ícone ao lado do endereço e libere o microfone.');
-      else if (e === 'no-speech') setErro('Não ouvi nada. Toque em 🎤 e fale logo em seguida.');
-      else if (e === 'network') setErro('O ditado precisa de internet.');
-      else if (e !== 'aborted') setErro('Não consegui ouvir (' + e + ').');
-    };
-    rec.onend = () => {
-      setOuvindo(false);
-      const t = finalTxt.trim();
-      if (t) { falarDepois.current = true; setTexto(t); }
-    };
-    recRef.current = rec;
-    setErro(''); setResultado(''); setTexto('');
-    setOuvindo(true);
-    try { rec.start(); } catch (e) { setOuvindo(false); setErro('Não consegui ligar o microfone.'); }
-  }
-
   async function copiar() { try { await navigator.clipboard.writeText(resultado); } catch (e) {} }
 
   const card = { background: 'var(--ui-card)', borderRadius: 16, boxShadow: 'var(--ui-shadow)' };
   const sel = { border: '1px solid var(--ui-line)', borderRadius: 12, padding: '9px 10px', fontSize: 13.5, fontWeight: 600, background: 'var(--ui-bg)', color: 'var(--ui-ink)', flex: 1, minWidth: 0 };
   const btnFoto = { flex: 1, border: '1px solid var(--ui-line)', borderRadius: 12, padding: '10px 8px', background: 'var(--ui-card)', color: 'var(--ui-ink)', fontSize: 13, fontWeight: 600, cursor: 'pointer' };
   const btnSom = (on) => ({ border: 'none', background: on ? 'var(--ui-teal)' : 'rgba(0,199,177,.14)', color: on ? '#fff' : 'var(--ui-teal)', width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', flex: '0 0 auto' });
-  const ocupado = lendo !== null;
+  const ocupado = !!pensando;
 
   return (
     <div>
@@ -198,24 +176,16 @@ export default function Tradutor({ idiomaDestino }) {
         <textarea value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={`Digite ou cole em ${idioma(de).nome.toLowerCase()}… ou tire uma foto do texto`} rows={4}
           style={{ width: '100%', border: 'none', outline: 'none', resize: 'vertical', fontSize: 16, fontFamily: 'inherit', background: 'transparent', color: 'var(--ui-ink)', minHeight: 70 }} />
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <button onClick={ditar} disabled={ocupado} style={{ ...btnFoto, flex: 1.3, background: ouvindo ? '#E14B5A' : 'var(--ui-teal)', color: '#fff', border: 'none', opacity: ocupado ? 0.6 : 1 }}>
-            {ouvindo ? '● Ouvindo… toque pra parar' : `🎤 Falar em ${idioma(de).nome.toLowerCase()}`}
+          <button onClick={ditar} disabled={ocupado} style={{ ...btnFoto, flex: 1.3, background: ouvindo ? '#E14B5A' : 'var(--ui-teal)', color: '#fff', border: 'none', opacity: ocupado ? 0.6 : 1, boxShadow: ouvindo ? `0 0 0 ${Math.round(nivel * 10)}px rgba(225,75,90,.25)` : 'none', transition: 'box-shadow .1s' }}>
+            {ouvindo ? `● Gravando ${segs}s — toque pra parar` : `🎤 Falar em ${idioma(de).nome.toLowerCase()}`}
           </button>
           <button onClick={() => camRef.current && camRef.current.click()} disabled={ocupado || ouvindo} style={{ ...btnFoto, opacity: (ocupado || ouvindo) ? 0.6 : 1 }}>📷 Foto</button>
           <button onClick={() => galRef.current && galRef.current.click()} disabled={ocupado || ouvindo} style={{ ...btnFoto, opacity: (ocupado || ouvindo) ? 0.6 : 1 }}>🖼️</button>
         </div>
-        {!temDitado && (
-          <div style={{ fontSize: 11.5, color: 'var(--ui-faint)', marginTop: 8, lineHeight: 1.4 }}>
-            No iPhone o ditado é pelo teclado: toque no campo de texto, depois no 🎤 do teclado, e fale — a tradução aparece sozinha.
-          </div>
-        )}
+        {ouvindo && <div style={{ fontSize: 12, color: 'var(--ui-muted)', marginTop: 8 }}>Fale a frase e toque no botão vermelho quando terminar.</div>}
         <input ref={camRef} type="file" accept="image/*" capture="environment" onChange={escolherFoto} style={{ display: 'none' }} />
         <input ref={galRef} type="file" accept="image/*" onChange={escolherFoto} style={{ display: 'none' }} />
-        {lendo !== null && (
-          <div style={{ fontSize: 12, color: 'var(--ui-muted)', marginTop: 8 }}>
-            {lendo === 'preparando' ? '📖 Preparando o leitor… (na primeira vez baixa o pacote do idioma, pode levar uns segundos)' : `📖 Lendo a foto… ${lendo}%`}
-          </div>
-        )}
+        {pensando && <div style={{ fontSize: 12, color: 'var(--ui-muted)', marginTop: 8 }}>{pensando}</div>}
       </div>
 
       {/* resultado */}
@@ -239,7 +209,7 @@ export default function Tradutor({ idiomaDestino }) {
       {avisoVoz && <div style={{ fontSize: 12, color: '#B42318', margin: '0 4px 10px', lineHeight: 1.4 }}>🔇 {avisoVoz}</div>}
 
       <div style={{ fontSize: 11.5, color: 'var(--ui-faint)', margin: '4px 4px 0', lineHeight: 1.4 }}>
-        Tradutor gratuito, sem cadastro — serve pra frases curtas, placas e cardápios (limite de ~5.000 letras por dia). Foto: aproxime, deixe reto e com luz; textos manuscritos ou muito estilizados não saem bem.
+        Tradução, leitura de foto e de voz feitas pela IA do app. Foto: aproxime e deixe com luz. Voz: fale perto do celular, sem música alta em volta. Precisa de internet.
       </div>
     </div>
   );
