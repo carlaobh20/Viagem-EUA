@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { IDIOMAS, idioma, traduzir } from '../../lib/traduzir';
-import { falar, temVoz, dicaInstalarVoz } from '../../lib/voz';
+import { falar, dicaInstalarVoz } from '../../lib/voz';
 
 // Reduz a foto antes de ler (celular manda foto de 12 MP; o leitor fica lento e
 // não fica mais preciso com isso). Também corrige orientação via createImageBitmap.
@@ -95,7 +95,6 @@ export default function Tradutor({ idiomaDestino }) {
     const txt = lado === 'de' ? texto : resultado;
     const lang = idioma(lado === 'de' ? de : para).voz;
     const nome = idioma(lado === 'de' ? de : para).nome;
-    if (temVoz(lang) === false) { setAvisoVoz(dicaInstalarVoz(nome)); return; }
     setAvisoVoz('');
     falar(txt, lang, (st) => {
       if (st === 'falando') setFalando(lado);

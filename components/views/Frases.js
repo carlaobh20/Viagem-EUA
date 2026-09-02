@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../DataProvider';
 import { IDIOMAS, idioma, traduzir } from '../../lib/traduzir';
-import { falar, carregarVozes, temVoz, dicaInstalarVoz } from '../../lib/voz';
+import { falar, carregarVozes, dicaInstalarVoz } from '../../lib/voz';
 import Tradutor from './Tradutor';
 
 // Conteúdo estático (offline, sem IA, sem dado de usuário).
@@ -126,7 +126,6 @@ export default function Frases({ ir, categoriaInicial }) {
   function ouvir(txt, langVoz) {
     const l = langVoz || idioma(lang).voz;
     const nome = langVoz ? 'inglês' : nomeIdioma.toLowerCase();
-    if (temVoz(l) === false) { setAvisoVoz(dicaInstalarVoz(nome)); return; }
     setAvisoVoz('');
     falar(txt, l, (st) => {
       if (st === 'falando') setFalando(txt);
