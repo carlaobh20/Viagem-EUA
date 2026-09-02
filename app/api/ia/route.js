@@ -25,7 +25,8 @@ export async function POST(request) {
     if (aerr || !udata || !udata.user) return Response.json({ ok: false, erro: 'Sessão inválida' }, { status: 401 });
     // ----------------------------------------------------------
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    // aceita o nome em maiúsculas (padrão) ou como foi salvo na Vercel em minúsculas
+    const apiKey = (process.env.GEMINI_API_KEY || process.env.gemini_api_key || process.env.Gemini_Api_Key || '').trim();
     if (!apiKey) return Response.json({ ok: false, erro: 'A chave do Gemini (GEMINI_API_KEY) ainda não foi configurada na Vercel.' }, { status: 500 });
 
     const { modo, de, para, texto, base64, mime } = await request.json();
