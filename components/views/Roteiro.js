@@ -50,11 +50,14 @@ function diffDias(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Dat
 function fmtDur(min) { if (min < 60) return `${min} min`; const h = Math.floor(min / 60); const m = min % 60; return m ? `${h} h ${m} min` : `${h} h`; }
 
 // ----- Navegação (Google Maps / Waze) -----
-// Destino de uma parada, do mais preciso pro menos: coordenada salva (o "Buscar"
-// do local) > texto do local > nome da parada + cidade da viagem (pra "Hotel" não
-// abrir em qualquer lugar do mundo). Devolve null se não tem nada pra navegar.
+// O GPS recebe TEXTO, na ordem: endereço exato digitado > local > nome + cidade da
+// viagem. A coordenada (lat/lng) NÃO é usada pra navegar: ela vem de um buscador
+// gratuito (OpenStreetMap) que já errou feio — "Hotel Orlando" caiu na Itália — e
+// serve só pra clima e distância. O Google Maps resolve um endereço escrito muito
+// melhor do que a gente resolve por aqui. Devolve null se não tem nada pra navegar.
 function destinoParada(p, viagem) {
-  if (p.lat != null && p.lng != null) return `${p.lat},${p.lng}`;
+  const endereco = (p.endereco || '').trim();
+  if (endereco) return endereco;
   const local = (p.local || '').trim();
   if (local) return local;
   const nome = (p.nome || '').trim();
@@ -62,6 +65,8 @@ function destinoParada(p, viagem) {
   const cidade = (viagem?.destino || '').trim();
   return cidade ? `${nome}, ${cidade}` : nome;
 }
+// Só inicia o GPS direto (sem a pessoa conferir o lugar) quando há endereço exato.
+const temEnderecoExato = (p) => Boolean((p.endereco || '').trim());
 // Link universal do Google Maps (abre o app no celular, o site no computador).
 // `navegar` = já inicia o GPS ao abrir (dir_action=navigate), sem origem = "de onde eu estou".
 function urlGoogleMaps({ destino, origem, waypoints, navegar }) {
@@ -75,7 +80,6 @@ function urlGoogleMaps({ destino, origem, waypoints, navegar }) {
   return u.toString();
 }
 function urlWaze(p, viagem) {
-  if (p.lat != null && p.lng != null) return `https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes`;
   const d = destinoParada(p, viagem);
   return d ? `https://waze.com/ul?q=${encodeURIComponent(d)}&navigate=yes` : null;
 }
@@ -162,16 +166,16 @@ export default function Roteiro({ ir }) {
   const ultimaData = () => (grupos.length ? grupos[grupos.length - 1].data : '') || hoje();
 
   function abrirNovo(dataPadrao, inserirApos) {
-    setGeoMsg(''); setForm({ id: null, nome: '', data: dataPadrao || ultimaData(), hora: '', tipo: 'passeio', status: '', nota: '', local: '', lat: null, lng: null, inserirApos: inserirApos || null });
+    setGeoMsg(''); setForm({ id: null, nome: '', data: dataPadrao || ultimaData(), hora: '', tipo: 'passeio', status: '', nota: '', endereco: '', local: '', lat: null, lng: null, inserirApos: inserirApos || null });
   }
   function abrirEdicao(p) {
-    setGeoMsg(p.lat != null ? '📍 local salvo' : ''); setForm({ id: p.id, nome: p.nome, data: p.data_inicio || '', hora: p.hora || '', tipo: p.tipo || 'outro', status: p.status || '', nota: p.nota || '', local: p.local || '', lat: p.lat ?? null, lng: p.lng ?? null, inserirApos: null });
+    setGeoMsg(p.lat != null ? '📍 local salvo (pra clima e distância)' : ''); setForm({ id: p.id, nome: p.nome, data: p.data_inicio || '', hora: p.hora || '', tipo: p.tipo || 'outro', status: p.status || '', nota: p.nota || '', endereco: p.endereco || '', local: p.local || '', lat: p.lat ?? null, lng: p.lng ?? null, inserirApos: null });
   }
 
   async function salvarForm() {
     const f = form;
     if (!f.nome.trim()) { window.alert('Dê um nome para a parada.'); return; }
-    const campos = { nome: f.nome.trim(), data_inicio: f.data || null, hora: f.hora || null, tipo: f.tipo, status: f.status || null, nota: f.nota.trim() || null, local: f.local ? f.local.trim() : null, lat: f.lat ?? null, lng: f.lng ?? null };
+    const campos = { nome: f.nome.trim(), data_inicio: f.data || null, hora: f.hora || null, tipo: f.tipo, status: f.status || null, nota: f.nota.trim() || null, endereco: (f.endereco || '').trim() || null, local: f.local ? f.local.trim() : null, lat: f.lat ?? null, lng: f.lng ?? null };
     if (f.id) {
       await supabase.from('pontos_roteiro').update(campos).eq('id', f.id);
     } else {
@@ -220,12 +224,16 @@ export default function Roteiro({ ir }) {
   async function geocodar(termo) {
     const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(termo)}`, { headers: { Accept: 'application/json' } });
     const j = await r.json();
-    return j && j[0] ? { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) } : null;
+    return j && j[0] ? { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon), nome: j[0].display_name || '' } : null;
   }
+  // resumo curto do que o buscador achou (ex.: "Orlando, Sardegna, Italia") — é isso
+  // que deixa a pessoa perceber quando ele errou de lugar
+  const resumoLugar = (nome) => (nome || '').split(',').map((s) => s.trim()).filter(Boolean).filter((_, i, a) => i < 2 || i === a.length - 1).join(', ');
 
   async function buscarLocal() {
-    const q = (form.local || '').trim();
-    if (!q) { setGeoMsg('digite um local primeiro'); return; }
+    // busca pelo endereço exato quando tem; senão pelo local (cidade / ponto famoso)
+    const q = ((form.endereco || '').trim() || (form.local || '').trim());
+    if (!q) { setGeoMsg('digite o endereço ou um local primeiro'); return; }
     setGeoMsg('buscando…');
     // monta variações: se a busca exata falhar, tenta a cidade e depois só o ponto
     const tentativas = [q];
@@ -242,7 +250,8 @@ export default function Roteiro({ ir }) {
         const hit = await geocodar(termo);
         if (hit) {
           setForm((f) => ({ ...f, lat: hit.lat, lng: hit.lng }));
-          setGeoMsg(i === 0 ? '📍 local encontrado' : `📍 achei por “${termo}”`);
+          const onde = resumoLugar(hit.nome);
+          setGeoMsg((i === 0 ? '📍 achei: ' : `📍 achei só por “${termo}”: `) + onde + ' — confira se é esse mesmo');
           return;
         }
       }
@@ -323,13 +332,17 @@ export default function Roteiro({ ir }) {
             <div className="field"><label>Tipo</label><select className="select" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>{TIPOS.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}</select></div>
             <div className="field"><label>Status</label><select className="select" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="">—</option>{STATUS.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
             <div className="field"><label>Comentário (opcional)</label><textarea className="input" style={{ height: 64, padding: 8 }} value={form.nota} onChange={(e) => setForm({ ...form, nota: e.target.value })} placeholder="Anotações, links, lembretes…" /></div>
-            <div className="field"><label>Local (para distância/tempo — opcional)</label>
+            <div className="field"><label>📍 Endereço exato (é pra onde o GPS vai levar)</label>
+              <input className="input" value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} placeholder="Ex.: Rua XV de Novembro, 1000, Curitiba - PR" />
+              <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 4 }}>Escreva como escreveria no Google Maps: rua, número e cidade — ou o nome exato do lugar como aparece lá (ex.: “Pousada Bela Vista, Morretes”). O botão “Ir com GPS” manda isso pro Google Maps / Waze do jeito que você digitou.</div>
+            </div>
+            <div className="field"><label>Cidade ou ponto de referência (pra clima e distância — opcional)</label>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input className="input" value={form.local} onChange={(e) => setForm({ ...form, local: e.target.value, lat: null, lng: null })} placeholder="Ex.: Walt Disney World" style={{ flex: 1 }} />
+                <input className="input" value={form.local} onChange={(e) => setForm({ ...form, local: e.target.value, lat: null, lng: null })} placeholder="Ex.: Curitiba" style={{ flex: 1 }} />
                 <button type="button" className="btn-outline" style={{ width: 100, height: 44 }} onClick={buscarLocal}>Buscar</button>
               </div>
-              {geoMsg && <div style={{ fontSize: 11, color: form.lat != null ? 'var(--brand)' : 'var(--muted)', marginTop: 4 }}>{geoMsg}{form.lat != null ? ` (${form.lat.toFixed(3)}, ${form.lng.toFixed(3)})` : ''}</div>}
-              <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 4 }}>Dica: se não achar, use o nome da cidade ou um ponto famoso (ex.: Walt Disney World).</div>
+              {geoMsg && <div style={{ fontSize: 11, color: form.lat != null ? 'var(--brand)' : 'var(--muted)', marginTop: 4 }}>{geoMsg}</div>}
+              <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 4 }}>“Buscar” só serve pra previsão do tempo e pra calcular km/horas entre paradas — não é o que o GPS usa.</div>
             </div>
             <button className="btn-primary" onClick={salvarForm}>{form.id ? 'Salvar alterações' : 'Adicionar parada'}</button>
             <button className="btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => setForm(null)}>Cancelar</button>
@@ -410,13 +423,15 @@ export default function Roteiro({ ir }) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '0 0 auto' }}><StatusBadge st={p.status} />{p.hora && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{p.hora}</span>}{gastoDoDia(p) > 0 && <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>{fmtBRL(gastoDoDia(p))}</span>}</div>
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 1 }}>{nomeTipo(p.tipo)}{clima[p.id] ? ` · ${iconeClima(clima[p.id].code)} ${clima[p.id].max}°/${clima[p.id].min}°${clima[p.id].chuva != null ? ` · 🌧 ${clima[p.id].chuva}%` : ''}` : ''}</div>
+                          {p.endereco && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>📍 {p.endereco}</div>}
                           {(() => {
                             const gx = ordenados.findIndex((s) => s.id === p.id);
                             const nx = ordenados[gx + 1];
                             if (!nx || p.lat == null || p.lng == null || nx.lat == null || nx.lng == null) return null;
                             const rota = rotas[`${p.id}_${nx.id}`];
                             // toque no trecho abre o Google Maps já com a rota desta parada até a próxima
-                            const urlTrecho = urlGoogleMaps({ origem: `${p.lat},${p.lng}`, destino: `${nx.lat},${nx.lng}` });
+                            // (endereço escrito quando tem — a coordenada só entra se não houver texto nenhum)
+                            const urlTrecho = urlGoogleMaps({ origem: destinoParada(p, viagem) || `${p.lat},${p.lng}`, destino: destinoParada(nx, viagem) || `${nx.lat},${nx.lng}` });
                             return (
                               <a href={urlTrecho} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 3, textDecoration: 'none' }}>
                                 ↘ {rota === undefined ? 'calculando…' : rota === 'erro' ? 'distância indisponível' : `≈ ${rota.km.toFixed(0)} km · ${fmtDur(rota.min)} de carro até ${nx.nome}`} <span style={{ color: 'var(--brand)', fontWeight: 600 }}>· ver rota</span>
@@ -429,12 +444,15 @@ export default function Roteiro({ ir }) {
                             // Google Maps já abre navegando; Waze como alternativa (comum em estrada no Brasil).
                             const dest = destinoParada(p, viagem);
                             if (!dest) return null;
+                            const exato = temEnderecoExato(p);
                             const wz = urlWaze(p, viagem);
+                            // Com endereço exato: já sai navegando. Sem: abre a rota no Maps
+                            // mas deixa a pessoa conferir o lugar antes de iniciar.
                             return (
-                              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                                <a href={urlGoogleMaps({ destino: dest, navegar: true })} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, background: 'var(--brand)', color: '#fff' }}>🧭 Ir com GPS</a>
+                              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                                <a href={urlGoogleMaps({ destino: dest, navegar: exato })} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, background: exato ? 'var(--brand)' : 'var(--brand-soft)', color: exato ? '#fff' : 'var(--brand)' }}>🧭 {exato ? 'Ir com GPS' : 'Ver no Maps'}</a>
                                 {wz && <a href={wz} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, background: 'var(--brand-soft)', color: 'var(--brand)' }}>Waze</a>}
-                                {p.lat == null && <span style={{ fontSize: 10.5, color: 'var(--faint)', alignSelf: 'center' }}>por nome — pra ser exato, use “Buscar” no local</span>}
+                                {!exato && <button className="btn-ghost" style={{ padding: 0, fontSize: 11, color: 'var(--debit)' }} onClick={() => abrirEdicao(p)}>sem endereço exato — toque pra preencher</button>}
                               </div>
                             );
                           })()}

@@ -273,7 +273,7 @@ export function DataProvider({ session, children }) {
   async function removerLugar(id) { await supabase.from('lugares').delete().eq('id', id); await carregar(); }
   async function lugarParaRoteiro(lugar, data, hora) {
     if (!viagem || !lugar) return;
-    await supabase.from('pontos_roteiro').insert({ viagem_id: viagem.id, nome: lugar.nome, local: lugar.endereco || null, nota: lugar.comentario || null, data_inicio: data || null, hora: hora || null, tipo: 'passeio', ordem: 999 });
+    await supabase.from('pontos_roteiro').insert({ viagem_id: viagem.id, nome: lugar.nome, endereco: lugar.endereco || null, local: lugar.endereco || null, nota: lugar.comentario || null, data_inicio: data || null, hora: hora || null, tipo: 'passeio', ordem: 999 });
     await supabase.from('lugares').update({ no_roteiro: true }).eq('id', lugar.id);
     await carregar();
   }
