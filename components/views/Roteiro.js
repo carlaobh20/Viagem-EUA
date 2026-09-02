@@ -49,6 +49,38 @@ function fmtDiaData(d) {
 function diffDias(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
 function fmtDur(min) { if (min < 60) return `${min} min`; const h = Math.floor(min / 60); const m = min % 60; return m ? `${h} h ${m} min` : `${h} h`; }
 
+// ----- Navegação (Google Maps / Waze) -----
+// Destino de uma parada, do mais preciso pro menos: coordenada salva (o "Buscar"
+// do local) > texto do local > nome da parada + cidade da viagem (pra "Hotel" não
+// abrir em qualquer lugar do mundo). Devolve null se não tem nada pra navegar.
+function destinoParada(p, viagem) {
+  if (p.lat != null && p.lng != null) return `${p.lat},${p.lng}`;
+  const local = (p.local || '').trim();
+  if (local) return local;
+  const nome = (p.nome || '').trim();
+  if (!nome) return null;
+  const cidade = (viagem?.destino || '').trim();
+  return cidade ? `${nome}, ${cidade}` : nome;
+}
+// Link universal do Google Maps (abre o app no celular, o site no computador).
+// `navegar` = já inicia o GPS ao abrir (dir_action=navigate), sem origem = "de onde eu estou".
+function urlGoogleMaps({ destino, origem, waypoints, navegar }) {
+  const u = new URL('https://www.google.com/maps/dir/');
+  u.searchParams.set('api', '1');
+  if (origem) u.searchParams.set('origin', origem);
+  u.searchParams.set('destination', destino);
+  if (waypoints && waypoints.length) u.searchParams.set('waypoints', waypoints.join('|'));
+  u.searchParams.set('travelmode', 'driving');
+  if (navegar) u.searchParams.set('dir_action', 'navigate');
+  return u.toString();
+}
+function urlWaze(p, viagem) {
+  if (p.lat != null && p.lng != null) return `https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes`;
+  const d = destinoParada(p, viagem);
+  return d ? `https://waze.com/ul?q=${encodeURIComponent(d)}&navigate=yes` : null;
+}
+const linkBtn = { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' };
+
 export default function Roteiro({ ir }) {
   const { viagem, pontos, gastos, perfis, checklist, recarregar } = useData();
   const cambio = Number(viagem.cotacao_usd);
@@ -345,12 +377,23 @@ export default function Roteiro({ ir }) {
             {grupos.map((g, gi) => {
               const cor = g.data ? CORES_DIA[gi % CORES_DIA.length] : '#5F5E5A';
               const dn = (g.data && ida) ? diffDias(ida, g.data) + 1 : gi + 1;
+              // Rota do dia inteiro no Google Maps: primeira parada → ... → última
+              // (só com 2+ paradas que tenham local; o Maps aceita até ~9 pontos no meio).
+              const destinosDia = g.stops.map((p) => destinoParada(p, viagem)).filter(Boolean);
+              const urlRotaDia = destinosDia.length >= 2
+                ? urlGoogleMaps({ origem: destinosDia[0], destino: destinosDia[destinosDia.length - 1], waypoints: destinosDia.slice(1, -1).slice(0, 9) })
+                : null;
               return (
                 <div key={g.key}>
                   <div style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 18, overflow: 'hidden', marginBottom: 14, boxShadow: '0 2px 12px rgba(27,42,47,0.06)' }}>
-                    <div style={{ background: cor, color: '#fff', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ background: cor, color: '#fff', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 14, fontWeight: 600 }}>{g.data ? `Dia ${dn}` : 'Sem data'} <span style={{ opacity: 0.85, fontWeight: 400 }}>· {fmtDiaData(g.data)}</span></span>
-                      <span style={{ fontSize: 11, opacity: 0.85 }}>{g.stops.length} {g.stops.length === 1 ? 'parada' : 'paradas'}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
+                        {urlRotaDia && (
+                          <a href={urlRotaDia} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, padding: '4px 10px', fontSize: 11.5, background: 'rgba(255,255,255,.18)', color: '#fff', border: '1px solid rgba(255,255,255,.35)' }}>🗺 Rota do dia</a>
+                        )}
+                        <span style={{ fontSize: 11, opacity: 0.85 }}>{g.stops.length} {g.stops.length === 1 ? 'parada' : 'paradas'}</span>
+                      </span>
                     </div>
                   <div style={{ padding: '6px 14px 12px' }}>
                     {g.stops.length === 0 && (
@@ -372,9 +415,26 @@ export default function Roteiro({ ir }) {
                             const nx = ordenados[gx + 1];
                             if (!nx || p.lat == null || p.lng == null || nx.lat == null || nx.lng == null) return null;
                             const rota = rotas[`${p.id}_${nx.id}`];
+                            // toque no trecho abre o Google Maps já com a rota desta parada até a próxima
+                            const urlTrecho = urlGoogleMaps({ origem: `${p.lat},${p.lng}`, destino: `${nx.lat},${nx.lng}` });
                             return (
-                              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
-                                ↘ {rota === undefined ? 'calculando…' : rota === 'erro' ? 'distância indisponível' : `≈ ${rota.km.toFixed(0)} km · ${fmtDur(rota.min)} de carro até ${nx.nome}`}
+                              <a href={urlTrecho} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 3, textDecoration: 'none' }}>
+                                ↘ {rota === undefined ? 'calculando…' : rota === 'erro' ? 'distância indisponível' : `≈ ${rota.km.toFixed(0)} km · ${fmtDur(rota.min)} de carro até ${nx.nome}`} <span style={{ color: 'var(--brand)', fontWeight: 600 }}>· ver rota</span>
+                              </a>
+                            );
+                          })()}
+
+                          {(() => {
+                            // GPS: "me leva até aqui" a partir de onde a pessoa está.
+                            // Google Maps já abre navegando; Waze como alternativa (comum em estrada no Brasil).
+                            const dest = destinoParada(p, viagem);
+                            if (!dest) return null;
+                            const wz = urlWaze(p, viagem);
+                            return (
+                              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                                <a href={urlGoogleMaps({ destino: dest, navegar: true })} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, background: 'var(--brand)', color: '#fff' }}>🧭 Ir com GPS</a>
+                                {wz && <a href={wz} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, background: 'var(--brand-soft)', color: 'var(--brand)' }}>Waze</a>}
+                                {p.lat == null && <span style={{ fontSize: 10.5, color: 'var(--faint)', alignSelf: 'center' }}>por nome — pra ser exato, use “Buscar” no local</span>}
                               </div>
                             );
                           })()}
