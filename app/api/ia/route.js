@@ -7,7 +7,10 @@ import { createClient } from '@supabase/supabase-js';
 // Precisa da variável GEMINI_API_KEY na Vercel (Settings → Environment Variables).
 // Chave gratuita em https://aistudio.google.com → "Get API key".
 
-const MODELO = 'gemini-2.5-flash';
+// O Google aposenta modelos de tempos em tempos (o 2.5-flash já foi). O código
+// tenta nesta ordem e passa pro próximo quando o Google responde "modelo não
+// existe" (404). GEMINI_MODEL na Vercel, se existir, entra na frente da lista.
+const MODELOS = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
 const NOMES = { 'pt-BR': 'português do Brasil', 'en-US': 'inglês', 'es-ES': 'espanhol', 'fr-FR': 'francês', 'it-IT': 'italiano', 'de-DE': 'alemão', 'ja-JP': 'japonês' };
 const nome = (c) => NOMES[c] || c;
 
@@ -52,25 +55,32 @@ export async function POST(request) {
       return Response.json({ ok: false, erro: 'Modo inválido' }, { status: 400 });
     }
 
-    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts }],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: 'application/json',
-          responseSchema: { type: 'OBJECT', properties: { original: { type: 'STRING' }, traduzido: { type: 'STRING' } }, required: ['original', 'traduzido'] },
-        },
-      }),
+    const body = JSON.stringify({
+      contents: [{ role: 'user', parts }],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: 'application/json',
+        responseSchema: { type: 'OBJECT', properties: { original: { type: 'STRING' }, traduzido: { type: 'STRING' } }, required: ['original', 'traduzido'] },
+      },
     });
-    if (!resp.ok) {
+    const candidatos = [...new Set([(process.env.GEMINI_MODEL || '').trim(), ...MODELOS].filter(Boolean))];
+    let resp = null, ultimoErro = '';
+    for (const modelo of candidatos) {
+      resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+        body,
+      });
+      if (resp.ok) break;
       const t = await resp.text();
-      const curto = t.slice(0, 300);
+      ultimoErro = t.slice(0, 300);
       if (resp.status === 400 && /API key not valid/i.test(t)) return Response.json({ ok: false, erro: 'A chave do Gemini está inválida. Confira GEMINI_API_KEY na Vercel.' }, { status: 502 });
       if (resp.status === 429) return Response.json({ ok: false, erro: 'A IA atingiu o limite de uso por agora. Tenta de novo em um minuto.' }, { status: 502 });
-      return Response.json({ ok: false, erro: 'Falha na IA: ' + curto }, { status: 502 });
+      // modelo aposentado / inexistente pra esta conta: tenta o próximo da lista
+      if (resp.status === 404 || /not found|no longer available|not supported/i.test(t)) { resp = null; continue; }
+      return Response.json({ ok: false, erro: 'Falha na IA: ' + ultimoErro }, { status: 502 });
     }
+    if (!resp) return Response.json({ ok: false, erro: 'Nenhum modelo do Gemini disponível pra esta chave. Último erro: ' + ultimoErro }, { status: 502 });
     const json = await resp.json();
     const txt = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts
       ? json.candidates[0].content.parts.map((p) => p.text || '').join('') : '';
