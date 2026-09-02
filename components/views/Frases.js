@@ -1,6 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useData } from '../DataProvider';
+import { IDIOMAS, idioma, traduzir } from '../../lib/traduzir';
+import { falar, carregarVozes, temVoz, dicaInstalarVoz } from '../../lib/voz';
+import Tradutor from './Tradutor';
 
 // Conteúdo estático (offline, sem IA, sem dado de usuário).
 const FRASES = [
@@ -77,36 +80,60 @@ const FRASES = [
   ] },
 ];
 
-let _vozEN = null;
-function carregarVozes() {
-  try {
-    const synth = typeof window !== 'undefined' && window.speechSynthesis;
-    if (!synth) return;
-    const vs = synth.getVoices() || [];
-    _vozEN = vs.find((v) => /en[-_]US/i.test(v.lang)) || vs.find((v) => /^en/i.test(v.lang)) || null;
-  } catch (e) { /* ignora */ }
-}
-function falar(txt) {
-  try {
-    const synth = typeof window !== 'undefined' && window.speechSynthesis;
-    if (!synth) return;
-    if (!_vozEN) carregarVozes();
-    synth.cancel();
-    const u = new SpeechSynthesisUtterance(txt);
-    u.lang = 'en-US';
-    u.rate = 0.9; // um pouco mais devagar, mais fácil de entender
-    if (_vozEN) u.voice = _vozEN;
-    synth.speak(u);
-    setTimeout(() => { try { synth.resume(); } catch (e) {} }, 60); // destrava o iOS
-  } catch (e) { /* sem voz nesse aparelho */ }
-}
+const LS_IDIOMA = (viagemId) => `frases-idioma-${viagemId || 'geral'}`;
+const lerLS = (k, padrao) => { try { return localStorage.getItem(k) || padrao; } catch (e) { return padrao; } };
+const gravarLS = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 
 export default function Frases({ ir, categoriaInicial }) {
-  const { perguntasImigracao, adicionarPergunta, removerPergunta } = useData();
+  const { viagem, perguntasImigracao, adicionarPergunta, removerPergunta } = useData();
   const inicial = FRASES.find((f) => f.id === categoriaInicial) ? categoriaInicial : 'geral';
+  const [aba, setAba] = useState(categoriaInicial === 'tradutor' ? 'tradutor' : 'frases'); // 'frases' | 'tradutor'
   const [cat, setCat] = useState(inicial);
   const [addForm, setAddForm] = useState(null); // { pergunta_pt, pergunta_en, resposta_pt, resposta_en }
   const atual = FRASES.find((f) => f.id === cat) || FRASES[0];
+
+  // Idioma do destino: as frases prontas são em inglês; pra outro idioma, cada frase
+  // é traduzida na hora (e guardada no aparelho). A fonética só existe em inglês.
+  const [lang, setLangState] = useState(() => lerLS(LS_IDIOMA(viagem && viagem.id), 'en-US'));
+  const setLang = (v) => { setLangState(v); gravarLS(LS_IDIOMA(viagem && viagem.id), v); };
+  const emIngles = lang === 'en-US';
+  const [trad, setTrad] = useState({}); // { [en]: texto no idioma escolhido }
+  const [tradErro, setTradErro] = useState('');
+  const [falando, setFalando] = useState(null); // texto que está sendo lido
+  const [avisoVoz, setAvisoVoz] = useState('');
+  const nomeIdioma = idioma(lang).nome;
+
+  useEffect(() => {
+    if (emIngles || aba !== 'frases') return;
+    let cancel = false;
+    (async () => {
+      setTradErro('');
+      for (const fr of atual.itens) {
+        if (cancel) return;
+        if (trad[lang + ':' + fr.en]) continue;
+        try {
+          const out = await traduzir(fr.en, 'en-US', lang);
+          if (!cancel) setTrad((t) => ({ ...t, [lang + ':' + fr.en]: out }));
+        } catch (e) { if (!cancel) setTradErro(e.message || 'Não deu pra traduzir agora.'); return; }
+      }
+    })();
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang, cat, aba]);
+
+  const textoNoIdioma = (en) => (emIngles ? en : (trad[lang + ':' + en] || null));
+
+  function ouvir(txt, langVoz) {
+    const l = langVoz || idioma(lang).voz;
+    const nome = langVoz ? 'inglês' : nomeIdioma.toLowerCase();
+    if (temVoz(l) === false) { setAvisoVoz(dicaInstalarVoz(nome)); return; }
+    setAvisoVoz('');
+    falar(txt, l, (st) => {
+      if (st === 'falando') setFalando(txt);
+      else if (st === 'sem-voz' || st === 'erro') { setFalando(null); setAvisoVoz(dicaInstalarVoz(nome)); }
+      else setFalando(null);
+    });
+  }
   const card = { background: 'var(--ui-card)', borderRadius: 16, boxShadow: 'var(--ui-shadow)' };
   const inp = { width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 14, background: 'var(--ui-bg)', color: 'var(--ui-ink)' };
   const naImigracao = cat === 'imigracao';
@@ -128,11 +155,23 @@ export default function Frases({ ir, categoriaInicial }) {
     <div style={{ background: 'var(--ui-bg)', minHeight: '100%', padding: '14px 18px 96px', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif', color: 'var(--ui-ink)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '2px 2px 16px' }}>
         <button onClick={() => ir('menu')} aria-label="Voltar" style={{ border: 'none', background: 'var(--ui-card)', width: 34, height: 34, borderRadius: 11, boxShadow: 'var(--ui-shadow)', fontSize: 18, cursor: 'pointer', flex: '0 0 auto' }}>←</button>
-        <div>
-          <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.5px' }}>Conversar em inglês</div>
-          <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 1 }}>Frases prontas por situação · toque 🔊 pra ouvir</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.5px' }}>Conversar em {nomeIdioma.toLowerCase()}</div>
+          <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 1 }}>{aba === 'frases' ? 'Frases prontas por situação · toque 🔊 pra ouvir' : 'Digite ou fotografe — traduz na hora'}</div>
         </div>
+        <select value={lang} onChange={(e) => setLang(e.target.value)} aria-label="Idioma do destino" style={{ border: '1px solid var(--ui-line)', borderRadius: 12, padding: '8px 8px', fontSize: 13, fontWeight: 700, background: 'var(--ui-card)', color: 'var(--ui-ink)', flex: '0 0 auto' }}>
+          {IDIOMAS.filter((i) => i.code !== 'pt-BR').map((i) => <option key={i.code} value={i.code}>{i.bandeira} {i.nome}</option>)}
+        </select>
       </div>
+
+      <div className="toggle" style={{ marginBottom: 14 }}>
+        <button className={aba === 'frases' ? 'on' : ''} onClick={() => setAba('frases')}>💬 Frases prontas</button>
+        <button className={aba === 'tradutor' ? 'on' : ''} onClick={() => setAba('tradutor')}>🔤 Tradutor</button>
+      </div>
+
+      {avisoVoz && <div style={{ fontSize: 12, color: '#B42318', margin: '0 4px 12px', lineHeight: 1.4 }}>🔇 {avisoVoz}</div>}
+
+      {aba === 'tradutor' ? <Tradutor idiomaDestino={lang} /> : (<>
 
       <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 4, marginBottom: 14, WebkitOverflowScrolling: 'touch' }}>
         {FRASES.map((f) => {
@@ -172,7 +211,7 @@ export default function Frases({ ir, categoriaInicial }) {
                   )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: '0 0 auto' }}>
-                  {p.resposta_en && <button onClick={() => falar(p.resposta_en)} aria-label="Ouvir" style={{ border: 'none', background: 'rgba(0,199,177,.14)', color: 'var(--ui-teal)', width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}>🔊</button>}
+                  {p.resposta_en && <button onClick={() => ouvir(p.resposta_en, 'en-US')} aria-label="Ouvir" style={{ border: 'none', background: falando === p.resposta_en ? 'var(--ui-teal)' : 'rgba(0,199,177,.14)', color: falando === p.resposta_en ? '#fff' : 'var(--ui-teal)', width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}>🔊</button>}
                   <button onClick={() => { if (window.confirm('Remover esta pergunta?')) removerPergunta(p.id); }} aria-label="Remover" style={{ border: 'none', background: 'none', color: 'var(--ui-faint)', fontSize: 14, cursor: 'pointer' }}>✕</button>
                 </div>
               </div>
@@ -192,17 +231,25 @@ export default function Frases({ ir, categoriaInicial }) {
           )}
         </>
       ) : (
-        atual.itens.map((fr, i) => (
-          <div key={i} style={{ ...card, padding: 15, marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.2px' }}>{fr.en}</div>
-              <div style={{ fontSize: 14, color: 'var(--ui-muted)', marginTop: 3 }}>{fr.pt}</div>
-              <div style={{ fontSize: 12, color: 'var(--ui-faint)', marginTop: 4, fontStyle: 'italic' }}>{fr.fon}</div>
-            </div>
-            <button onClick={() => falar(fr.en)} aria-label="Ouvir" style={{ border: 'none', background: 'rgba(0,199,177,.14)', color: 'var(--ui-teal)', width: 40, height: 40, borderRadius: '50%', fontSize: 18, cursor: 'pointer', flex: '0 0 auto' }}>🔊</button>
-          </div>
-        ))
+        <>
+          {tradErro && <div style={{ fontSize: 12, color: '#B42318', margin: '0 4px 10px' }}>{tradErro}</div>}
+          {atual.itens.map((fr, i) => {
+            const txt = textoNoIdioma(fr.en);
+            const on = falando && txt && falando === txt;
+            return (
+              <div key={i} style={{ ...card, padding: 15, marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.2px', color: txt ? 'var(--ui-ink)' : 'var(--ui-faint)' }}>{txt || 'traduzindo…'}</div>
+                  <div style={{ fontSize: 14, color: 'var(--ui-muted)', marginTop: 3 }}>{fr.pt}</div>
+                  {emIngles && <div style={{ fontSize: 12, color: 'var(--ui-faint)', marginTop: 4, fontStyle: 'italic' }}>{fr.fon}</div>}
+                </div>
+                <button onClick={() => txt && ouvir(txt)} disabled={!txt} aria-label="Ouvir" style={{ border: 'none', background: on ? 'var(--ui-teal)' : 'rgba(0,199,177,.14)', color: on ? '#fff' : 'var(--ui-teal)', width: 40, height: 40, borderRadius: '50%', fontSize: 18, cursor: 'pointer', flex: '0 0 auto', opacity: txt ? 1 : 0.5 }}>🔊</button>
+              </div>
+            );
+          })}
+        </>
       )}
+      </>)}
     </div>
   );
 }
