@@ -1,13 +1,14 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
 import { CATEGORIAS, hojeLocal, usaDolar } from '../../lib/format';
 
 export default function Novo({ ir }) {
-  const { viagem, perfis, pontos, perfil, divisoes, gastoVistoPor, salvarGasto, atualizarGasto, gastoEditando, setGastoEditando } = useData();
+  const { viagem, perfis, pontos, perfil, divisoes, gastoVistoPor, salvarGasto, atualizarGasto, gastoEditando, setGastoEditando, urlRecibo } = useData();
   const ed = gastoEditando;
-  const inputRecibo = useRef(null);
+  const inputCamera = useRef(null);
+  const inputGaleria = useRef(null);
   const comDolar = usaDolar(viagem);
 
   const [descricao, setDescricao] = useState(ed ? (ed.descricao || '') : '');
@@ -28,9 +29,20 @@ export default function Novo({ ir }) {
     return init;
   });
   const [salvando, setSalvando] = useState(false);
+  // Comprovante: foto nova (blob) ou a já salva (recibo_url → link assinado)
   const [reciboBlob, setReciboBlob] = useState(null);
+  const [reciboBase64, setReciboBase64] = useState(null);
   const [reciboPreview, setReciboPreview] = useState(null);
+  const [reciboAtualUrl, setReciboAtualUrl] = useState(null);
+  const [removerRecibo, setRemoverRecibo] = useState(false);
   const [lendoRecibo, setLendoRecibo] = useState(false);
+  const [avisoRecibo, setAvisoRecibo] = useState('');
+  useEffect(() => {
+    let vivo = true;
+    if (ed && ed.recibo_url) urlRecibo(ed.recibo_url).then((u) => { if (vivo) setReciboAtualUrl(u); });
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ed && ed.recibo_url]);
 
   function togglePessoa(id) { setPartes((prev) => ({ ...prev, [id]: prev[id] > 0 ? 0 : 1 })); }
   function toggleVeQuem(id) { setCompartilhadoCom((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]); }
@@ -49,24 +61,37 @@ export default function Novo({ ir }) {
 
   async function aoEscolherRecibo(e) {
     const file = e.target.files && e.target.files[0];
+    const input = e.target;
     if (!file) return;
-    setLendoRecibo(true);
+    setAvisoRecibo('');
     try {
-      const { blob, base64, mediaType } = await reduzirImagem(file);
-      setReciboBlob(blob);
+      const { blob, base64 } = await reduzirImagem(file);
+      setReciboBlob(blob); setReciboBase64(base64);
       setReciboPreview(URL.createObjectURL(blob));
+      setRemoverRecibo(false);
+    } catch (err) {
+      setAvisoRecibo('Não consegui abrir essa imagem: ' + err.message);
+    } finally { if (input) input.value = ''; }
+  }
+  function tirarComprovante() {
+    setReciboBlob(null); setReciboBase64(null); setReciboPreview(null);
+    setRemoverRecibo(true); setAvisoRecibo('');
+  }
+  // Opcional: a IA lê a foto e preenche valor, data, loja e categoria (a pessoa confere antes de salvar)
+  async function lerComIA() {
+    if (!reciboBase64) return;
+    setLendoRecibo(true); setAvisoRecibo('');
+    try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess && sess.session ? sess.session.access_token : null;
-      const r = await fetch('/api/recibo', { method: 'POST', headers: { 'content-type': 'application/json', authorization: token ? `Bearer ${token}` : '' }, body: JSON.stringify({ imageBase64: base64, mediaType }) });
-      const j = await r.json();
-      if (j.ok && j.dados) preencher(j.dados);
-      else alert('A foto foi anexada, mas não consegui ler os dados. Preencha à mão. ' + (j.erro || ''));
-    } catch (err) {
-      alert('Erro ao processar a foto: ' + err.message);
-    } finally {
-      setLendoRecibo(false);
-      if (inputRecibo.current) inputRecibo.current.value = '';
-    }
+      const r = await fetch('/api/ia', { method: 'POST', headers: { 'content-type': 'application/json', authorization: token ? `Bearer ${token}` : '' }, body: JSON.stringify({ modo: 'recibo', base64: reciboBase64, mime: 'image/jpeg' }) });
+      const j = await r.json().catch(() => null);
+      if (j && j.ok && j.dados && (j.dados.valor || j.dados.estabelecimento)) {
+        preencher(j.dados);
+        setAvisoRecibo('✓ Preenchi pelo comprovante — confere os valores antes de salvar.');
+      } else setAvisoRecibo('Não consegui ler os dados dessa foto. Preenche à mão. ' + ((j && j.erro) || ''));
+    } catch (err) { setAvisoRecibo('Sem resposta da IA agora. Preenche à mão.'); }
+    finally { setLendoRecibo(false); }
   }
 
   function voltar() { setGastoEditando(null); ir(ed ? 'gastos' : 'resumo'); }
@@ -76,7 +101,7 @@ export default function Novo({ ir }) {
     setSalvando(true);
     try {
       const payload = { descricao: descricao.trim() || nomeDe(categoria), valor: valorNum, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile: reciboBlob, privado, compartilhadoCom };
-      if (ed) await atualizarGasto({ id: ed.id, ...payload, reciboUrlAtual: ed.recibo_url, userIdAtual: ed.user_id });
+      if (ed) await atualizarGasto({ id: ed.id, ...payload, reciboUrlAtual: ed.recibo_url, removerRecibo, userIdAtual: ed.user_id });
       else await salvarGasto(payload);
       setGastoEditando(null);
       ir('gastos');
@@ -88,12 +113,38 @@ export default function Novo({ ir }) {
       <div className="screen" style={{ paddingTop: 18 }}>
         <div className="fab-back"><button onClick={voltar} aria-label="Voltar">←</button><span className="ttl">{ed ? 'Editar gasto' : 'Novo gasto'}</span></div>
 
-        <input ref={inputRecibo} type="file" accept="image/*" capture="environment" onChange={aoEscolherRecibo} style={{ display: 'none' }} />
-        <button className="btn-outline" style={{ marginBottom: 16 }} onClick={() => inputRecibo.current && inputRecibo.current.click()} disabled={lendoRecibo}>
-          {lendoRecibo ? 'Lendo o recibo…' : '📷 Ler recibo com foto'}
-        </button>
-        {reciboPreview && <div style={{ marginBottom: 16 }}><img src={reciboPreview} alt="Recibo" style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 10, border: '0.5px solid var(--line)' }} /></div>}
-        {!reciboPreview && ed && ed.recibo_url && <p style={{ fontSize: 12, marginBottom: 16 }}><a href={ed.recibo_url} target="_blank" rel="noreferrer" style={{ color: 'var(--brand)' }}>📎 Ver recibo anexado</a></p>}
+        <input ref={inputCamera} type="file" accept="image/*" capture="environment" onChange={aoEscolherRecibo} style={{ display: 'none' }} />
+        <input ref={inputGaleria} type="file" accept="image/*" onChange={aoEscolherRecibo} style={{ display: 'none' }} />
+
+        {/* Comprovante: quem racha o gasto vê a foto na lista (📎) e sabe o que foi pago de fato */}
+        {(() => {
+          const mostrando = reciboPreview || (!removerRecibo && reciboAtualUrl);
+          const temSalvo = !!(ed && ed.recibo_url) && !removerRecibo && !reciboPreview;
+          return (
+            <div className="field">
+              <label>Comprovante (recibo / nota) — {perfis.length > 1 ? 'quem racha vê a foto' : 'opcional'}</label>
+              {mostrando ? (
+                <div style={{ border: '0.5px solid var(--line)', borderRadius: 12, padding: 8, background: 'var(--surface)' }}>
+                  <a href={mostrando} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+                    <img src={mostrando} alt="Comprovante" style={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8, display: 'block' }} />
+                  </a>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                    <button className="btn-outline" style={{ flex: 1, height: 40, fontSize: 13, minWidth: 120 }} onClick={() => inputGaleria.current && inputGaleria.current.click()}>🔄 Trocar foto</button>
+                    {reciboBase64 && <button className="btn-outline" style={{ flex: 1, height: 40, fontSize: 13, minWidth: 120 }} onClick={lerComIA} disabled={lendoRecibo}>{lendoRecibo ? 'Lendo…' : '✨ Preencher pela foto'}</button>}
+                    <button className="btn-outline" style={{ flex: '0 0 auto', height: 40, fontSize: 13, color: 'var(--faint)', borderColor: 'var(--line-strong)' }} onClick={tirarComprovante}>✕ Remover</button>
+                  </div>
+                  {temSalvo && <p style={{ fontSize: 11, color: 'var(--faint)', marginTop: 6 }}>Comprovante já salvo neste gasto. Toque na imagem pra abrir em tamanho grande.</p>}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn-outline" style={{ flex: 1 }} onClick={() => inputCamera.current && inputCamera.current.click()}>📷 Tirar foto</button>
+                  <button className="btn-outline" style={{ flex: 1 }} onClick={() => inputGaleria.current && inputGaleria.current.click()}>🖼️ Da galeria</button>
+                </div>
+              )}
+              {avisoRecibo && <p style={{ fontSize: 12, marginTop: 8, color: avisoRecibo.startsWith('✓') ? 'var(--credit, #0F9D6B)' : 'var(--debit, #C2410C)' }}>{avisoRecibo}</p>}
+            </div>
+          );
+        })()}
 
         <div className="field"><label>Descrição</label>
           <input className="input" value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex.: Jantar no restaurante" /></div>

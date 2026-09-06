@@ -92,13 +92,13 @@ export default function Gastos({ ir }) {
                 {g.moeda === 'USD' && <span style={{ display: 'block', fontSize: 10.5, color: 'var(--ui-faint)' }}>{fmtBRL(valorEmBRL(g, cambio))}</span>}
               </span>
             </div>
-            {g.recibo_url && <button onClick={async (e) => { e.stopPropagation(); const u = await urlRecibo(g.recibo_url); if (u) window.open(u, '_blank', 'noreferrer'); else alert('Não consegui abrir o recibo.'); }} aria-label="Ver recibo" style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--ui-muted)', padding: '2px 4px' }}>📎</button>}
+            {g.recibo_url && <button onClick={async (e) => { e.stopPropagation(); const u = await urlRecibo(g.recibo_url); if (u) window.open(u, '_blank', 'noreferrer'); else alert('Não consegui abrir o recibo.'); }} aria-label="Ver comprovante" title="Ver comprovante" style={{ border: 'none', background: 'rgba(14,156,140,.12)', borderRadius: 8, cursor: 'pointer', fontSize: 15, color: 'var(--ui-teal)', padding: '4px 6px' }}>📎</button>}
             <button onClick={() => apagar(g)} aria-label="Apagar gasto" style={{ border: 'none', background: 'none', color: 'var(--ui-faint)', fontSize: 16, cursor: 'pointer', padding: '2px 4px' }}>✕</button>
           </div>
         ))}
       </div>
 
-      {lista.length > 0 && <p style={{ fontSize: 11, color: 'var(--ui-faint)', textAlign: 'center', marginTop: 12 }}>Toque num gasto para editar · 📎 recibo · ✕ apagar</p>}
+      {lista.length > 0 && <p style={{ fontSize: 11, color: 'var(--ui-faint)', textAlign: 'center', marginTop: 12 }}>Toque num gasto para editar · 📎 abre o comprovante · ✕ apagar</p>}
     </div>
   );
 }

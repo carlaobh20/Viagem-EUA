@@ -18,18 +18,21 @@ function iconeClima(code) {
 }
 
 const TIPOS = [
-  { id: 'voo', nome: 'Voo', cor: '#185FA5' },
-  { id: 'hospedagem', nome: 'Hospedagem', cor: '#BA7517' },
-  { id: 'passeio', nome: 'Passeio', cor: '#1D9E75' },
-  { id: 'comida', nome: 'Comida', cor: '#D4537E' },
-  { id: 'museu', nome: 'Atração / Museu', cor: '#534AB7' },
-  { id: 'transporte', nome: 'Transporte', cor: '#0F6E56' },
-  { id: 'outro', nome: 'Outro', cor: '#5F5E5A' },
+  { id: 'voo', nome: 'Voo', cor: '#185FA5', emoji: '✈️' },
+  { id: 'hospedagem', nome: 'Hospedagem', cor: '#BA7517', emoji: '🛏️' },
+  { id: 'passeio', nome: 'Passeio', cor: '#1D9E75', emoji: '🎟️' },
+  { id: 'comida', nome: 'Comida', cor: '#D4537E', emoji: '🍽️' },
+  { id: 'museu', nome: 'Atração / Museu', cor: '#534AB7', emoji: '🏛️' },
+  { id: 'transporte', nome: 'Transporte', cor: '#0F6E56', emoji: '🚗' },
+  { id: 'outro', nome: 'Outro', cor: '#5F5E5A', emoji: '📌' },
 ];
 const STATUS = ['Confirmado', 'Reserva', 'A definir'];
 const CORES_DIA = ['#0F6E56', '#185FA5', '#534AB7', '#BA7517', '#1D9E75', '#D4537E', '#993C1D'];
 const corTipo = (t) => (TIPOS.find((x) => x.id === t) || TIPOS[6]).cor;
 const nomeTipo = (t) => (TIPOS.find((x) => x.id === t) || TIPOS[6]).nome;
+const emojiTipo = (t) => (TIPOS.find((x) => x.id === t) || TIPOS[6]).emoji;
+// tom claro da cor do tipo, pro fundo do ícone
+const fundoTipo = (t) => corTipo(t) + '1F';
 const hoje = () => hojeLocal();
 
 function StatusBadge({ st }) {
@@ -97,13 +100,12 @@ export default function Roteiro({ ir }) {
   const [rotas, setRotas] = useState({});
   const [geoMsg, setGeoMsg] = useState('');
   const [menuAberto, setMenuAberto] = useState(false);
-
-  const gastoDoDia = (p) => {
-    if (!p.data_inicio) return 0;
-    const mesmaData = pontos.filter((x) => x.data_inicio === p.data_inicio).sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
-    if (!mesmaData[0] || mesmaData[0].id !== p.id) return 0;
-    return gastos.filter((g) => g.data === p.data_inicio).reduce((s, g) => s + valorEmBRL(g, cambio), 0);
-  };
+  // Dia a dia: cada dia começa fechado (só cabeçalho + resumo das paradas). null =
+  // ainda não mexeu → abre automaticamente o dia de hoje (durante a viagem) ou o
+  // primeiro dia que tem parada. Dentro do dia, cada parada também começa
+  // resumida (hora, ícone, nome, uma linha); toque abre os detalhes/ações.
+  const [diasAbertos, setDiasAbertos] = useState(null);
+  const [paradaAberta, setParadaAberta] = useState(null);
 
   const [clima, setClima] = useState({});
   const climaRef = useRef(new Set());
@@ -387,43 +389,81 @@ export default function Roteiro({ ir }) {
             )}
             {grupos.length === 0 && <div className="card"><div className="empty">Nenhuma parada ainda. Toque em “Adicionar parada”.</div></div>}
 
-            {grupos.map((g, gi) => {
+            {(() => {
+              const hojeS = hoje();
+              let padrao = grupos.find((g) => g.data === hojeS && ida && volta && hojeS >= ida && hojeS <= volta);
+              if (!padrao) padrao = grupos.find((g) => g.stops.length > 0) || grupos[0];
+              const abertos = diasAbertos || new Set(padrao ? [padrao.key] : []);
+              const alternarDia = (key) => setDiasAbertos((prev) => { const n = new Set(prev || abertos); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+              return grupos.map((g, gi) => {
               const cor = g.data ? CORES_DIA[gi % CORES_DIA.length] : '#5F5E5A';
               const dn = (g.data && ida) ? diffDias(ida, g.data) + 1 : gi + 1;
+              const aberto = abertos.has(g.key);
+              const ehHoje = g.data === hojeS;
               // Rota do dia inteiro no Google Maps: primeira parada → ... → última
               // (só com 2+ paradas que tenham local; o Maps aceita até ~9 pontos no meio).
               const destinosDia = g.stops.map((p) => destinoParada(p, viagem)).filter(Boolean);
               const urlRotaDia = destinosDia.length >= 2
                 ? urlGoogleMaps({ origem: destinosDia[0], destino: destinosDia[destinosDia.length - 1], waypoints: destinosDia.slice(1, -1).slice(0, 9) })
                 : null;
+              const gastoDia = g.data ? gastos.filter((x) => x.data === g.data).reduce((t, x) => t + valorEmBRL(x, cambio), 0) : 0;
+              const resumo = g.stops.map((p) => p.nome).join(' → ');
               return (
-                <div key={g.key}>
-                  <div style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 18, overflow: 'hidden', marginBottom: 14, boxShadow: '0 2px 12px rgba(27,42,47,0.06)' }}>
-                    <div style={{ background: cor, color: '#fff', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>{g.data ? `Dia ${dn}` : 'Sem data'} <span style={{ opacity: 0.85, fontWeight: 400 }}>· {fmtDiaData(g.data)}</span></span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
-                        {urlRotaDia && (
-                          <a href={urlRotaDia} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, padding: '4px 10px', fontSize: 11.5, background: 'rgba(255,255,255,.18)', color: '#fff', border: '1px solid rgba(255,255,255,.35)' }}>🗺 Rota do dia</a>
-                        )}
-                        <span style={{ fontSize: 11, opacity: 0.85 }}>{g.stops.length} {g.stops.length === 1 ? 'parada' : 'paradas'}</span>
-                      </span>
+                <div key={g.key} style={{ background: 'var(--surface)', border: aberto ? `1px solid ${cor}55` : '0.5px solid var(--line)', borderRadius: 18, overflow: 'hidden', marginBottom: 12, boxShadow: '0 2px 12px rgba(27,42,47,0.06)' }}>
+                  {/* Cabeçalho do dia: toque abre/fecha */}
+                  <div onClick={() => alternarDia(g.key)} role="button" style={{ background: aberto ? cor : `${cor}14`, color: aberto ? '#fff' : 'var(--ink)', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.3px' }}>{g.data ? `Dia ${dn}` : 'Sem data'}</span>
+                        <span style={{ fontSize: 13, opacity: aberto ? 0.9 : 0.7 }}>{fmtDiaData(g.data)}</span>
+                        {ehHoje && <span style={{ fontSize: 10.5, fontWeight: 800, padding: '1px 7px', borderRadius: 999, background: aberto ? 'rgba(255,255,255,.25)' : cor, color: '#fff' }}>HOJE</span>}
+                      </div>
+                      {!aberto && (
+                        <div style={{ fontSize: 12, opacity: 0.75, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {g.stops.length ? resumo : 'Nada planejado ainda'}
+                        </div>
+                      )}
                     </div>
-                  <div style={{ padding: '6px 14px 12px' }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, padding: '4px 10px', borderRadius: 999, background: aberto ? 'rgba(255,255,255,.2)' : `${cor}22`, color: aberto ? '#fff' : cor, whiteSpace: 'nowrap', flex: '0 0 auto' }}>{g.stops.length} {g.stops.length === 1 ? 'parada' : 'paradas'}</span>
+                    <span style={{ width: 30, height: 30, borderRadius: '50%', background: aberto ? 'rgba(255,255,255,.2)' : `${cor}22`, color: aberto ? '#fff' : cor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flex: '0 0 auto', transform: aberto ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
+                  </div>
+
+                  {aberto && (
+                  <div style={{ padding: '4px 14px 12px' }}>
+                    {(urlRotaDia || gastoDia > 0) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 0 4px' }}>
+                        {urlRotaDia && <a href={urlRotaDia} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, padding: '4px 10px', fontSize: 11.5, background: `${cor}18`, color: cor }}>🗺 Rota do dia</a>}
+                        {gastoDia > 0 && <span style={{ fontSize: 12, color: 'var(--muted)' }}>💳 gasto no dia: <b style={{ color: 'var(--ink)' }}>{fmtBRL(gastoDia)}</b></span>}
+                      </div>
+                    )}
                     {g.stops.length === 0 && (
                       <div onClick={() => abrirNovo(g.data, null)} style={{ padding: '16px 4px', textAlign: 'center', color: 'var(--muted)', fontSize: 13, cursor: 'pointer' }}>
                         Nada planejado ainda — <span style={{ color: 'var(--brand)', fontWeight: 700 }}>+ adicionar parada</span>
                       </div>
                     )}
-                    {g.stops.map((p, i) => (
-                      <div key={p.id} style={{ display: 'flex', gap: 10, paddingTop: 12, borderTop: i > 0 ? '0.5px solid var(--line)' : 'none', marginTop: i > 0 ? 12 : 0 }}>
-                        <div style={{ width: 11, height: 11, borderRadius: '50%', background: corTipo(p.tipo), marginTop: 5, flex: '0 0 auto' }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
-                            <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>{p.nome}</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '0 0 auto' }}><StatusBadge st={p.status} />{p.hora && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{p.hora}</span>}{gastoDoDia(p) > 0 && <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>{fmtBRL(gastoDoDia(p))}</span>}</div>
+                    {g.stops.map((p, i) => {
+                      const abertaP = paradaAberta === p.id;
+                      const cl = clima[p.id];
+                      // uma linha só de resumo: tipo · endereço curto (ou clima)
+                      const linha = [nomeTipo(p.tipo), p.endereco ? p.endereco.split(',')[0] : (p.local || ''), cl ? `${iconeClima(cl.code)} ${cl.max}°` : ''].filter(Boolean).join(' · ');
+                      return (
+                      <div key={p.id} style={{ borderTop: i > 0 ? '0.5px solid var(--line)' : 'none' }}>
+                        {/* Linha resumida da parada: toque abre os detalhes */}
+                        <div onClick={() => setParadaAberta(abertaP ? null : p.id)} role="button" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 0', cursor: 'pointer' }}>
+                          <span style={{ width: 40, fontSize: 12.5, color: 'var(--muted)', fontWeight: 600, flex: '0 0 auto' }}>{p.hora || '—'}</span>
+                          <span style={{ width: 36, height: 36, borderRadius: '50%', background: fundoTipo(p.tipo), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flex: '0 0 auto' }}>{emojiTipo(p.tipo)}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.25, whiteSpace: abertaP ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.nome}</div>
+                            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2, whiteSpace: abertaP ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{linha}</div>
+                            {p.status && <div style={{ marginTop: 4 }}><StatusBadge st={p.status} /></div>}
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 1 }}>{nomeTipo(p.tipo)}{clima[p.id] ? ` · ${iconeClima(clima[p.id].code)} ${clima[p.id].max}°/${clima[p.id].min}°${clima[p.id].chuva != null ? ` · 🌧 ${clima[p.id].chuva}%` : ''}` : ''}</div>
-                          {p.endereco && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>📍 {p.endereco}</div>}
+                          <span style={{ color: 'var(--faint)', fontSize: 16, flex: '0 0 auto', transform: abertaP ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
+                        </div>
+
+                        {abertaP && (
+                        <div style={{ padding: '0 0 12px 50px' }}>
+                          {p.endereco && <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 4 }}>📍 {p.endereco}</div>}
+                          {cl && <div style={{ fontSize: 12, color: 'var(--faint)', marginBottom: 4 }}>{iconeClima(cl.code)} {cl.max}° / {cl.min}°{cl.chuva != null ? ` · 🌧 ${cl.chuva}% de chuva` : ''}</div>}
                           {(() => {
                             const gx = ordenados.findIndex((s) => s.id === p.id);
                             const nx = ordenados[gx + 1];
@@ -433,7 +473,7 @@ export default function Roteiro({ ir }) {
                             // (endereço escrito quando tem — a coordenada só entra se não houver texto nenhum)
                             const urlTrecho = urlGoogleMaps({ origem: destinoParada(p, viagem) || `${p.lat},${p.lng}`, destino: destinoParada(nx, viagem) || `${nx.lat},${nx.lng}` });
                             return (
-                              <a href={urlTrecho} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 3, textDecoration: 'none' }}>
+                              <a href={urlTrecho} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 4, textDecoration: 'none' }}>
                                 ↘ {rota === undefined ? 'calculando…' : rota === 'erro' ? 'distância indisponível' : `≈ ${rota.km.toFixed(0)} km · ${fmtDur(rota.min)} de carro até ${nx.nome}`} <span style={{ color: 'var(--brand)', fontWeight: 600 }}>· ver rota</span>
                               </a>
                             );
@@ -449,7 +489,7 @@ export default function Roteiro({ ir }) {
                             // Com endereço exato: já sai navegando. Sem: abre a rota no Maps
                             // mas deixa a pessoa conferir o lugar antes de iniciar.
                             return (
-                              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                              <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                                 <a href={urlGoogleMaps({ destino: dest, navegar: exato })} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, background: exato ? 'var(--brand)' : 'var(--brand-soft)', color: exato ? '#fff' : 'var(--brand)' }}>🧭 {exato ? 'Ir com GPS' : 'Ver no Maps'}</a>
                                 {wz && <a href={wz} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, background: 'var(--brand-soft)', color: 'var(--brand)' }}>Waze</a>}
                                 {!exato && <button className="btn-ghost" style={{ padding: 0, fontSize: 11, color: 'var(--debit)' }} onClick={() => abrirEdicao(p)}>sem endereço exato — toque pra preencher</button>}
@@ -458,7 +498,7 @@ export default function Roteiro({ ir }) {
                           })()}
 
                           {notaEdit === p.id ? (
-                            <div style={{ marginTop: 6 }}>
+                            <div style={{ marginTop: 8 }}>
                               <textarea className="input" style={{ height: 60, padding: 8 }} value={notaTxt} onChange={(e) => setNotaTxt(e.target.value)} placeholder="Escreva um comentário…" />
                               <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>
                                 <button className="btn-ghost" style={{ padding: 0, fontSize: 13 }} onClick={() => salvarNota(p)}>Salvar comentário</button>
@@ -466,28 +506,38 @@ export default function Roteiro({ ir }) {
                               </div>
                             </div>
                           ) : p.nota ? (
-                            <div onClick={() => abrirNota(p)} style={{ marginTop: 6, background: 'var(--bg)', border: '0.5px solid var(--line)', borderRadius: 8, padding: '7px 10px', fontSize: 13, color: 'var(--ink)', cursor: 'pointer' }}>
+                            <div onClick={() => abrirNota(p)} style={{ marginTop: 8, background: 'var(--bg)', border: '0.5px solid var(--line)', borderRadius: 8, padding: '7px 10px', fontSize: 13, color: 'var(--ink)', cursor: 'pointer', whiteSpace: 'pre-wrap' }}>
                               <span style={{ color: 'var(--faint)', fontSize: 11, display: 'block', marginBottom: 2 }}>comentário (toque para editar)</span>{p.nota}
                             </div>
                           ) : null}
 
                           <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13 }} onClick={() => abrirEdicao(p)}>Editar</button>
+                            <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13 }} onClick={() => abrirEdicao(p)}>✏️ Editar</button>
                             {!p.nota && notaEdit !== p.id && <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13 }} onClick={() => abrirNota(p)}>+ comentário</button>}
                             <button aria-label="Subir" className="btn-ghost" style={{ padding: '2px 6px', fontSize: 15 }} onClick={() => mover(g, i, -1)}>↑</button>
                             <button aria-label="Descer" className="btn-ghost" style={{ padding: '2px 6px', fontSize: 15 }} onClick={() => mover(g, i, 1)}>↓</button>
                             <span style={{ flex: 1 }} />
                             <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13, color: 'var(--debit)' }} onClick={() => excluir(p)}>Excluir</button>
                           </div>
-                          <div onClick={() => abrirNovo(g.data, p.id)} style={{ fontSize: 11, color: 'var(--brand)', cursor: 'pointer', marginTop: 8 }}>+ inserir parada aqui</div>
+                          <div onClick={() => abrirNovo(g.data, p.id)} style={{ fontSize: 11.5, color: 'var(--brand)', cursor: 'pointer', marginTop: 8 }}>+ inserir parada depois desta</div>
                         </div>
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
+                    {g.stops.length > 0 && (
+                      <div onClick={() => abrirNovo(g.data, null)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0 2px', borderTop: '0.5px solid var(--line)', cursor: 'pointer' }}>
+                        <span style={{ width: 40 }} />
+                        <span style={{ width: 36, height: 36, borderRadius: '50%', border: '1.5px dashed var(--line-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'var(--muted)', flex: '0 0 auto' }}>+</span>
+                        <div><div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--muted)' }}>Adicionar parada</div><div style={{ fontSize: 11.5, color: 'var(--faint)' }}>Restaurante, atração, hotel…</div></div>
+                      </div>
+                    )}
                   </div>
-                </div>
+                  )}
                 </div>
               );
-            })}
+              });
+            })()}
 
             <button className="btn-outline" style={{ marginTop: 2 }} onClick={() => abrirNovo(ultimaData(), null)}>+ Adicionar parada</button>
 

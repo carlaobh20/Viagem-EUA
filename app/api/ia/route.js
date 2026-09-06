@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// IA do "Conversar": traduz texto, lê foto (cardápio, placa) e ouve áudio (fala
-// em português → transcreve + traduz).
+// IA do app: traduz texto, lê foto (cardápio, placa) e ouve áudio (fala em
+// português → transcreve + traduz). Também lê comprovante de gasto (modo 'recibo':
+// devolve valor, moeda, data, estabelecimento e categoria pra preencher o formulário).
 //
 // Funciona com DOIS provedores — usa o que tiver chave na Vercel:
 //   • GROQ_API_KEY   → Groq (chave grátis em https://console.groq.com, sem cartão)
@@ -23,6 +24,21 @@ function promptTexto(D, P, texto) {
 function promptImagem(P) {
   return `Esta foto foi tirada por um turista (cardápio, placa, embalagem, aviso...). 1) Transcreva TODO o texto legível da imagem, na língua em que está, mantendo a ordem e quebras de linha. 2) Traduza esse texto para ${P}. Se houver preços, mantenha. Se não houver texto legível, deixe "original" vazio. Responda SOMENTE em JSON: {"original": "<texto da foto>", "traduzido": "<tradução em ${P}>"}.`;
 }
+const CATEGORIAS_GASTO = ['seguro', 'visto', 'documentos', 'passagens', 'hospedagem', 'comida', 'transporte', 'lazer', 'compras', 'compras_particular', 'combustivel', 'camping', 'supermercado', 'pedagio', 'propano', 'manutencao_rv', 'aluguel_rv', 'outros'];
+function promptRecibo() {
+  return `Esta é a foto de um recibo, nota fiscal ou comprovante de pagamento de um turista brasileiro. Extraia: "valor" = TOTAL pago (número com ponto decimal, sem símbolo; se houver gorjeta/tip incluída no total, use o total final); "moeda" = "USD" se o recibo for dos Estados Unidos ou em dólar, "BRL" se for do Brasil/em reais, senão null; "data" = data da compra no formato AAAA-MM-DD (null se não aparecer); "estabelecimento" = nome curto da loja/restaurante; "categoria" = a que melhor descreve, escolhida SOMENTE desta lista: ${CATEGORIAS_GASTO.join(', ')} (restaurante/lanche = comida; mercado = supermercado; posto = combustivel; hotel = hospedagem; Uber/táxi/estacionamento = transporte; ingresso/parque = lazer; loja = compras). Se não for um comprovante legível, devolva tudo null. Responda SOMENTE em JSON: {"valor": <número|null>, "moeda": <"USD"|"BRL"|null>, "data": <"AAAA-MM-DD"|null>, "estabelecimento": <texto|null>, "categoria": <id|null>}`;
+}
+function limparRecibo(o) {
+  o = o || {};
+  const valor = Number(String(o.valor == null ? '' : o.valor).replace(',', '.'));
+  return {
+    valor: isFinite(valor) && valor > 0 ? valor : null,
+    moeda: o.moeda === 'USD' || o.moeda === 'BRL' ? o.moeda : null,
+    data: /^\d{4}-\d{2}-\d{2}$/.test(String(o.data || '')) ? o.data : null,
+    estabelecimento: o.estabelecimento ? String(o.estabelecimento).trim().slice(0, 80) : null,
+    categoria: CATEGORIAS_GASTO.includes(o.categoria) ? o.categoria : null,
+  };
+}
 function promptAudio(D, P) {
   return `Este áudio é uma pessoa falando em ${D}. 1) Transcreva exatamente o que ela disse (sem inventar; se não der pra entender, deixe "original" vazio). 2) Traduza para ${P}, do jeito que um nativo diria em conversa. Responda SOMENTE em JSON: {"original": "<transcrição em ${D}>", "traduzido": "<tradução em ${P}>"}.`;
 }
@@ -43,7 +59,7 @@ class ErroIA extends Error { constructor(msg, tentarOutro = false) { super(msg);
 const GROQ_CHAT = ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct', 'llama-3.3-70b-versatile'];
 const GROQ_AUDIO = ['whisper-large-v3-turbo', 'whisper-large-v3'];
 
-async function groqChat(apiKey, content, modelos) {
+async function groqChat(apiKey, content, modelos, bruto = false) {
   let ultimo = '';
   for (const model of modelos) {
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -56,7 +72,7 @@ async function groqChat(apiKey, content, modelos) {
       const txt = j && j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message.content : '';
       const out = extrairJson(txt);
       if (!out) throw new ErroIA('A IA respondeu num formato inesperado. Tenta de novo.');
-      return limpar(out);
+      return bruto ? out : limpar(out);
     }
     const t = await r.text(); ultimo = t.slice(0, 300);
     if (r.status === 401) throw new ErroIA('A chave da Groq está inválida. Confira GROQ_API_KEY na Vercel.', true);
@@ -92,11 +108,12 @@ async function viaGroq({ apiKey, modo, de, para, texto, base64, mime }) {
   const D = nome(de), P = nome(para);
   const chat = [...new Set([(process.env.GROQ_MODEL || '').trim(), ...GROQ_CHAT].filter(Boolean))];
   if (modo === 'texto') return groqChat(apiKey, promptTexto(D, P, texto), chat);
-  if (modo === 'imagem') {
-    return groqChat(apiKey, [
-      { type: 'text', text: promptImagem(P) },
+  if (modo === 'imagem' || modo === 'recibo') {
+    const out = await groqChat(apiKey, [
+      { type: 'text', text: modo === 'recibo' ? promptRecibo() : promptImagem(P) },
       { type: 'image_url', image_url: { url: `data:${mime || 'image/jpeg'};base64,${base64}` } },
-    ], chat);
+    ], chat, modo === 'recibo');
+    return modo === 'recibo' ? limparRecibo(out) : out;
   }
   // áudio: primeiro vira texto (whisper), depois traduz
   const falado = await groqTranscrever(apiKey, base64, mime, de);
@@ -115,10 +132,14 @@ async function viaGemini({ apiKey, modo, de, para, texto, base64, mime }) {
   const parts = [];
   if (modo === 'texto') parts.push({ text: promptTexto(D, P, texto) });
   else if (modo === 'imagem') parts.push({ text: promptImagem(P) }, { inline_data: { mime_type: mime || 'image/jpeg', data: base64 } });
+  else if (modo === 'recibo') parts.push({ text: promptRecibo() }, { inline_data: { mime_type: mime || 'image/jpeg', data: base64 } });
   else parts.push({ text: promptAudio(D, P) }, { inline_data: { mime_type: mime || 'audio/wav', data: base64 } });
+  const recibo = modo === 'recibo';
   const body = JSON.stringify({
     contents: [{ role: 'user', parts }],
-    generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseSchema: { type: 'OBJECT', properties: { original: { type: 'STRING' }, traduzido: { type: 'STRING' } }, required: ['original', 'traduzido'] } },
+    generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseSchema: recibo
+      ? { type: 'OBJECT', properties: { valor: { type: 'NUMBER', nullable: true }, moeda: { type: 'STRING', nullable: true }, data: { type: 'STRING', nullable: true }, estabelecimento: { type: 'STRING', nullable: true }, categoria: { type: 'STRING', nullable: true } } }
+      : { type: 'OBJECT', properties: { original: { type: 'STRING' }, traduzido: { type: 'STRING' } }, required: ['original', 'traduzido'] } },
   });
   const candidatos = [...new Set([(process.env.GEMINI_MODEL || '').trim(), ...GEMINI_MODELOS].filter(Boolean))];
   let ultimo = '';
@@ -131,7 +152,7 @@ async function viaGemini({ apiKey, modo, de, para, texto, base64, mime }) {
       const txt = j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts ? j.candidates[0].content.parts.map((p) => p.text || '').join('') : '';
       const out = extrairJson(txt);
       if (!out) throw new ErroIA('A IA respondeu num formato inesperado. Tenta de novo.');
-      return limpar(out);
+      return recibo ? limparRecibo(out) : limpar(out);
     }
     const t = await r.text(); ultimo = t.slice(0, 300);
     if (r.status === 400 && /API key not valid/i.test(t)) throw new ErroIA('A chave do Gemini está inválida. Confira GEMINI_API_KEY na Vercel.', true);
@@ -165,7 +186,7 @@ export async function POST(request) {
     if (!groqKey && !geminiKey) return Response.json({ ok: false, erro: 'Nenhuma chave de IA configurada na Vercel (GROQ_API_KEY ou GEMINI_API_KEY).' }, { status: 500 });
 
     const { modo, de, para, texto, base64, mime } = await request.json();
-    if (!['texto', 'imagem', 'audio'].includes(modo)) return Response.json({ ok: false, erro: 'Modo inválido' }, { status: 400 });
+    if (!['texto', 'imagem', 'audio', 'recibo'].includes(modo)) return Response.json({ ok: false, erro: 'Modo inválido' }, { status: 400 });
     if (modo === 'texto') {
       if (!texto || !texto.trim()) return Response.json({ ok: false, erro: 'Sem texto' }, { status: 400 });
       if (texto.length > 4000) return Response.json({ ok: false, erro: 'Texto grande demais (máx. 4.000 letras)' }, { status: 413 });
@@ -182,7 +203,7 @@ export async function POST(request) {
     for (const p of provedores) {
       try {
         const out = await p();
-        return Response.json({ ok: true, ...out });
+        return Response.json(modo === 'recibo' ? { ok: true, dados: out } : { ok: true, ...out });
       } catch (e) {
         ultimoErro = e;
         if (!(e instanceof ErroIA) || !e.tentarOutro) break;

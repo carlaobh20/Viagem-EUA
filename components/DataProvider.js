@@ -171,7 +171,7 @@ export function DataProvider({ session, children }) {
 
   async function salvarGasto({ descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile, privado, compartilhadoCom }) {
     let recibo_url = null;
-    if (reciboFile) recibo_url = await subirRecibo(reciboFile);
+    if (reciboFile) { recibo_url = await subirRecibo(reciboFile); if (!recibo_url) throw new Error('Não consegui enviar a foto do comprovante. Confere a internet e tenta de novo.'); }
     const { data: novo, error } = await supabase.from('gastos').insert({
       viagem_id: viagem.id, descricao, valor, moeda, categoria, pago_por: pagoPor, ponto_id: pontoId || null, data, recibo_url, privado: !!privado, user_id: session.user.id,
     }).select().single();
@@ -184,9 +184,9 @@ export function DataProvider({ session, children }) {
     await carregar();
   }
 
-  async function atualizarGasto({ id, descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile, reciboUrlAtual, privado, compartilhadoCom, userIdAtual }) {
-    let recibo_url = reciboUrlAtual || null;
-    if (reciboFile) recibo_url = await subirRecibo(reciboFile);
+  async function atualizarGasto({ id, descricao, valor, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile, reciboUrlAtual, removerRecibo, privado, compartilhadoCom, userIdAtual }) {
+    let recibo_url = removerRecibo ? null : (reciboUrlAtual || null);
+    if (reciboFile) { const novo = await subirRecibo(reciboFile); if (!novo) throw new Error('Não consegui enviar a foto do comprovante. Confere a internet e tenta de novo.'); recibo_url = novo; }
     // Gastos antigos foram criados antes da coluna user_id existir e ficaram com user_id nulo.
     // Se houver uma política de RLS de UPDATE exigindo user_id = auth.uid(), editá-los falha.
     // Preenchemos o user_id com o do editor quando estiver vazio (não rouba a autoria de quem já tem).
