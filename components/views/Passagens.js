@@ -49,6 +49,78 @@ const Campo = ({ label, children, meio }) => (
   <div style={{ marginBottom: 12, flex: meio ? 1 : undefined, minWidth: 0 }}><div style={rotulo}>{label}</div>{children}</div>
 );
 
+// Cartão de uma passagem. Tudo empilhado em linhas (nada lado a lado com texto
+// livre): nome de aeroporto comprido, lista de passageiros e localizador
+// quebram linha dentro do cartão em vez de vazar pra fora.
+const CARD = { background: 'var(--ui-card)', borderRadius: 18, boxShadow: 'var(--ui-shadow)' };
+const QUEBRA = { minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' };
+function LinhaCopiavel({ label, valor, chave, mono, copiado, onCopiar }) {
+  if (!valor) return null;
+  const ok = copiado === chave;
+  return (
+    <button onClick={() => onCopiar(valor, chave)} title="Toque pra copiar" style={{ display: 'grid', gridTemplateColumns: '84px minmax(0, 1fr) 52px', alignItems: 'center', columnGap: 8, width: '100%', border: 'none', background: 'var(--ui-bg)', borderRadius: 12, padding: '9px 12px', cursor: 'pointer', textAlign: 'left', color: 'var(--ui-ink)' }}>
+      <span style={{ fontSize: 11.5, color: 'var(--ui-muted)', fontWeight: 700, lineHeight: 1.2 }}>{label}</span>
+      <span style={{ ...QUEBRA, fontSize: mono ? 15 : 14, fontWeight: mono ? 800 : 600, letterSpacing: mono ? '.6px' : 0, fontFamily: mono ? 'ui-monospace, Menlo, Consolas, monospace' : 'inherit', lineHeight: 1.3 }}>{valor}</span>
+      <span style={{ fontSize: 11, color: ok ? 'var(--ui-teal)' : 'var(--ui-faint)', textAlign: 'right', whiteSpace: 'nowrap' }}>{ok ? 'copiado ✓' : 'copiar'}</span>
+    </button>
+  );
+}
+function Trecho({ rotuloTxt, valor, hora, horaTxt }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '44px minmax(0, 1fr)', columnGap: 8, alignItems: 'baseline' }}>
+      <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '1px', color: 'var(--ui-faint)' }}>{rotuloTxt}</span>
+      <div style={QUEBRA}>
+        <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.25 }}>{valor || '—'}</span>
+        {hora && <span style={{ fontSize: 12.5, color: 'var(--ui-muted)', marginLeft: 8, whiteSpace: 'nowrap' }}>{horaTxt} {hora}</span>}
+      </div>
+    </div>
+  );
+}
+export function CartaoPassagem({ p, copiado, onCopiar, onEditar }) {
+  const s = nomeSentido(p.sentido);
+  const faltam = diasAte(p.data);
+  const tel = soDigitos(p.telefone);
+  const chip = faltam == null || faltam < 0 ? null : faltam === 0 ? 'é hoje!' : faltam === 1 ? 'é amanhã' : `faltam ${faltam} dias`;
+  return (
+    <div style={{ ...CARD, padding: 14, marginBottom: 12, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '30px minmax(0, 1fr) 34px', columnGap: 8, alignItems: 'start', marginBottom: 12 }}>
+        <span style={{ fontSize: 22, lineHeight: 1.2 }}>{s.emoji}</span>
+        <div style={QUEBRA}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.8px', color: 'var(--ui-muted)', lineHeight: 1.3 }}>{s.label.toUpperCase()}{p.companhia ? ` · ${p.companhia}` : ''}{p.voo ? ` · voo ${p.voo}` : ''}</div>
+          {(p.data || chip) && (
+            <div style={{ fontSize: 13.5, color: 'var(--ui-muted)', marginTop: 3, lineHeight: 1.35 }}>
+              {dataBonita(p.data)}
+              {chip && <span style={{ display: 'inline-block', marginLeft: 6, padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: faltam <= 1 ? 'rgba(194,65,12,.12)' : 'rgba(14,156,140,.12)', color: faltam <= 1 ? '#C2410C' : 'var(--ui-teal)', whiteSpace: 'nowrap' }}>{chip}</span>}
+            </div>
+          )}
+        </div>
+        <button onClick={() => onEditar(p)} aria-label="Editar" style={{ border: 'none', background: 'var(--ui-bg)', borderRadius: 10, width: 34, height: 34, cursor: 'pointer', fontSize: 15 }}>✏️</button>
+      </div>
+
+      {(p.origem || p.destino) && (
+        <div style={{ display: 'grid', rowGap: 8, padding: '0 2px 12px' }}>
+          <Trecho rotuloTxt="DE" valor={p.origem} hora={p.hora} horaTxt="sai" />
+          <Trecho rotuloTxt="PARA" valor={p.destino} hora={p.hora_chegada} horaTxt="chega" />
+        </div>
+      )}
+
+      <div style={{ display: 'grid', rowGap: 6 }}>
+        <LinhaCopiavel label="Localizador" valor={p.localizador} chave={`loc-${p.id}`} mono copiado={copiado} onCopiar={onCopiar} />
+        <LinhaCopiavel label="Nº do pedido" valor={p.pedido} chave={`ped-${p.id}`} mono copiado={copiado} onCopiar={onCopiar} />
+        <LinhaCopiavel label="Passageiros" valor={p.passageiros} chave={`pax-${p.id}`} copiado={copiado} onCopiar={onCopiar} />
+        <LinhaCopiavel label="Assentos" valor={p.assentos} chave={`ass-${p.id}`} copiado={copiado} onCopiar={onCopiar} />
+      </div>
+      {p.obs && <div style={{ ...QUEBRA, fontSize: 13, color: 'var(--ui-muted)', marginTop: 10, whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{p.obs}</div>}
+
+      {p.telefone && (
+        <a href={tel ? `tel:${tel}` : undefined} style={{ display: 'block', marginTop: 12, borderRadius: 12, padding: '11px 12px', background: 'var(--ui-teal)', color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none', textAlign: 'center', lineHeight: 1.35, ...QUEBRA }}>
+          📞 Ligar pra {p.companhia || 'companhia'} · {p.telefone}
+        </a>
+      )}
+    </div>
+  );
+}
+
 export default function Passagens({ ir }) {
   const { viagem, passagens, adicionarPassagem, editarPassagem, removerPassagem } = useData();
   const [form, setForm] = useState(null);   // null | { id?, ...campos }
@@ -101,62 +173,6 @@ export default function Passagens({ ir }) {
     if (await copiar(valor)) { setCopiado(chave); setTimeout(() => setCopiado(''), 1500); }
   }
 
-  const Cartao = ({ p }) => {
-    const s = nomeSentido(p.sentido);
-    const faltam = diasAte(p.data);
-    const tel = soDigitos(p.telefone);
-    const Linha = ({ label, valor, chave, mono }) => valor ? (
-      <button onClick={() => copiarCampo(valor, chave)} title="Toque pra copiar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', border: 'none', background: 'var(--ui-bg)', borderRadius: 12, padding: '9px 12px', cursor: 'pointer', textAlign: 'left', color: 'var(--ui-ink)' }}>
-        <span style={{ fontSize: 11.5, color: 'var(--ui-muted)', fontWeight: 700, flex: '0 0 auto' }}>{label}</span>
-        <span style={{ fontSize: mono ? 17 : 14, fontWeight: mono ? 800 : 600, letterSpacing: mono ? '1.5px' : 0, fontFamily: mono ? 'ui-monospace, Menlo, Consolas, monospace' : 'inherit', flex: 1, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{valor}</span>
-        <span style={{ fontSize: 11, color: copiado === chave ? 'var(--ui-teal)' : 'var(--ui-faint)', flex: '0 0 auto', minWidth: 46, textAlign: 'right' }}>{copiado === chave ? 'copiado ✓' : 'copiar'}</span>
-      </button>
-    ) : null;
-    return (
-      <div style={{ ...card, padding: 14, marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <span style={{ fontSize: 22, flex: '0 0 auto' }}>{s.emoji}</span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: 'var(--ui-muted)' }}>{s.label.toUpperCase()}{p.companhia ? ` · ${p.companhia}` : ''}{p.voo ? ` · voo ${p.voo}` : ''}</div>
-            <div style={{ fontSize: 13.5, color: 'var(--ui-muted)', marginTop: 2 }}>
-              {dataBonita(p.data)}{p.hora ? ` · ${p.hora}` : ''}{p.hora_chegada ? ` → ${p.hora_chegada}` : ''}
-              {faltam != null && faltam >= 0 && <span style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 700, color: faltam <= 1 ? '#C2410C' : 'var(--ui-teal)' }}>{faltam === 0 ? 'é hoje!' : faltam === 1 ? 'é amanhã' : `faltam ${faltam} dias`}</span>}
-            </div>
-          </div>
-          <button onClick={() => abrirEdicao(p)} aria-label="Editar" style={{ border: 'none', background: 'var(--ui-bg)', borderRadius: 10, width: 34, height: 34, cursor: 'pointer', fontSize: 15, flex: '0 0 auto' }}>✏️</button>
-        </div>
-
-        {(p.origem || p.destino) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px 12px' }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.origem || '—'}</div>
-              {p.hora && <div style={{ fontSize: 12, color: 'var(--ui-muted)' }}>sai {p.hora}</div>}
-            </div>
-            <div style={{ flex: '0 0 auto', color: 'var(--ui-faint)', fontSize: 18 }}>✈︎ →</div>
-            <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
-              <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.destino || '—'}</div>
-              {p.hora_chegada && <div style={{ fontSize: 12, color: 'var(--ui-muted)' }}>chega {p.hora_chegada}</div>}
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: 'grid', gap: 6 }}>
-          <Linha label="Localizador" valor={p.localizador} chave={`loc-${p.id}`} mono />
-          <Linha label="Nº do pedido" valor={p.pedido} chave={`ped-${p.id}`} mono />
-          <Linha label="Passageiros" valor={p.passageiros} chave={`pax-${p.id}`} />
-          <Linha label="Assentos" valor={p.assentos} chave={`ass-${p.id}`} />
-        </div>
-        {p.obs && <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 10, whiteSpace: 'pre-wrap' }}>{p.obs}</div>}
-
-        {p.telefone && (
-          <a href={tel ? `tel:${tel}` : undefined} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, borderRadius: 12, padding: '11px 12px', background: 'var(--ui-teal)', color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none' }}>
-            📞 Ligar pra {p.companhia || 'companhia'} · {p.telefone}
-          </a>
-        )}
-      </div>
-    );
-  };
-
   const Secao = ({ sentido, itens }) => {
     const s = nomeSentido(sentido);
     return (
@@ -165,7 +181,7 @@ export default function Passagens({ ir }) {
           <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: 'var(--ui-muted)' }}>{s.emoji} {s.label.toUpperCase()}</span>
           {itens.length > 0 && <button onClick={() => abrirNova(sentido)} style={{ border: 'none', background: 'none', color: 'var(--ui-teal)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>+ outra</button>}
         </div>
-        {itens.map((p) => <Cartao key={p.id} p={p} />)}
+        {itens.map((p) => <CartaoPassagem key={p.id} p={p} copiado={copiado} onCopiar={copiarCampo} onEditar={abrirEdicao} />)}
         {itens.length === 0 && (
           <button onClick={() => abrirNova(sentido)} style={{ ...card, width: '100%', border: '1.5px dashed var(--ui-line)', boxShadow: 'none', background: 'transparent', padding: '18px 14px', cursor: 'pointer', color: 'var(--ui-muted)', fontSize: 14, fontWeight: 600, textAlign: 'center' }}>
             + Adicionar passagem de {s.label.toLowerCase()}
