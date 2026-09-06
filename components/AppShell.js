@@ -21,6 +21,7 @@ const Frases = lazy(() => import('./views/Frases'));
 const AppsInstalar = lazy(() => import('./views/AppsInstalar'));
 const BoasVindas = lazy(() => import('./views/BoasVindas'));
 const Diario = lazy(() => import('./views/Diario'));
+const Passagens = lazy(() => import('./views/Passagens'));
 
 const Carregando = () => <div className="center-msg">Carregando…</div>;
 
@@ -67,6 +68,7 @@ export default function AppShell() {
         {view === 'frases' && <Frases ir={irPara} categoriaInicial={viewParam} />}
         {view === 'appsinstalar' && <AppsInstalar ir={irPara} />}
         {view === 'diario' && <Diario ir={irPara} />}
+        {view === 'passagens' && <Passagens ir={irPara} />}
         {view === 'viagens' && <Viagens ir={irPara} />}
         {view === 'conta' && <Conta ir={irPara} />}
       </Suspense>

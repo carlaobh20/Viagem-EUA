@@ -13,7 +13,7 @@ const PATHS = {
 // checklist NÃO entra aqui: quando não tem aba própria de Checklist (viagem com
 // Motorhome no transporte), ele mora dentro do Menu como sempre foi; quando tem aba
 // própria (viagem sem Motorhome), a própria aba acende — ver `ativo` mais abaixo.
-const NO_MENU = ['menu', 'gastos', 'checklist', 'compras', 'pessoas', 'acerto', 'conta', 'diario', 'lugares', 'frases', 'appsinstalar'];
+const NO_MENU = ['menu', 'gastos', 'checklist', 'compras', 'pessoas', 'acerto', 'conta', 'diario', 'lugares', 'frases', 'appsinstalar', 'passagens'];
 
 export default function Nav({ view, setView }) {
   const { viagem } = useData();

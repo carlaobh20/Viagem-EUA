@@ -17,11 +17,12 @@ const IT = {
   viagens: { id: 'viagens', label: 'Trocar de viagem', sub: 'Ver e abrir suas viagens', cor: '#5F5E5A', bg: 'rgba(95,94,90,.12)', icon: <><rect x="3" y="7" width="18" height="13" rx="2.5" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></> },
   frases: { id: 'frases', label: 'Conversar em inglês', sub: 'Frases prontas + tradutor por foto', cor: '#0E7C9C', bg: 'rgba(14,124,156,.12)', icon: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h8M8 13h5" /></> },
   appsinstalar: { id: 'appsinstalar', label: 'Apps pra instalar', sub: 'Nome, função e o benefício de cada um', cor: '#2563EB', bg: 'rgba(37,99,235,.12)', icon: <><rect x="5" y="2" width="14" height="20" rx="2.5" /><path d="M9 18h6" /></> },
+  passagens: { id: 'passagens', label: 'Passagem aérea', sub: 'Ida e volta: voo, localizador, pedido e 0800', cor: '#7C3AED', bg: 'rgba(124,58,237,.13)', icon: <><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" /></> },
   diario: { id: 'diario', label: 'Diário da viagem', sub: 'Texto, áudio e fotos de cada dia', cor: '#C2410C', bg: 'rgba(234,88,12,.14)', icon: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></> },
 };
 
 const INDIVIDUAL = [IT.checklist, IT.compras];
-const COMPARTILHADO = [IT.diario, IT.gastos, IT.acerto, IT.lugares, IT.frases, IT.appsinstalar, IT.pessoas];
+const COMPARTILHADO = [IT.diario, IT.passagens, IT.gastos, IT.acerto, IT.lugares, IT.frases, IT.appsinstalar, IT.pessoas];
 
 export default function Menu({ ir }) {
   const { viagem, perfis } = useData();
@@ -41,6 +42,11 @@ export default function Menu({ ir }) {
   // no Menu que some.
   const sozinho = (perfis || []).length <= 1;
 
+  // "Passagem aérea" só aparece se a viagem tiver avião no transporte. Viagem
+  // sem perfil de transporte (as antigas) continua vendo — mesma regra do Checklist.
+  const transporte = Array.isArray(viagem?.transporte) ? viagem.transporte : [];
+  const mostrarPassagens = transporte.length === 0 || transporte.includes('aviao');
+
   const bate = (it) => {
     const q = busca.trim().toLowerCase();
     if (!q) return true;
@@ -49,6 +55,7 @@ export default function Menu({ ir }) {
   const individualFiltrado = INDIVIDUAL.filter(bate);
   let compartilhado = mostrarFrases ? COMPARTILHADO : COMPARTILHADO.filter((it) => it.id !== 'frases');
   if (sozinho) compartilhado = compartilhado.filter((it) => it.id !== 'acerto');
+  if (!mostrarPassagens) compartilhado = compartilhado.filter((it) => it.id !== 'passagens');
   const compartilhadoFiltrado = [...compartilhado, IT.viagens].filter(bate);
   const semResultado = busca.trim() && individualFiltrado.length === 0 && compartilhadoFiltrado.length === 0;
 
