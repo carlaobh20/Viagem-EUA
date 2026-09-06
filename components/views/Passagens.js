@@ -14,7 +14,7 @@ const SENTIDOS = [
 ];
 const nomeSentido = (id) => (SENTIDOS.find((s) => s.id === id) || SENTIDOS[2]);
 
-const VAZIO = { sentido: 'ida', companhia: '', telefone: '', origem: '', destino: '', data: '', hora: '', hora_chegada: '', voo: '', localizador: '', pedido: '', passageiros: '', assentos: '', obs: '' };
+const VAZIO = { sentido: 'ida', companhia: '', telefone: '', origem: '', destino: '', data: '', hora: '', hora_chegada: '', data_chegada: '', voo: '', localizador: '', pedido: '', passageiros: '', assentos: '', obs: '' };
 
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -31,6 +31,25 @@ function diasAte(iso) {
   if (!a || !m || !d) return null;
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   return Math.round((new Date(a, m - 1, d) - hoje) / 86400000);
+}
+function somarDias(iso, n) {
+  const [a, m, d] = String(iso || '').slice(0, 10).split('-').map(Number);
+  if (!a || !m || !d) return '';
+  const dt = new Date(a, m - 1, d + n);
+  const z = (x) => String(x).padStart(2, '0');
+  return `${dt.getFullYear()}-${z(dt.getMonth() + 1)}-${z(dt.getDate())}`;
+}
+function difDias(a, b) {
+  const pa = String(a || '').slice(0, 10).split('-').map(Number), pb = String(b || '').slice(0, 10).split('-').map(Number);
+  if (pa.length < 3 || pb.length < 3 || !pa[0] || !pb[0]) return 0;
+  return Math.round((new Date(pb[0], pb[1] - 1, pb[2]) - new Date(pa[0], pa[1] - 1, pa[2])) / 86400000);
+}
+// Sugestão de data de chegada: se a hora de chegada é "menor" que a de saída
+// (ex.: sai 22:30, chega 06:15), o voo vira a noite → dia seguinte.
+function chegadaSugerida({ data, hora, hora_chegada }) {
+  if (!data) return '';
+  if (hora && hora_chegada && hora_chegada < hora) return somarDias(data, 1);
+  return data;
 }
 const soDigitos = (t) => String(t || '').replace(/[^\d+]/g, '');
 
@@ -65,13 +84,18 @@ function LinhaCopiavel({ label, valor, chave, mono, copiado, onCopiar }) {
     </button>
   );
 }
-function Trecho({ rotuloTxt, valor, hora, horaTxt }) {
+function Trecho({ rotuloTxt, valor, hora, horaTxt, dataTxt, maisDias }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '44px minmax(0, 1fr)', columnGap: 8, alignItems: 'baseline' }}>
       <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '1px', color: 'var(--ui-faint)' }}>{rotuloTxt}</span>
       <div style={QUEBRA}>
         <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.25 }}>{valor || '—'}</span>
         {hora && <span style={{ fontSize: 12.5, color: 'var(--ui-muted)', marginLeft: 8, whiteSpace: 'nowrap' }}>{horaTxt} {hora}</span>}
+        {dataTxt && (
+          <div style={{ fontSize: 12.5, color: maisDias ? '#C2410C' : 'var(--ui-muted)', fontWeight: maisDias ? 700 : 500, marginTop: 2 }}>
+            {maisDias ? '⚠️ ' : ''}{dataTxt}{maisDias ? ` · ${maisDias === 1 ? 'chega no dia seguinte' : `+${maisDias} dias`}` : ''}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -80,6 +104,9 @@ export function CartaoPassagem({ p, copiado, onCopiar, onEditar }) {
   const s = nomeSentido(p.sentido);
   const faltam = diasAte(p.data);
   const tel = soDigitos(p.telefone);
+  // data de chegada: a gravada ou, pra passagem antiga sem esse campo, a sugerida
+  const dataChegada = p.data_chegada || chegadaSugerida(p);
+  const maisDias = p.data && dataChegada ? Math.max(0, difDias(p.data, dataChegada)) : 0;
   const chip = faltam == null || faltam < 0 ? null : faltam === 0 ? 'é hoje!' : faltam === 1 ? 'é amanhã' : `faltam ${faltam} dias`;
   return (
     <div style={{ ...CARD, padding: 14, marginBottom: 12, overflow: 'hidden' }}>
@@ -99,8 +126,8 @@ export function CartaoPassagem({ p, copiado, onCopiar, onEditar }) {
 
       {(p.origem || p.destino) && (
         <div style={{ display: 'grid', rowGap: 8, padding: '0 2px 12px' }}>
-          <Trecho rotuloTxt="DE" valor={p.origem} hora={p.hora} horaTxt="sai" />
-          <Trecho rotuloTxt="PARA" valor={p.destino} hora={p.hora_chegada} horaTxt="chega" />
+          <Trecho rotuloTxt="DE" valor={p.origem} hora={p.hora} horaTxt="sai" dataTxt={p.data ? dataBonita(p.data) : ''} />
+          <Trecho rotuloTxt="PARA" valor={p.destino} hora={p.hora_chegada} horaTxt="chega" dataTxt={dataChegada && (maisDias > 0 || p.hora_chegada) ? dataBonita(dataChegada) : ''} maisDias={maisDias} />
         </div>
       )}
 
@@ -147,16 +174,25 @@ export default function Passagens({ ir }) {
   function abrirEdicao(p) {
     setErro('');
     const f = { id: p.id };
-    for (const k of Object.keys(VAZIO)) f[k] = p[k] == null ? '' : String(p[k]);
+    for (const k of Object.keys(VAZIO)) f[k] = p[k] == null ? '' : String(p[k]).slice(0, k.startsWith('data') ? 10 : undefined);
+    f._chegadaManual = !!p.data_chegada && p.data_chegada !== chegadaSugerida(p);
     setForm(f);
   }
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  // data/hora mudaram → recalcula a data de chegada sugerida, a não ser que a
+  // pessoa já tenha mexido nela à mão (_chegadaManual)
+  const setComChegada = (k) => (e) => setForm((f) => {
+    const n = { ...f, [k]: e.target.value };
+    if (!n._chegadaManual) n.data_chegada = chegadaSugerida(n);
+    return n;
+  });
 
   async function salvar() {
     if (!form) return;
     if (!form.companhia.trim() && !form.localizador.trim() && !form.origem.trim()) { setErro('Preenche pelo menos a companhia, o trecho ou o localizador.'); return; }
     setSalvando(true); setErro('');
-    const { id, ...campos } = form;
+    const { id, _chegadaManual, ...campos } = form;
+    if (!campos.data_chegada) campos.data_chegada = chegadaSugerida(campos);
     const r = id ? await editarPassagem(id, campos) : await adicionarPassagem(campos);
     setSalvando(false);
     if (r && r.erro) { setErro(r.erro); return; }
@@ -221,10 +257,16 @@ export default function Passagens({ ir }) {
             <Campo label="PRA ONDE" meio><input style={inp} value={form.destino} onChange={set('destino')} placeholder="MCO · Orlando" /></Campo>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Campo label="DATA" meio><input style={inp} type="date" value={form.data} onChange={set('data')} /></Campo>
-            <Campo label="SAÍDA" meio><input style={inp} type="time" value={form.hora} onChange={set('hora')} /></Campo>
-            <Campo label="CHEGADA" meio><input style={inp} type="time" value={form.hora_chegada} onChange={set('hora_chegada')} /></Campo>
+            <Campo label="DATA DE SAÍDA" meio><input style={inp} type="date" value={form.data} onChange={setComChegada('data')} /></Campo>
+            <Campo label="HORA SAÍDA" meio><input style={inp} type="time" value={form.hora} onChange={setComChegada('hora')} /></Campo>
           </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Campo label="DATA DE CHEGADA" meio><input style={inp} type="date" value={form.data_chegada} onChange={(e) => setForm((f) => ({ ...f, data_chegada: e.target.value, _chegadaManual: true }))} /></Campo>
+            <Campo label="HORA CHEGADA" meio><input style={inp} type="time" value={form.hora_chegada} onChange={setComChegada('hora_chegada')} /></Campo>
+          </div>
+          {form.data && form.data_chegada && difDias(form.data, form.data_chegada) > 0 && (
+            <div style={{ fontSize: 12.5, color: '#C2410C', fontWeight: 600, margin: '-4px 2px 12px' }}>⚠️ Chega {difDias(form.data, form.data_chegada) === 1 ? 'no dia seguinte' : `${difDias(form.data, form.data_chegada)} dias depois`} ({dataBonita(form.data_chegada)}).</div>
+          )}
 
           <div style={{ display: 'flex', gap: 10 }}>
             <Campo label="LOCALIZADOR" meio><input style={{ ...inp, textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }} value={form.localizador} onChange={(e) => setForm((f) => ({ ...f, localizador: e.target.value.toUpperCase() }))} placeholder="ABC123" autoCapitalize="characters" /></Campo>

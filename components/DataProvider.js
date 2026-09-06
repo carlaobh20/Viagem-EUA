@@ -276,7 +276,7 @@ export function DataProvider({ session, children }) {
   async function removerLugar(id) { await supabase.from('lugares').delete().eq('id', id); await carregar(); }
 
   // ----- Passagem aérea (compartilhada com a viagem) -----
-  const CAMPOS_PASSAGEM = ['sentido', 'companhia', 'telefone', 'origem', 'destino', 'data', 'hora', 'hora_chegada', 'voo', 'localizador', 'pedido', 'passageiros', 'assentos', 'obs'];
+  const CAMPOS_PASSAGEM = ['sentido', 'companhia', 'telefone', 'origem', 'destino', 'data', 'hora', 'hora_chegada', 'data_chegada', 'voo', 'localizador', 'pedido', 'passageiros', 'assentos', 'obs'];
   function limparPassagem(c) {
     const out = {};
     for (const k of CAMPOS_PASSAGEM) {

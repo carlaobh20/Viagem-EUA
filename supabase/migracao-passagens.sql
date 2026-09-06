@@ -13,6 +13,7 @@ create table if not exists passagens (
   data date,
   hora text,                                 -- 'HH:MM' (saída)
   hora_chegada text,                         -- 'HH:MM' (opcional)
+  data_chegada date,                         -- quando o voo vira a noite / conexão longa
   voo text,                                  -- ex.: LA 8084
   localizador text,                          -- código de reserva (PNR)
   pedido text,                               -- número do pedido / e-ticket
@@ -32,3 +33,6 @@ create policy "passagens_update" on passagens for update to authenticated using 
 create policy "passagens_delete" on passagens for delete to authenticated using (e_membro(viagem_id));
 create index if not exists passagens_viagem_idx on passagens (viagem_id, data);
 alter publication supabase_realtime add table passagens;
+
+-- Adicionada depois (migration passagens_data_chegada, 06/09/2026):
+alter table passagens add column if not exists data_chegada date;
