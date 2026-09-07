@@ -33,3 +33,7 @@ insert into documento_arquivos (documento_id, viagem_id, nome, arquivo, mime, ta
 select id, viagem_id, titulo, arquivo, mime, tamanho, 0 from documentos
 where arquivo is not null and not exists (select 1 from documento_arquivos a where a.documento_id = documentos.id);
 alter table documentos alter column arquivo drop not null;
+
+-- Correção 07/09 (migration documento_arquivos_ordem_bigint, já aplicada): a coluna
+-- "ordem" recebia Date.now() e estourava o int4 → o arquivo subia e era apagado.
+alter table documento_arquivos alter column ordem type bigint;

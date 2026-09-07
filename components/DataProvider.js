@@ -316,7 +316,9 @@ export function DataProvider({ session, children }) {
   const extDe = (mime) => (mime === 'application/pdf' ? 'pdf' : mime === 'image/png' ? 'png' : 'jpg');
   async function subirArquivosDoc(docId, arquivos) {
     // arquivos: [{ file, mime, nome }]. Sobe um a um; devolve quantos falharam.
-    let falhas = 0, ordem = Date.now();
+    // ordem = posição na lista (número pequeno). Antes era Date.now() e estourava o
+    // limite do campo — o arquivo subia e era apagado em seguida.
+    let falhas = 0, ordem = Math.floor(Date.now() / 1000) % 1000000000;
     for (const a of arquivos || []) {
       if (!a || !a.file) continue;
       const path = `${viagem.id}/${docId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extDe(a.mime)}`;
