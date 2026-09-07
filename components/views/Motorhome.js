@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useData } from '../DataProvider';
+import ReservasRV from './ReservasRV';
 import { supabase } from '../../lib/supabaseClient';
 import { valorEmBRL, fmtBRL, fmtUSD, nomeCategoria, emojiCategoria, CATEGORIAS_MOTORHOME, hojeLocal, usaDolar } from '../../lib/format';
 
@@ -44,7 +45,7 @@ export default function Motorhome({ ir }) {
   const comDolar = usaDolar(viagem);
   const [km, setKm] = useState(null); // null = calculando; 0 = sem trecho de carro
   const [moeda, setMoeda] = useState('brl'); // 'brl' | 'usd'
-  const [aba, setAba] = useState('custos'); // 'custos' | 'mercado'
+  const [aba, setAba] = useState('custos'); // 'custos' | 'rvparks' | 'mercado'
   const cambioOk = comDolar && cambio > 0;
   const fmtMoeda = (brl) => (moeda === 'usd' && cambioOk) ? fmtUSD(brl / cambio) : fmtBRL(brl);
   const MI = 1.60934;
@@ -175,7 +176,7 @@ export default function Motorhome({ ir }) {
 
         {/* abas Custos / Mercado */}
         <div style={{ display: 'flex', gap: 4, background: '#EFEDE6', borderRadius: 16, padding: 3, marginBottom: 14 }}>
-          {[['custos', '💵 Custos'], ['mercado', '🛒 Mercado']].map(([id, lbl]) => (
+          {[['custos', '💵 Custos'], ['rvparks', '🏕️ RV Parks'], ['mercado', '🛒 Mercado']].map(([id, lbl]) => (
             <button key={id} onClick={() => setAba(id)}
               style={{ flex: 1, border: 'none', borderRadius: 13, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: aba === id ? 'var(--brand)' : 'transparent', color: aba === id ? '#fff' : 'var(--muted)' }}>{lbl}</button>
           ))}
@@ -326,6 +327,8 @@ export default function Motorhome({ ir }) {
           </>
         )}
         </>)}
+
+        {aba === 'rvparks' && <ReservasRV />}
 
         {aba === 'mercado' && (<>
           {/* progresso do carrinho */}
