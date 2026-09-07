@@ -227,7 +227,7 @@ export async function GET() {
   if (chaveGroq) {
     const m = await modelosGroq(chaveGroq, false);
     groqModelos = m.lista ? m.lista.length : 'não consegui listar (chave inválida?)';
-    groqEscolha = { texto_e_foto: m.chat, voz: m.audio };
+    groqEscolha = { texto_e_foto: m.chat, voz: m.audio, lista_completa: m.lista || [] };
   }
   return Response.json({
     groq: !!groqNome, groq_variavel: groqNome, groq_modelos_disponiveis: groqModelos, groq_modelos_escolhidos: groqEscolha,
