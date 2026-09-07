@@ -104,7 +104,7 @@ export function DataProvider({ session, children }) {
     // consultas em fila, o que deixava a tela "Carregando a viagem…" travada).
     const [
       { data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }, { data: ck },
-      { data: gd }, { data: lg }, { data: ai }, { data: pi }, { data: am }, { data: dr }, { data: pg }, { data: dc },
+      { data: gd }, { data: lg }, { data: ai }, { data: pi }, { data: am }, { data: dr }, { data: pg }, { data: dc }, { data: da },
     ] = await Promise.all([
       supabase.from('perfis').select('*').eq('viagem_id', v.id).order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
@@ -120,10 +120,11 @@ export function DataProvider({ session, children }) {
       supabase.from('diario_entradas').select('*').eq('viagem_id', v.id).order('data').order('criado_em'),
       supabase.from('passagens').select('*').eq('viagem_id', v.id).order('data').order('hora').order('criado_em'),
       supabase.from('documentos').select('*').eq('viagem_id', v.id).order('categoria').order('criado_em'),
+      supabase.from('documento_arquivos').select('*').eq('viagem_id', v.id).order('ordem'),
     ]);
     setPerfis(ps || []); setPontos(pts || []); setGastos(gs || []); setAcertos(acs || []); setRegistrosKm(rk || []); setChecklist(ck || []);
     setGuardados(gd || []); setLugares(lg || []); setAppsInstalar(ai || []); setPerguntasImigracao(pi || []); setAppsMarcados(am || []);
-    setDiario(dr || []); setPassagens(pg || []); setDocumentos(dc || []);
+    setDiario(dr || []); setPassagens(pg || []); setDocumentos((dc || []).map((d) => ({ ...d, arquivos: (da || []).filter((x) => x.documento_id === d.id) })));
     // divisões e "visto por" dependem dos ids dos gastos, então vão numa segunda leva (também paralela)
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) {
@@ -154,6 +155,7 @@ export function DataProvider({ session, children }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'diario_entradas' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'passagens' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'documentos' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'documento_arquivos' }, deb)
       .subscribe();
     return () => { clearTimeout(t); supabase.removeChannel(canal); };
   }, [carregar]);
@@ -306,18 +308,36 @@ export function DataProvider({ session, children }) {
   }
   async function removerPassagem(id) { await supabase.from('passagens').delete().eq('id', id); await carregar(); }
 
-  // ----- Documentos da viagem (PDF / foto no bucket privado "documentos") -----
-  async function adicionarDocumento({ titulo, categoria, obs, privado, file, mime }) {
+  // ----- Documentos da viagem: um documento = pasta com N arquivos (bucket privado "documentos") -----
+  const extDe = (mime) => (mime === 'application/pdf' ? 'pdf' : mime === 'image/png' ? 'png' : 'jpg');
+  async function subirArquivosDoc(docId, arquivos) {
+    // arquivos: [{ file, mime, nome }]. Sobe um a um; devolve quantos falharam.
+    let falhas = 0, ordem = Date.now();
+    for (const a of arquivos || []) {
+      if (!a || !a.file) continue;
+      const path = `${viagem.id}/${docId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extDe(a.mime)}`;
+      const { error: e1 } = await supabase.storage.from('documentos').upload(path, a.file, { contentType: a.mime || 'application/octet-stream', upsert: false });
+      if (e1) { falhas++; continue; }
+      const { error: e2 } = await supabase.from('documento_arquivos').insert({ documento_id: docId, viagem_id: viagem.id, nome: a.nome || null, arquivo: path, mime: a.mime || null, tamanho: a.file.size || null, ordem: ordem++ });
+      if (e2) { await supabase.storage.from('documentos').remove([path]); falhas++; }
+    }
+    return falhas;
+  }
+  async function adicionarDocumento({ titulo, categoria, obs, privado, arquivos }) {
     const t = (titulo || '').trim();
-    if (!t || !file) return { erro: 'Dá um nome e escolhe o arquivo.' };
-    const ext = (mime === 'application/pdf') ? 'pdf' : (mime === 'image/png' ? 'png' : 'jpg');
-    const path = `${viagem.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error: e1 } = await supabase.storage.from('documentos').upload(path, file, { contentType: mime || 'application/octet-stream', upsert: false });
-    if (e1) return { erro: 'Não consegui enviar o arquivo (' + (e1.message || 'erro') + '). Arquivo até 20 MB.' };
-    const { error: e2 } = await supabase.from('documentos').insert({ viagem_id: viagem.id, user_id: session.user.id, titulo: t, categoria: categoria || 'outros', arquivo: path, mime: mime || null, tamanho: file.size || null, obs: (obs || '').trim() || null, privado: !!privado });
-    if (e2) { await supabase.storage.from('documentos').remove([path]); return { erro: 'Não consegui salvar o documento.' }; }
+    if (!t) return { erro: 'Dá um nome pro documento.' };
+    if (!arquivos || !arquivos.length) return { erro: 'Escolhe pelo menos um arquivo.' };
+    const { data: doc, error } = await supabase.from('documentos').insert({ viagem_id: viagem.id, user_id: session.user.id, titulo: t, categoria: categoria || 'outros', obs: (obs || '').trim() || null, privado: !!privado }).select().single();
+    if (error || !doc) return { erro: 'Não consegui criar o documento.' };
+    const falhas = await subirArquivosDoc(doc.id, arquivos);
     await carregar();
-    return { ok: true };
+    if (falhas === arquivos.length) { await supabase.from('documentos').delete().eq('id', doc.id); await carregar(); return { erro: 'Não consegui enviar os arquivos. Confere a internet (máx. 20 MB cada).' }; }
+    return falhas ? { ok: true, aviso: `${falhas} arquivo(s) não subiram. Tenta adicionar de novo.` } : { ok: true };
+  }
+  async function adicionarArquivosDocumento(docId, arquivos) {
+    const falhas = await subirArquivosDoc(docId, arquivos);
+    await carregar();
+    return falhas ? { erro: `${falhas} arquivo(s) não subiram. Tenta de novo.` } : { ok: true };
   }
   async function editarDocumento(id, campos) {
     const patch = {};
@@ -330,18 +350,27 @@ export function DataProvider({ session, children }) {
     await carregar();
     return { ok: true };
   }
-  async function removerDocumento(doc) {
-    await supabase.from('documentos').delete().eq('id', doc.id);
-    if (doc.arquivo) await supabase.storage.from('documentos').remove([doc.arquivo]);
+  async function removerArquivoDocumento(arq) {
+    await supabase.from('documento_arquivos').delete().eq('id', arq.id);
+    if (arq.arquivo) await supabase.storage.from('documentos').remove([arq.arquivo]);
     await carregar();
   }
-  // link assinado (1 h) pra abrir/baixar — o bucket é privado
-  async function urlDocumento(doc, baixar) {
-    if (!doc || !doc.arquivo) return null;
-    const opts = baixar ? { download: doc.titulo ? doc.titulo.replace(/[\\/:*?"<>|]+/g, '-') : true } : undefined;
-    const { data } = await supabase.storage.from('documentos').createSignedUrl(doc.arquivo, 3600, opts);
+  async function removerDocumento(doc) {
+    const paths = (doc.arquivos || []).map((a) => a.arquivo).filter(Boolean);
+    if (doc.arquivo) paths.push(doc.arquivo);
+    await supabase.from('documentos').delete().eq('id', doc.id); // documento_arquivos cai em cascata
+    if (paths.length) await supabase.storage.from('documentos').remove(paths);
+    await carregar();
+  }
+  // link assinado (1 h) pra abrir/baixar um arquivo — o bucket é privado
+  async function urlArquivoDocumento(arq, baixar) {
+    if (!arq || !arq.arquivo) return null;
+    const nome = (arq.nome || 'documento').replace(/[\\/:*?"<>|]+/g, '-');
+    const opts = baixar ? { download: nome } : undefined;
+    const { data } = await supabase.storage.from('documentos').createSignedUrl(arq.arquivo, 3600, opts);
     return (data && data.signedUrl) || null;
   }
+
   async function lugarParaRoteiro(lugar, data, hora) {
     if (!viagem || !lugar) return;
     await supabase.from('pontos_roteiro').insert({ viagem_id: viagem.id, nome: lugar.nome, endereco: lugar.endereco || null, local: lugar.endereco || null, nota: lugar.comentario || null, data_inicio: data || null, hora: hora || null, tipo: 'passeio', ordem: 999 });
@@ -498,7 +527,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, passagens, adicionarPassagem, editarPassagem, removerPassagem, documentos, adicionarDocumento, editarDocumento, removerDocumento, urlDocumento, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, ocultarAppSugestao, reexibirAppSugestao, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome, diario, adicionarEntradaDiario, removerEntradaDiario, urlDiario };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, passagens, adicionarPassagem, editarPassagem, removerPassagem, documentos, adicionarDocumento, adicionarArquivosDocumento, editarDocumento, removerDocumento, removerArquivoDocumento, urlArquivoDocumento, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, ocultarAppSugestao, reexibirAppSugestao, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome, diario, adicionarEntradaDiario, removerEntradaDiario, urlDiario };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }
