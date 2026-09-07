@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useData } from '../DataProvider';
 import { dataLocal, hojeLocal } from '../../lib/format';
+import { supabase } from '../../lib/supabaseClient';
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -73,7 +74,19 @@ export default function Diario({ ir }) {
   const [diaExtra, setDiaExtra] = useState([]);
   const dias = Array.from(new Set([...diasBase, ...diaExtra])).sort();
 
-  const [diaSel, setDiaSel] = useState(() => (diasBase.includes(hojeLocal()) ? hojeLocal() : (diasBase[diasBase.length - 1] || hojeLocal())));
+  // Dia inicial: hoje (durante a viagem); antes da viagem, o primeiro dia; depois, o último.
+  const [diaSel, setDiaSel] = useState(() => {
+    const h = hojeLocal();
+    if (diasBase.includes(h)) return h;
+    if (diasBase.length && h < diasBase[0]) return diasBase[0];
+    return diasBase[diasBase.length - 1] || h;
+  });
+  const chipsRef = useRef(null);
+  useEffect(() => {
+    // deixa o dia escolhido visível na tira de dias
+    const el = chipsRef.current && chipsRef.current.querySelector(`[data-dia="${diaSel}"]`);
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [diaSel]);
   const dataInputRef = useRef(null);
 
   const entradasDoDia = diarioDoModo
@@ -163,6 +176,35 @@ export default function Diario({ ir }) {
   }
   function removerFoto(i) { setFotos((prev) => { const cp = [...prev]; URL.revokeObjectURL(cp[i].preview); cp.splice(i, 1); return cp; }); }
 
+  // ===== IA: transforma o áudio (e/ou o texto rascunhado) na entrada do diário =====
+  const [ia, setIa] = useState({ rodando: false, msg: '', ok: false });
+  const podeIA = !gravando && !ia.rodando && (audioBlob || texto.trim().length >= 8);
+  function blobParaBase64(blob) {
+    return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(blob); });
+  }
+  async function escreverComIA() {
+    if (!podeIA) return;
+    if (audioBlob && audioBlob.size > 3.5 * 1024 * 1024) { setIa({ rodando: false, msg: 'Áudio muito longo pra IA (máx. uns 5 minutos). Grava em partes ou publica só o áudio.', ok: false }); return; }
+    setIa({ rodando: true, msg: audioBlob ? 'Ouvindo o áudio e escrevendo…' : 'Organizando o texto…', ok: false });
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess && sess.session ? sess.session.access_token : null;
+      const body = { modo: 'diario', texto: texto.trim() || undefined };
+      if (audioBlob) { body.base64 = await blobParaBase64(audioBlob); body.mime = audioBlob.type || 'audio/webm'; }
+      const r = await fetch('/api/ia', { method: 'POST', headers: { 'content-type': 'application/json', authorization: token ? `Bearer ${token}` : '' }, body: JSON.stringify(body) });
+      const j = await r.json().catch(() => null);
+      const d = j && j.ok && j.diario;
+      if (!d || !d.texto) { setIa({ rodando: false, msg: (j && j.erro) || 'Não entendi o áudio. Tenta gravar mais perto do celular, sem barulho em volta.', ok: false }); return; }
+      const partes = [];
+      if (d.titulo) partes.push(`✨ ${d.titulo}`);
+      partes.push(d.texto);
+      if (d.destaques && d.destaques.length) partes.push('Destaques:\n' + d.destaques.map((x) => `• ${x}`).join('\n'));
+      if (d.lugares && d.lugares.length) partes.push(`📍 ${d.lugares.join(' · ')}`);
+      setTexto(partes.join('\n\n'));
+      setIa({ rodando: false, msg: 'Pronto — revisa, ajusta o que quiser e publica. O áudio continua anexado (tira no ✕ se não quiser).', ok: true });
+    } catch (e) { setIa({ rodando: false, msg: 'Sem resposta da IA agora. Tenta de novo em instantes.', ok: false }); }
+  }
+
   const podePublicar = (texto.trim() || fotos.length > 0 || audioBlob) && !publicando && !gravando;
 
   async function publicar() {
@@ -182,6 +224,7 @@ export default function Diario({ ir }) {
       fotos.forEach((f) => URL.revokeObjectURL(f.preview));
       setFotos([]);
       descartarAudio();
+      setIa({ rodando: false, msg: '', ok: false });
     } catch (e) {
       alert('Não consegui salvar: ' + (e && e.message ? e.message : 'erro desconhecido'));
     } finally { setPublicando(false); }
@@ -218,13 +261,13 @@ export default function Diario({ ir }) {
       )}
 
       {/* seletor de dias */}
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 16, WebkitOverflowScrolling: 'touch' }}>
+      <div ref={chipsRef} style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 16, WebkitOverflowScrolling: 'touch' }}>
         {dias.map((d) => {
           const c = fmtChip(d);
           const ativo = d === diaSel;
           const temEntrada = diasComEntrada.includes(d);
           return (
-            <button key={d} onClick={() => setDiaSel(d)} style={{
+            <button key={d} data-dia={d} onClick={() => setDiaSel(d)} style={{
               flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
               padding: '8px 13px', borderRadius: 14, border: 'none', cursor: 'pointer',
               background: ativo ? 'var(--ui-teal, #0E9C8C)' : 'var(--ui-card)',
@@ -289,6 +332,23 @@ export default function Diario({ ir }) {
               </>
             )}
           </div>
+        )}
+
+        {/* IA do diário */}
+        {(audioBlob || texto.trim().length >= 8 || ia.msg) && !gravando && (
+          <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: 'linear-gradient(135deg, rgba(16,185,129,.10), rgba(14,165,233,.10))' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={escreverComIA} disabled={!podeIA} className="v3-press" style={{ border: 'none', borderRadius: 20, padding: '8px 14px', fontSize: 12.5, fontWeight: 800, cursor: podeIA ? 'pointer' : 'default', background: podeIA ? 'linear-gradient(135deg,#7C3AED,#0EA5E9)' : 'var(--ui-line)', color: podeIA ? '#fff' : 'var(--ui-faint)' }}>
+                {ia.rodando ? '✨ Escrevendo…' : audioBlob ? '✨ Escrever com IA (do áudio)' : '✨ Arrumar com IA'}
+              </button>
+              <span style={{ fontSize: 11.5, color: 'var(--ui-muted)', flex: 1, minWidth: 140 }}>
+                {ia.msg ? <span style={{ color: ia.ok ? '#0F9D6B' : (ia.rodando ? 'var(--ui-muted)' : '#C2410C') }}>{ia.msg}</span> : (audioBlob ? 'A IA ouve o que você contou e escreve o dia bonito: título, parágrafos, destaques e lugares.' : 'A IA organiza seu rascunho em título, parágrafos e destaques.')}
+              </span>
+            </div>
+          </div>
+        )}
+        {!audioBlob && !gravando && !texto.trim() && (
+          <div style={{ fontSize: 11.5, color: 'var(--ui-faint)', marginTop: 6 }}>Dica: toca em 🎤, conta o dia do seu jeito (até uns 5 min), e depois em ✨ pra IA escrever por você.</div>
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>

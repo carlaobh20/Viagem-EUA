@@ -39,6 +39,24 @@ function limparRecibo(o) {
     categoria: CATEGORIAS_GASTO.includes(o.categoria) ? o.categoria : null,
   };
 }
+function promptDiario(relato, notas) {
+  return `Você organiza o diário de uma viagem em família (brasileiros). Abaixo está o relato ${relato ? 'FALADO (transcrição automática, pode ter erros de reconhecimento)' : 'escrito às pressas'} de um dia da viagem${notas ? ', e também anotações digitadas' : ''}.
+Escreva a entrada do diário desse dia em português do Brasil:
+- "titulo": título curto e afetuoso (até 7 palavras), sem aspas.
+- "texto": 2 a 5 parágrafos, em primeira pessoa (do plural quando for "a gente"/"nós"), tom natural e caloroso, como quem conta pra família ler depois. Mantenha TODOS os fatos, nomes de pessoas, lugares, horários e valores exatamente como foram ditos — não invente nada, não acrescente detalhes que não foram falados. Corrija erros óbvios de transcrição e tire vícios de fala ("aí", "tipo", "né"). Parágrafos separados por linha em branco.
+- "destaques": 3 a 6 itens curtos (até 8 palavras cada) com os melhores momentos ou fatos importantes.
+- "lugares": nomes dos lugares citados (cidades, parques, restaurantes, hotéis), sem repetir.
+Se o relato estiver vazio ou incompreensível, devolva "texto" vazio e "titulo" vazio.
+Responda SOMENTE em JSON: {"titulo": "...", "texto": "...", "destaques": ["..."], "lugares": ["..."]}
+
+RELATO:
+${relato || '(sem relato falado)'}${notas ? `\n\nANOTAÇÕES DIGITADAS:\n${notas}` : ''}`;
+}
+function limparDiario(o) {
+  o = o || {};
+  const lista = (v) => (Array.isArray(v) ? v : []).map((x) => String(x || '').trim()).filter(Boolean).slice(0, 8);
+  return { titulo: String(o.titulo || '').trim().slice(0, 80), texto: String(o.texto || '').trim(), destaques: lista(o.destaques), lugares: lista(o.lugares) };
+}
 function promptAudio(D, P) {
   return `Este áudio é uma pessoa falando em ${D}. 1) Transcreva exatamente o que ela disse (sem inventar; se não der pra entender, deixe "original" vazio). 2) Traduza para ${P}, do jeito que um nativo diria em conversa. Responda SOMENTE em JSON: {"original": "<transcrição em ${D}>", "traduzido": "<tradução em ${P}>"}.`;
 }
@@ -135,7 +153,8 @@ async function groqTranscrever(apiKey, base64, mime, lang, modelos) {
   let ultimo = '';
   for (const model of modelos) {
     const fd = new FormData();
-    fd.append('file', new Blob([bytes], { type: mime || 'audio/wav' }), 'fala.wav');
+    const ext = /webm/.test(mime || '') ? 'webm' : /mp4|m4a|aac/.test(mime || '') ? 'mp4' : /ogg|opus/.test(mime || '') ? 'ogg' : /mpeg|mp3/.test(mime || '') ? 'mp3' : 'wav';
+    fd.append('file', new Blob([bytes], { type: mime || 'audio/wav' }), `fala.${ext}`);
     fd.append('model', model);
     fd.append('language', iso(lang));
     fd.append('response_format', 'json');
@@ -162,6 +181,13 @@ async function viaGroq({ apiKey, modo, de, para, texto, base64, mime }) {
     ], chat, modo === 'recibo');
     return modo === 'recibo' ? limparRecibo(out) : out;
   }
+  if (modo === 'diario') {
+    // relato falado (opcional) + anotações digitadas (opcional) → entrada do diário
+    const relato = base64 ? await groqTranscrever(apiKey, base64, mime, 'pt-BR', audio) : '';
+    if (!relato && !(texto || '').trim()) return { titulo: '', texto: '', destaques: [], lugares: [], transcricao: '' };
+    const out = await groqChat(apiKey, promptDiario(relato, (texto || '').trim()), chat, true);
+    return { ...limparDiario(out), transcricao: relato };
+  }
   // áudio: primeiro vira texto (whisper), depois traduz
   const falado = await groqTranscrever(apiKey, base64, mime, de, audio);
   if (!falado) return { original: '', traduzido: '' };
@@ -180,13 +206,16 @@ async function viaGemini({ apiKey, modo, de, para, texto, base64, mime }) {
   if (modo === 'texto') parts.push({ text: promptTexto(D, P, texto) });
   else if (modo === 'imagem') parts.push({ text: promptImagem(P) }, { inline_data: { mime_type: mime || 'image/jpeg', data: base64 } });
   else if (modo === 'recibo') parts.push({ text: promptRecibo() }, { inline_data: { mime_type: mime || 'image/jpeg', data: base64 } });
+  else if (modo === 'diario') { parts.push({ text: promptDiario(base64 ? '(o relato está no áudio anexo — transcreva-o primeiro)' : '', (texto || '').trim()) }); if (base64) parts.push({ inline_data: { mime_type: mime || 'audio/mp4', data: base64 } }); }
   else parts.push({ text: promptAudio(D, P) }, { inline_data: { mime_type: mime || 'audio/wav', data: base64 } });
-  const recibo = modo === 'recibo';
+  const recibo = modo === 'recibo', diario = modo === 'diario';
   const body = JSON.stringify({
     contents: [{ role: 'user', parts }],
-    generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseSchema: recibo
+    generationConfig: { temperature: diario ? 0.5 : 0.2, responseMimeType: 'application/json', responseSchema: recibo
       ? { type: 'OBJECT', properties: { valor: { type: 'NUMBER', nullable: true }, moeda: { type: 'STRING', nullable: true }, data: { type: 'STRING', nullable: true }, estabelecimento: { type: 'STRING', nullable: true }, categoria: { type: 'STRING', nullable: true } } }
-      : { type: 'OBJECT', properties: { original: { type: 'STRING' }, traduzido: { type: 'STRING' } }, required: ['original', 'traduzido'] } },
+      : diario
+        ? { type: 'OBJECT', properties: { titulo: { type: 'STRING' }, texto: { type: 'STRING' }, destaques: { type: 'ARRAY', items: { type: 'STRING' } }, lugares: { type: 'ARRAY', items: { type: 'STRING' } } } }
+        : { type: 'OBJECT', properties: { original: { type: 'STRING' }, traduzido: { type: 'STRING' } }, required: ['original', 'traduzido'] } },
   });
   const candidatos = [...new Set([(process.env.GEMINI_MODEL || '').trim(), ...GEMINI_MODELOS].filter(Boolean))];
   let ultimo = '';
@@ -199,7 +228,7 @@ async function viaGemini({ apiKey, modo, de, para, texto, base64, mime }) {
       const txt = j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts ? j.candidates[0].content.parts.map((p) => p.text || '').join('') : '';
       const out = extrairJson(txt);
       if (!out) throw new ErroIA('A IA respondeu num formato inesperado. Tenta de novo.');
-      return recibo ? limparRecibo(out) : limpar(out);
+      return recibo ? limparRecibo(out) : diario ? limparDiario(out) : limpar(out);
     }
     const t = await r.text(); ultimo = t.slice(0, 300);
     if (r.status === 400 && /API key not valid/i.test(t)) throw new ErroIA('A chave do Gemini está inválida. Confira GEMINI_API_KEY na Vercel.', true);
@@ -259,10 +288,12 @@ export async function POST(request) {
     if (!groqKey && !geminiKey) return Response.json({ ok: false, erro: 'Nenhuma chave de IA configurada na Vercel (GROQ_API_KEY ou GEMINI_API_KEY).' }, { status: 500 });
 
     const { modo, de, para, texto, base64, mime } = await request.json();
-    if (!['texto', 'imagem', 'audio', 'recibo'].includes(modo)) return Response.json({ ok: false, erro: 'Modo inválido' }, { status: 400 });
+    if (!['texto', 'imagem', 'audio', 'recibo', 'diario'].includes(modo)) return Response.json({ ok: false, erro: 'Modo inválido' }, { status: 400 });
     if (modo === 'texto') {
       if (!texto || !texto.trim()) return Response.json({ ok: false, erro: 'Sem texto' }, { status: 400 });
       if (texto.length > 4000) return Response.json({ ok: false, erro: 'Texto grande demais (máx. 4.000 letras)' }, { status: 413 });
+    } else if (modo === 'diario') {
+      if (!base64 && !(texto || '').trim()) return Response.json({ ok: false, erro: 'Grava um áudio ou escreve algo primeiro.' }, { status: 400 });
     } else if (!base64) {
       return Response.json({ ok: false, erro: modo === 'audio' ? 'Sem áudio' : 'Sem imagem' }, { status: 400 });
     }
@@ -278,7 +309,7 @@ export async function POST(request) {
     for (const [nomeP, p] of provedores) {
       try {
         const out = await p();
-        return Response.json(modo === 'recibo' ? { ok: true, dados: out } : { ok: true, ...out });
+        return Response.json(modo === 'recibo' ? { ok: true, dados: out } : modo === 'diario' ? { ok: true, diario: out } : { ok: true, ...out });
       } catch (e) {
         const m = (e && e.message) || 'sem resposta';
         erros.push(`${nomeP}: ${m}`);
