@@ -164,6 +164,25 @@ async function viaGemini({ apiKey, modo, de, para, texto, base64, mime }) {
   throw new ErroIA('Nenhum modelo do Gemini disponível. Último erro: ' + ultimo, true);
 }
 
+// Diagnóstico (sem segredo): GET /api/ia → quais chaves foram encontradas e em
+// que nome de variável. Serve pra conferir a configuração da Vercel sem abrir código.
+export async function GET() {
+  const env = (k) => (process.env[k] || process.env[k.toLowerCase()] || '').trim();
+  const nomePorFormato = (re) => { for (const [k, v] of Object.entries(process.env)) { if (typeof v === 'string' && re.test(v.trim()) && !/^NEXT_PUBLIC_/.test(k)) return k; } return null; };
+  const groqNome = env('GROQ_API_KEY') ? 'GROQ_API_KEY' : nomePorFormato(/^gsk_[A-Za-z0-9]{20,}$/);
+  const geminiNome = env('GEMINI_API_KEY') ? 'GEMINI_API_KEY' : nomePorFormato(/^(AIza[0-9A-Za-z_-]{20,}|AQ\.[0-9A-Za-z_-]{20,})$/);
+  // pistas de chave Groq mal colada (espaço, aspas, quebra de linha, prefixo errado)
+  const suspeitas = Object.entries(process.env)
+    .filter(([k, v]) => typeof v === 'string' && !/^NEXT_PUBLIC_/.test(k) && /gsk/i.test(v) && !/^gsk_[A-Za-z0-9]{20,}$/.test(v.trim()))
+    .map(([k, v]) => `${k} (tamanho ${v.length}, começa com "${v.slice(0, 4)}")`);
+  return Response.json({
+    groq: !!groqNome, groq_variavel: groqNome,
+    gemini: !!geminiNome, gemini_variavel: geminiNome,
+    chave_groq_mal_colada: suspeitas,
+    dica: !groqNome ? 'Nenhuma variável com valor no formato gsk_… foi encontrada. Na Vercel: Settings → Environment Variables, confira o valor (sem aspas, sem espaço) e se está marcada em Production; depois faça um Redeploy.' : 'Chave da Groq encontrada.',
+  });
+}
+
 // =====================================================================
 export async function POST(request) {
   try {
@@ -196,21 +215,25 @@ export async function POST(request) {
     const args = { modo, de: de || 'pt-BR', para: para || 'pt-BR', texto, base64, mime };
 
     const provedores = [];
-    if (groqKey) provedores.push(() => viaGroq({ apiKey: groqKey, ...args }));
-    if (geminiKey) provedores.push(() => viaGemini({ apiKey: geminiKey, ...args }));
+    if (groqKey) provedores.push(['Groq', () => viaGroq({ apiKey: groqKey, ...args })]);
+    if (geminiKey) provedores.push(['Gemini', () => viaGemini({ apiKey: geminiKey, ...args })]);
 
-    let ultimoErro = null;
-    for (const p of provedores) {
+    // Guarda o erro de CADA provedor: antes, só o último aparecia e o erro do
+    // Gemini (reserva) escondia o motivo real da Groq ter falhado.
+    const erros = [];
+    for (const [nomeP, p] of provedores) {
       try {
         const out = await p();
         return Response.json(modo === 'recibo' ? { ok: true, dados: out } : { ok: true, ...out });
       } catch (e) {
-        ultimoErro = e;
+        const m = (e && e.message) || 'sem resposta';
+        erros.push(`${nomeP}: ${m}`);
+        console.error(`[api/ia] modo=${modo} provedor=${nomeP} falhou: ${m}`);
         if (!(e instanceof ErroIA) || !e.tentarOutro) break;
       }
     }
-    const msg = ultimoErro && ultimoErro.message ? ultimoErro.message : 'A IA não respondeu.';
-    return Response.json({ ok: false, erro: msg }, { status: 502 });
+    const msg = erros.length ? erros.join(' · ') : 'A IA não respondeu.';
+    return Response.json({ ok: false, erro: msg, provedores: provedores.map((x) => x[0]) }, { status: 502 });
   } catch (e) {
     return Response.json({ ok: false, erro: 'Erro inesperado: ' + (e && e.message ? e.message : String(e)) }, { status: 500 });
   }
