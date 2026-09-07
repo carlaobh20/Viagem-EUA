@@ -56,8 +56,55 @@ class ErroIA extends Error { constructor(msg, tentarOutro = false) { super(msg);
 // =====================================================================
 // GROQ (OpenAI-compatível): whisper pra áudio, llama com visão pra foto/texto
 // =====================================================================
-const GROQ_CHAT = ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct', 'llama-3.3-70b-versatile'];
-const GROQ_AUDIO = ['whisper-large-v3-turbo', 'whisper-large-v3'];
+// Nomes de modelo NÃO ficam fixos: a Groq aposenta modelos sem aviso (em set/2026
+// os três que estavam aqui sumiram de uma vez). A rota pergunta à Groq quais
+// modelos existem agora e escolhe por afinidade. Estes são só "chutes iniciais",
+// usados se a consulta da lista falhar.
+const GROQ_CHAT_PADRAO = ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+const GROQ_AUDIO_PADRAO = ['whisper-large-v3-turbo', 'whisper-large-v3', 'distil-whisper-large-v3-en'];
+const NAO_CHAT = /whisper|tts|guard|embed|orpheus|playai|moderation|safeguard|prompt|compound|allam/i;
+
+let _cacheModelos = { quando: 0, ids: null };
+async function listarModelosGroq(apiKey) {
+  if (_cacheModelos.ids && Date.now() - _cacheModelos.quando < 60 * 60 * 1000) return _cacheModelos.ids;
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { authorization: `Bearer ${apiKey}` } });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const ids = ((j && j.data) || []).filter((m) => m && m.id && m.active !== false).map((m) => m.id);
+    if (ids.length) _cacheModelos = { quando: Date.now(), ids };
+    return ids.length ? ids : null;
+  } catch (e) { return null; }
+}
+// Ordem de preferência pro chat/visão: Llama 4 (tem visão) > Llama grande > qualquer Llama > o resto
+function escolherChatGroq(ids, precisaVisao) {
+  const lista = (ids || []).filter((id) => !NAO_CHAT.test(id));
+  const nota = (id) => {
+    let n = 0;
+    if (/llama-4|llama4/i.test(id)) n += 100;
+    if (/scout|maverick/i.test(id)) n += 30;
+    if (/vision|vl\b/i.test(id)) n += 50;
+    if (/llama/i.test(id)) n += 20;
+    if (/versatile|70b|90b|405b|120b/i.test(id)) n += 15;
+    if (/instant|8b/i.test(id)) n += 2;
+    if (/preview/i.test(id)) n -= 5;
+    return n;
+  };
+  const ordenados = lista.slice().sort((a, b) => nota(b) - nota(a));
+  return precisaVisao ? ordenados.filter((id) => /llama-4|llama4|vision|vl\b|scout|maverick/i.test(id)).concat(ordenados) : ordenados;
+}
+function escolherAudioGroq(ids) {
+  const lista = (ids || []).filter((id) => /whisper/i.test(id));
+  const nota = (id) => (/turbo/i.test(id) ? 3 : 0) + (/large-v3/i.test(id) ? 2 : 0) - (/-en\b|distil/i.test(id) ? 1 : 0);
+  return lista.sort((a, b) => nota(b) - nota(a));
+}
+async function modelosGroq(apiKey, precisaVisao) {
+  const ids = await listarModelosGroq(apiKey);
+  const forcado = (process.env.GROQ_MODEL || '').trim();
+  const chat = [...new Set([forcado, ...escolherChatGroq(ids, precisaVisao), ...GROQ_CHAT_PADRAO].filter(Boolean))];
+  const audio = [...new Set([...escolherAudioGroq(ids), ...GROQ_AUDIO_PADRAO])];
+  return { chat: chat.slice(0, 6), audio: audio.slice(0, 4), lista: ids };
+}
 
 async function groqChat(apiKey, content, modelos, bruto = false) {
   let ultimo = '';
@@ -83,10 +130,10 @@ async function groqChat(apiKey, content, modelos, bruto = false) {
   throw new ErroIA('Nenhum modelo da Groq disponível. Último erro: ' + ultimo, true);
 }
 
-async function groqTranscrever(apiKey, base64, mime, lang) {
+async function groqTranscrever(apiKey, base64, mime, lang, modelos) {
   const bytes = Buffer.from(base64, 'base64');
   let ultimo = '';
-  for (const model of GROQ_AUDIO) {
+  for (const model of modelos) {
     const fd = new FormData();
     fd.append('file', new Blob([bytes], { type: mime || 'audio/wav' }), 'fala.wav');
     fd.append('model', model);
@@ -106,7 +153,7 @@ async function groqTranscrever(apiKey, base64, mime, lang) {
 
 async function viaGroq({ apiKey, modo, de, para, texto, base64, mime }) {
   const D = nome(de), P = nome(para);
-  const chat = [...new Set([(process.env.GROQ_MODEL || '').trim(), ...GROQ_CHAT].filter(Boolean))];
+  const { chat, audio } = await modelosGroq(apiKey, modo === 'imagem' || modo === 'recibo');
   if (modo === 'texto') return groqChat(apiKey, promptTexto(D, P, texto), chat);
   if (modo === 'imagem' || modo === 'recibo') {
     const out = await groqChat(apiKey, [
@@ -116,7 +163,7 @@ async function viaGroq({ apiKey, modo, de, para, texto, base64, mime }) {
     return modo === 'recibo' ? limparRecibo(out) : out;
   }
   // áudio: primeiro vira texto (whisper), depois traduz
-  const falado = await groqTranscrever(apiKey, base64, mime, de);
+  const falado = await groqTranscrever(apiKey, base64, mime, de, audio);
   if (!falado) return { original: '', traduzido: '' };
   const out = await groqChat(apiKey, promptTexto(D, P, falado), chat);
   return { original: falado, traduzido: out.traduzido };
@@ -175,8 +222,15 @@ export async function GET() {
   const suspeitas = Object.entries(process.env)
     .filter(([k, v]) => typeof v === 'string' && !/^NEXT_PUBLIC_/.test(k) && /gsk/i.test(v) && !/^gsk_[A-Za-z0-9]{20,}$/.test(v.trim()))
     .map(([k, v]) => `${k} (tamanho ${v.length}, começa com "${v.slice(0, 4)}")`);
+  let groqModelos = null, groqEscolha = null;
+  const chaveGroq = env('GROQ_API_KEY') || (groqNome ? (process.env[groqNome] || '').trim() : '');
+  if (chaveGroq) {
+    const m = await modelosGroq(chaveGroq, false);
+    groqModelos = m.lista ? m.lista.length : 'não consegui listar (chave inválida?)';
+    groqEscolha = { texto_e_foto: m.chat, voz: m.audio };
+  }
   return Response.json({
-    groq: !!groqNome, groq_variavel: groqNome,
+    groq: !!groqNome, groq_variavel: groqNome, groq_modelos_disponiveis: groqModelos, groq_modelos_escolhidos: groqEscolha,
     gemini: !!geminiNome, gemini_variavel: geminiNome,
     chave_groq_mal_colada: suspeitas,
     dica: !groqNome ? 'Nenhuma variável com valor no formato gsk_… foi encontrada. Na Vercel: Settings → Environment Variables, confira o valor (sem aspas, sem espaço) e se está marcada em Production; depois faça um Redeploy.' : 'Chave da Groq encontrada.',
