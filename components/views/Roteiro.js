@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
 import { valorEmBRL, fmtBRL, dataLocal, hojeLocal } from '../../lib/format';
+import { PageHeader, Button, Field, EmptyState, Reveal, Expand } from '../ui';
 
 function iconeClima(code) {
   if (code == null) return '🌥️';
@@ -18,28 +19,29 @@ function iconeClima(code) {
 }
 
 const TIPOS = [
-  { id: 'voo', nome: 'Voo', cor: '#185FA5', emoji: '✈️' },
-  { id: 'hospedagem', nome: 'Hospedagem', cor: '#BA7517', emoji: '🛏️' },
-  { id: 'passeio', nome: 'Passeio', cor: '#1D9E75', emoji: '🎟️' },
-  { id: 'comida', nome: 'Comida', cor: '#D4537E', emoji: '🍽️' },
-  { id: 'museu', nome: 'Atração / Museu', cor: '#534AB7', emoji: '🏛️' },
-  { id: 'transporte', nome: 'Transporte', cor: '#0F6E56', emoji: '🚗' },
-  { id: 'outro', nome: 'Outro', cor: '#5F5E5A', emoji: '📌' },
+  { id: 'voo', nome: 'Voo', emoji: '✈️' },
+  { id: 'hospedagem', nome: 'Hospedagem', emoji: '🛏️' },
+  { id: 'passeio', nome: 'Passeio', emoji: '🎟️' },
+  { id: 'comida', nome: 'Comida', emoji: '🍽️' },
+  { id: 'museu', nome: 'Atração / Museu', emoji: '🏛️' },
+  { id: 'transporte', nome: 'Transporte', emoji: '🚗' },
+  { id: 'outro', nome: 'Outro', emoji: '📌' },
 ];
 const STATUS = ['Confirmado', 'Reserva', 'A definir'];
+// Cor por dia: a mesma sequência que o Mapa usa nos pinos, pra pessoa ligar
+// "Dia 3" daqui com o pino do dia 3 lá. Só aparece num pontinho — o resto da
+// tela usa a paleta do app.
 const CORES_DIA = ['#0F6E56', '#185FA5', '#534AB7', '#BA7517', '#1D9E75', '#D4537E', '#993C1D'];
-const corTipo = (t) => (TIPOS.find((x) => x.id === t) || TIPOS[6]).cor;
 const nomeTipo = (t) => (TIPOS.find((x) => x.id === t) || TIPOS[6]).nome;
 const emojiTipo = (t) => (TIPOS.find((x) => x.id === t) || TIPOS[6]).emoji;
-// tom claro da cor do tipo, pro fundo do ícone
-const fundoTipo = (t) => corTipo(t) + '1F';
 const hoje = () => hojeLocal();
 
+// Pílula de status: cor só quando comunica estado (confirmado = sucesso,
+// reserva = atenção, a definir = neutro).
+const TOM_STATUS = { Confirmado: 'ui-pill-success', Reserva: 'ui-pill-warning', 'A definir': 'ui-pill-neutral' };
 function StatusBadge({ st }) {
   if (!st) return null;
-  const m = { Confirmado: ['#E1F5EE', '#0F6E56'], Reserva: ['#FAEEDA', '#854F0B'], 'A definir': ['#F1EFE8', '#5F5E5A'] };
-  const c = m[st] || ['#F1EFE8', '#5F5E5A'];
-  return <span style={{ fontSize: 11, padding: '1px 8px', borderRadius: 6, background: c[0], color: c[1], whiteSpace: 'nowrap' }}>{st}</span>;
+  return <span className={`ui-pill ${TOM_STATUS[st] || 'ui-pill-neutral'}`}>{st}</span>;
 }
 
 function fmtDiaData(d) {
@@ -48,6 +50,13 @@ function fmtDiaData(d) {
   const wd = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][dt.getDay()];
   const m = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][dt.getMonth()];
   return `${wd}, ${String(dt.getDate()).padStart(2, '0')} ${m}`;
+}
+// versão curta pro subtítulo ("12 jan → 24 jan")
+function fmtCurta(d) {
+  if (!d) return '';
+  const dt = new Date(d + 'T00:00:00');
+  const m = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][dt.getMonth()];
+  return `${dt.getDate()} ${m}`;
 }
 function diffDias(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
 function fmtDur(min) { if (min < 60) return `${min} min`; const h = Math.floor(min / 60); const m = min % 60; return m ? `${h} h ${m} min` : `${h} h`; }
@@ -86,24 +95,41 @@ function urlWaze(p, viagem) {
   const d = destinoParada(p, viagem);
   return d ? `https://waze.com/ul?q=${encodeURIComponent(d)}&navigate=yes` : null;
 }
-const linkBtn = { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' };
+
+// ----- Pedaços visuais (fora do componente da tela: não remontam a cada render) -----
+const LINK_SEM_SUBLINHADO = { textDecoration: 'none' };
+// ação secundária em texto (Editar, + comentário, Excluir…) — alvo de 44px mesmo sendo "texto"
+const acaoTxt = { background: 'none', border: 'none', minHeight: 44, padding: '0 6px', fontSize: 13.5, fontWeight: 700, color: 'var(--ui-teal-ink)', borderRadius: 10, display: 'inline-flex', alignItems: 'center', gap: 4 };
+
+// Célula da faixa de números do topo (paradas, tempo, km…) — discreta, não é dashboard.
+function Stat({ label, valor, sub }) {
+  return (
+    <div style={{ minWidth: 0, textAlign: 'center', padding: '10px 4px' }}>
+      <div className="ui-num" style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2 }}>{valor}{sub ? <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ui-muted)', marginLeft: 3 }}>{sub}</span> : null}</div>
+      <div style={{ fontSize: 11, color: 'var(--ui-muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+    </div>
+  );
+}
 
 export default function Roteiro({ ir }) {
   const { viagem, pontos, gastos, perfis, checklist, recarregar } = useData();
   const cambio = Number(viagem.cotacao_usd);
   const [form, setForm] = useState(null);
+  const [formErro, setFormErro] = useState('');
+  const [maisDetalhes, setMaisDetalhes] = useState(false);
   const [notaEdit, setNotaEdit] = useState(null);
   const [notaTxt, setNotaTxt] = useState('');
   const [editDatas, setEditDatas] = useState(false);
   const [dIda, setDIda] = useState('');
   const [dVolta, setDVolta] = useState('');
+  const [datasErro, setDatasErro] = useState('');
   const [rotas, setRotas] = useState({});
   const [geoMsg, setGeoMsg] = useState('');
   const [menuAberto, setMenuAberto] = useState(false);
   // Dia a dia: cada dia começa fechado (só cabeçalho + resumo das paradas). null =
   // ainda não mexeu → abre automaticamente o dia de hoje (durante a viagem) ou o
-  // primeiro dia que tem parada. Dentro do dia, cada parada também começa
-  // resumida (hora, ícone, nome, uma linha); toque abre os detalhes/ações.
+  // próximo dia / primeiro dia que tem parada. Dentro do dia, cada parada também
+  // começa resumida (hora, ícone, nome, uma linha); toque abre os detalhes/ações.
   const [diasAbertos, setDiasAbertos] = useState(null);
   const [paradaAberta, setParadaAberta] = useState(null);
 
@@ -168,15 +194,20 @@ export default function Roteiro({ ir }) {
   const ultimaData = () => (grupos.length ? grupos[grupos.length - 1].data : '') || hoje();
 
   function abrirNovo(dataPadrao, inserirApos) {
-    setGeoMsg(''); setForm({ id: null, nome: '', data: dataPadrao || ultimaData(), hora: '', tipo: 'passeio', status: '', nota: '', endereco: '', local: '', lat: null, lng: null, inserirApos: inserirApos || null });
+    setGeoMsg(''); setFormErro(''); setMaisDetalhes(false);
+    setForm({ id: null, nome: '', data: dataPadrao || ultimaData(), hora: '', tipo: 'passeio', status: '', nota: '', endereco: '', local: '', lat: null, lng: null, inserirApos: inserirApos || null });
   }
   function abrirEdicao(p) {
-    setGeoMsg(p.lat != null ? '📍 local salvo (pra clima e distância)' : ''); setForm({ id: p.id, nome: p.nome, data: p.data_inicio || '', hora: p.hora || '', tipo: p.tipo || 'outro', status: p.status || '', nota: p.nota || '', endereco: p.endereco || '', local: p.local || '', lat: p.lat ?? null, lng: p.lng ?? null, inserirApos: null });
+    setGeoMsg(p.lat != null ? '📍 local salvo (pra clima e distância)' : ''); setFormErro('');
+    // se a parada já tem comentário ou local, mostra esses campos de cara
+    setMaisDetalhes(Boolean(p.nota || p.local || p.lat != null));
+    setForm({ id: p.id, nome: p.nome, data: p.data_inicio || '', hora: p.hora || '', tipo: p.tipo || 'outro', status: p.status || '', nota: p.nota || '', endereco: p.endereco || '', local: p.local || '', lat: p.lat ?? null, lng: p.lng ?? null, inserirApos: null });
   }
 
   async function salvarForm() {
     const f = form;
-    if (!f.nome.trim()) { window.alert('Dê um nome para a parada.'); return; }
+    if (!f.nome.trim()) { setFormErro('Dê um nome para a parada.'); return; }
+    setFormErro('');
     const campos = { nome: f.nome.trim(), data_inicio: f.data || null, hora: f.hora || null, tipo: f.tipo, status: f.status || null, nota: f.nota.trim() || null, endereco: (f.endereco || '').trim() || null, local: f.local ? f.local.trim() : null, lat: f.lat ?? null, lng: f.lng ?? null };
     if (f.id) {
       await supabase.from('pontos_roteiro').update(campos).eq('id', f.id);
@@ -215,9 +246,10 @@ export default function Roteiro({ ir }) {
   function abrirNota(p) { setNotaEdit(p.id); setNotaTxt(p.nota || ''); }
   async function salvarNota(p) { await supabase.from('pontos_roteiro').update({ nota: notaTxt.trim() || null }).eq('id', p.id); setNotaEdit(null); await recarregar(); }
 
-  function abrirDatas() { setDIda(viagem.data_ida || ''); setDVolta(viagem.data_volta || ''); setEditDatas(true); }
+  function abrirDatas() { setDIda(viagem.data_ida || ''); setDVolta(viagem.data_volta || ''); setDatasErro(''); setEditDatas(true); }
   async function salvarDatas() {
-    if (dIda && dVolta && dVolta < dIda) { window.alert('A volta não pode ser antes da ida.'); return; }
+    if (dIda && dVolta && dVolta < dIda) { setDatasErro('A volta não pode ser antes da ida.'); return; }
+    setDatasErro('');
     await supabase.from('viagens').update({ data_ida: dIda || null, data_volta: dVolta || null }).eq('id', viagem.id);
     setEditDatas(false);
     await recarregar();
@@ -297,7 +329,7 @@ export default function Roteiro({ ir }) {
     else { const n = diffDias(ida, hojeS) + 1; prog = { estado: 'durante', n, total, faltam: diffDias(hojeS, volta), pct: Math.max(2, Math.min(100, Math.round((n / total) * 100))) }; }
   }
 
-  // ----- Fatia 1: totais para os tiles e a barra de baixo -----
+  // ----- Totais para a faixa do topo e a barra de baixo -----
   const totaisRota = Object.values(rotas).reduce((acc, r) => {
     if (r && r !== 'erro' && typeof r === 'object') { acc.km += r.km || 0; acc.min += r.min || 0; }
     return acc;
@@ -307,139 +339,178 @@ export default function Roteiro({ ir }) {
   const tarefasPend = (checklist || []).filter((i) => i.tema !== 'Mercado' && !i.feito).length;
   const nPessoas = (perfis || []).length;
   const tileFaltam = prog
-    ? (prog.estado === 'antes' ? { v: String(prog.faltam), top: 'Faltam', sub: prog.faltam === 1 ? 'dia' : 'dias' }
-      : prog.estado === 'durante' ? { v: String(prog.n), top: 'Dia', sub: `de ${prog.total}` }
-        : { v: '✓', top: 'Viagem', sub: 'concluída' })
-    : { v: '—', top: 'Datas', sub: 'defina' };
+    ? (prog.estado === 'antes' ? { v: String(prog.faltam), sub: prog.faltam === 1 ? 'dia' : 'dias', label: 'faltam' }
+      : prog.estado === 'durante' ? { v: String(prog.n), sub: `de ${prog.total}`, label: 'dia' }
+        : { v: '✓', sub: '', label: 'concluída' })
+    : { v: '—', sub: '', label: 'datas' };
+
+  // Subtítulo do cabeçalho: período + onde a viagem está ("Dia 3 de 12" / "faltam 40 dias").
+  let subtitulo;
+  if (!prog) subtitulo = nParadas > 0 ? `${nParadas} ${nParadas === 1 ? 'parada' : 'paradas'} · defina as datas da viagem` : 'Defina as datas e monte o dia a dia';
+  else {
+    const periodo = `${fmtCurta(ida)} → ${fmtCurta(volta)}`;
+    if (prog.estado === 'antes') subtitulo = `${periodo} · ${prog.faltam === 0 ? 'começa hoje!' : prog.faltam === 1 ? 'falta 1 dia' : `faltam ${prog.faltam} dias`}`;
+    else if (prog.estado === 'durante') subtitulo = `${periodo} · Dia ${prog.n} de ${prog.total}`;
+    else subtitulo = `${periodo} · viagem concluída`;
+  }
+
+  // Dia protagonista: hoje (durante a viagem) ou o próximo dia com data.
+  const hojeS = hoje();
+  let destaque = grupos.find((g) => g.data === hojeS && ida && volta && hojeS >= ida && hojeS <= volta);
+  if (!destaque && ida && hojeS < ida) destaque = grupos.find((g) => g.data && g.data >= hojeS);
+  // Dia aberto por padrão: o protagonista; senão o primeiro que tem parada.
+  let padrao = destaque;
+  if (!padrao) padrao = grupos.find((g) => g.stops.length > 0) || grupos[0];
+  const abertos = diasAbertos || new Set(padrao ? [padrao.key] : []);
+  const alternarDia = (key) => setDiasAbertos((prev) => { const n = new Set(prev || abertos); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+
+  const acaoHeader = (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <Button variant="soft" size="sm" onClick={() => ir('mapa')} style={{ minHeight: 40 }}>🗺 Mapa</Button>
+      <button onClick={() => setMenuAberto((v) => !v)} aria-label="Mais opções" aria-expanded={menuAberto} className="ui-iconbtn raised ui-press" style={{ width: 40, height: 40 }}>⋮</button>
+    </div>
+  );
 
   return (
-    <div className="app ui-theme">
-      <div className="screen" style={{ paddingTop: 18 }}>
-        <div className="fab-back" style={{ alignItems: 'center' }}><span className="ttl" style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.5px' }}>Roteiro</span><span style={{ flex: 1 }} /><button onClick={() => ir('mapa')} style={{ width: 'auto', height: 38, padding: '0 14px', borderRadius: 20, border: 'none', background: 'var(--brand-soft)', color: 'var(--brand)', fontSize: 14, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>🗺 Ver no mapa</button><button onClick={() => setMenuAberto((v) => !v)} aria-label="Mais opções" style={{ width: 38, height: 38, borderRadius: 10, border: '0.5px solid var(--line-strong)', background: 'var(--surface)', fontSize: 18, marginLeft: 8, flex: '0 0 auto' }}>⋮</button></div>
+    <div className="ui-screen">
+      <PageHeader titulo="Roteiro" subtitulo={subtitulo} acao={form ? null : acaoHeader} />
 
-        {menuAberto && (
-          <div className="card" style={{ marginBottom: 12, padding: 6 }}>
-            <button className="btn-ghost" style={{ width: '100%', textAlign: 'left', padding: '11px 12px', fontSize: 14 }} onClick={() => { setMenuAberto(false); abrirDatas(); }}>📅 Editar datas da viagem</button>
-            <button className="btn-ghost" style={{ width: '100%', textAlign: 'left', padding: '11px 12px', fontSize: 14 }} onClick={() => { setMenuAberto(false); abrirNovo(ultimaData(), null); }}>＋ Adicionar parada</button>
-            <button className="btn-ghost" style={{ width: '100%', textAlign: 'left', padding: '11px 12px', fontSize: 14 }} onClick={() => { setMenuAberto(false); ir('mapa'); }}>🗺 Ver no mapa</button>
-          </div>
-        )}
+      <Expand aberto={menuAberto && !form}>
+        <div className="ui-card" style={{ marginBottom: 12, padding: 6 }}>
+          <button className="ui-rowbtn" style={{ minHeight: 48, padding: '0 12px', fontSize: 14.5, fontWeight: 600, borderRadius: 12 }} onClick={() => { setMenuAberto(false); abrirDatas(); }}>📅 Editar datas da viagem</button>
+          <button className="ui-rowbtn" style={{ minHeight: 48, padding: '0 12px', fontSize: 14.5, fontWeight: 600, borderRadius: 12 }} onClick={() => { setMenuAberto(false); abrirNovo(ultimaData(), null); }}>＋ Adicionar parada</button>
+          <button className="ui-rowbtn" style={{ minHeight: 48, padding: '0 12px', fontSize: 14.5, fontWeight: 600, borderRadius: 12 }} onClick={() => { setMenuAberto(false); ir('mapa'); }}>🗺 Ver no mapa</button>
+        </div>
+      </Expand>
 
-        {form ? (
-          <div className="card" style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{form.id ? 'Editar parada' : 'Nova parada'}</div>
-            <div className="field"><label>Nome</label><input className="input" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Ex.: Magic Kingdom" /></div>
-            <div className="field"><label>Dia (data)</label><input className="input" type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} /></div>
-            <div className="field"><label>Horário</label><input className="input" type="time" value={form.hora} onChange={(e) => setForm({ ...form, hora: e.target.value })} /></div>
-            <div className="field"><label>Tipo</label><select className="select" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>{TIPOS.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}</select></div>
-            <div className="field"><label>Status</label><select className="select" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="">—</option>{STATUS.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
-            <div className="field"><label>Comentário (opcional)</label><textarea className="input" style={{ height: 64, padding: 8 }} value={form.nota} onChange={(e) => setForm({ ...form, nota: e.target.value })} placeholder="Anotações, links, lembretes…" /></div>
-            <div className="field"><label>📍 Endereço exato (é pra onde o GPS vai levar)</label>
-              <input className="input" value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} placeholder="Ex.: Rua XV de Novembro, 1000, Curitiba - PR" />
-              <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 4 }}>Escreva como escreveria no Google Maps: rua, número e cidade — ou o nome exato do lugar como aparece lá (ex.: “Pousada Bela Vista, Morretes”). O botão “Ir com GPS” manda isso pro Google Maps / Waze do jeito que você digitou.</div>
+      {form ? (
+        <Reveal>
+          <div className="ui-card" style={{ padding: 16, marginBottom: 16 }}>
+            <div className="ui-h2" style={{ marginBottom: 14 }}>{form.id ? 'Editar parada' : 'Nova parada'}</div>
+
+            <Field label="Nome"><input className="ui-input" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Ex.: Magic Kingdom" autoFocus={!form.id} /></Field>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Field label="Dia" style={{ flex: 1, minWidth: 0 }}><input className="ui-input" type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} /></Field>
+              <Field label="Hora" style={{ flex: 1, minWidth: 0 }}><input className="ui-input" type="time" value={form.hora} onChange={(e) => setForm({ ...form, hora: e.target.value })} /></Field>
             </div>
-            <div className="field"><label>Cidade ou ponto de referência (pra clima e distância — opcional)</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input className="input" value={form.local} onChange={(e) => setForm({ ...form, local: e.target.value, lat: null, lng: null })} placeholder="Ex.: Curitiba" style={{ flex: 1 }} />
-                <button type="button" className="btn-outline" style={{ width: 100, height: 44 }} onClick={buscarLocal}>Buscar</button>
-              </div>
-              {geoMsg && <div style={{ fontSize: 11, color: form.lat != null ? 'var(--brand)' : 'var(--muted)', marginTop: 4 }}>{geoMsg}</div>}
-              <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 4 }}>“Buscar” só serve pra previsão do tempo e pra calcular km/horas entre paradas — não é o que o GPS usa.</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Field label="Tipo" style={{ flex: 1, minWidth: 0 }}><select className="ui-input" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>{TIPOS.map((t) => <option key={t.id} value={t.id}>{t.emoji} {t.nome}</option>)}</select></Field>
+              <Field label="Status" style={{ flex: 1, minWidth: 0 }}><select className="ui-input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="">—</option>{STATUS.map((s) => <option key={s} value={s}>{s}</option>)}</select></Field>
             </div>
-            <button className="btn-primary" onClick={salvarForm}>{form.id ? 'Salvar alterações' : 'Adicionar parada'}</button>
-            <button className="btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => setForm(null)}>Cancelar</button>
-          </div>
-        ) : (
-          <>
-            {editDatas ? (
-              <div className="card" style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Datas da viagem</div>
-                <div className="field"><label>Ida</label><input className="input" type="date" value={dIda} onChange={(e) => setDIda(e.target.value)} /></div>
-                <div className="field"><label>Volta</label><input className="input" type="date" value={dVolta} onChange={(e) => setDVolta(e.target.value)} /></div>
-                <button className="btn-primary" onClick={salvarDatas}>Salvar datas</button>
-                <button className="btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => setEditDatas(false)}>Cancelar</button>
-              </div>
-            ) : !prog ? (
-              <div className="card" style={{ marginBottom: 14, textAlign: 'center' }}>
-                <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10 }}>Defina a ida e a volta para ver a contagem dos dias.</div>
-                <button className="btn-outline" onClick={abrirDatas}>Definir datas da viagem</button>
-              </div>
-            ) : (
-              <div style={{ marginTop: 2, marginBottom: 18 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                  {[
-                    { ic: '📅', top: tileFaltam.top, v: tileFaltam.v, sub: tileFaltam.sub },
-                    { ic: '📍', top: 'Total', v: String(nParadas), sub: nParadas === 1 ? 'parada' : 'paradas' },
-                    { ic: '🕐', top: 'Tempo total', v: totaisRota.min > 0 ? fmtHHMM(totaisRota.min) : '—', sub: 'horas' },
-                    { ic: '🛣️', top: 'Distância', v: totaisRota.km > 0 ? Math.round(totaisRota.km).toLocaleString('pt-BR') : '—', sub: 'km' },
-                  ].map((t, i) => (
-                    <div key={i} style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 14, padding: '10px 8px', boxShadow: '0 2px 10px rgba(27,42,47,.05)' }}>
-                      <div style={{ fontSize: 15, marginBottom: 4 }}>{t.ic}</div>
-                      <div style={{ fontSize: 9.5, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.3px', fontWeight: 600, lineHeight: 1.1 }}>{t.top}</div>
-                      <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1.2 }}>{t.v}</div>
-                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t.sub}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginTop: 12 }}>
-                  <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{fmtDiaData(ida)} → {fmtDiaData(volta)} · {prog.total} dias</span>
-                  <button onClick={abrirDatas} className="btn-ghost" style={{ padding: 0, fontSize: 12.5, color: 'var(--brand)', fontWeight: 600 }}>editar datas</button>
-                </div>
-              </div>
+            <Field label="📍 Endereço exato" hint="É pra onde o GPS vai levar. Escreva como no Google Maps: rua, número e cidade — ou o nome exato do lugar (ex.: “Pousada Bela Vista, Morretes”).">
+              <input className="ui-input" value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} placeholder="Ex.: Rua XV de Novembro, 1000, Curitiba - PR" />
+            </Field>
+
+            {!maisDetalhes && (
+              <button type="button" onClick={() => setMaisDetalhes(true)} style={{ ...acaoTxt, padding: 0, marginBottom: 12 }}>+ mais detalhes <span style={{ fontWeight: 500, color: 'var(--ui-faint)' }}>(comentário, clima e distância)</span></button>
             )}
-            {grupos.length === 0 && <div className="card"><div className="empty">Nenhuma parada ainda. Toque em “Adicionar parada”.</div></div>}
+            <Expand aberto={maisDetalhes}>
+              <Field label="Comentário" opcional><textarea className="ui-input" value={form.nota} onChange={(e) => setForm({ ...form, nota: e.target.value })} placeholder="Anotações, links, lembretes…" /></Field>
+              <Field label="Cidade ou ponto de referência" opcional hint="Só pra previsão do tempo e km/horas entre paradas — não é o que o GPS usa.">
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="ui-input" value={form.local} onChange={(e) => setForm({ ...form, local: e.target.value, lat: null, lng: null })} placeholder="Ex.: Curitiba" style={{ flex: 1, minWidth: 0 }} />
+                  <Button type="button" variant="secondary" onClick={buscarLocal} style={{ flex: '0 0 auto' }}>Buscar</Button>
+                </div>
+                {geoMsg && <div className="ui-wrap" style={{ fontSize: 12.5, color: form.lat != null ? 'var(--ui-teal-ink)' : 'var(--ui-muted)', marginTop: 6, lineHeight: 1.4 }}>{geoMsg}</div>}
+              </Field>
+            </Expand>
 
-            {(() => {
-              const hojeS = hoje();
-              let padrao = grupos.find((g) => g.data === hojeS && ida && volta && hojeS >= ida && hojeS <= volta);
-              if (!padrao) padrao = grupos.find((g) => g.stops.length > 0) || grupos[0];
-              const abertos = diasAbertos || new Set(padrao ? [padrao.key] : []);
-              const alternarDia = (key) => setDiasAbertos((prev) => { const n = new Set(prev || abertos); if (n.has(key)) n.delete(key); else n.add(key); return n; });
-              return grupos.map((g, gi) => {
-              const cor = g.data ? CORES_DIA[gi % CORES_DIA.length] : '#5F5E5A';
-              const dn = (g.data && ida) ? diffDias(ida, g.data) + 1 : gi + 1;
-              const aberto = abertos.has(g.key);
-              const ehHoje = g.data === hojeS;
-              // Rota do dia inteiro no Google Maps: primeira parada → ... → última
-              // (só com 2+ paradas que tenham local; o Maps aceita até ~9 pontos no meio).
-              const destinosDia = g.stops.map((p) => destinoParada(p, viagem)).filter(Boolean);
-              const urlRotaDia = destinosDia.length >= 2
-                ? urlGoogleMaps({ origem: destinosDia[0], destino: destinosDia[destinosDia.length - 1], waypoints: destinosDia.slice(1, -1).slice(0, 9) })
-                : null;
-              const gastoDia = g.data ? gastos.filter((x) => x.data === g.data).reduce((t, x) => t + valorEmBRL(x, cambio), 0) : 0;
-              const resumo = g.stops.map((p) => p.nome).join(' → ');
-              return (
-                <div key={g.key} style={{ background: 'var(--surface)', border: aberto ? `1px solid ${cor}55` : '0.5px solid var(--line)', borderRadius: 18, overflow: 'hidden', marginBottom: 12, boxShadow: '0 2px 12px rgba(27,42,47,0.06)' }}>
-                  {/* Cabeçalho do dia: toque abre/fecha */}
-                  <div onClick={() => alternarDia(g.key)} role="button" style={{ background: aberto ? cor : `${cor}14`, color: aberto ? '#fff' : 'var(--ink)', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.3px' }}>{g.data ? `Dia ${dn}` : 'Sem data'}</span>
-                        <span style={{ fontSize: 13, opacity: aberto ? 0.9 : 0.7 }}>{fmtDiaData(g.data)}</span>
-                        {ehHoje && <span style={{ fontSize: 10.5, fontWeight: 800, padding: '1px 7px', borderRadius: 999, background: aberto ? 'rgba(255,255,255,.25)' : cor, color: '#fff' }}>HOJE</span>}
-                      </div>
-                      {!aberto && (
-                        <div style={{ fontSize: 12, opacity: 0.75, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {g.stops.length ? resumo : 'Nada planejado ainda'}
-                        </div>
-                      )}
+            {formErro && <div className="ui-error">{formErro}</div>}
+            <Button size="lg" full onClick={salvarForm}>{form.id ? 'Salvar alterações' : 'Adicionar parada'}</Button>
+            <Button variant="ghost" full style={{ marginTop: 6 }} onClick={() => setForm(null)}>Cancelar</Button>
+          </div>
+        </Reveal>
+      ) : (
+        <>
+          {editDatas ? (
+            <Reveal>
+              <div className="ui-card" style={{ padding: 16, marginBottom: 14 }}>
+                <div className="ui-h2" style={{ marginBottom: 14 }}>Datas da viagem</div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <Field label="Ida" style={{ flex: 1, minWidth: 0 }}><input className="ui-input" type="date" value={dIda} onChange={(e) => setDIda(e.target.value)} /></Field>
+                  <Field label="Volta" style={{ flex: 1, minWidth: 0 }}><input className="ui-input" type="date" value={dVolta} onChange={(e) => setDVolta(e.target.value)} /></Field>
+                </div>
+                {datasErro && <div className="ui-error">{datasErro}</div>}
+                <Button size="lg" full onClick={salvarDatas}>Salvar datas</Button>
+                <Button variant="ghost" full style={{ marginTop: 6 }} onClick={() => setEditDatas(false)}>Cancelar</Button>
+              </div>
+            </Reveal>
+          ) : !prog ? (
+            <div className="ui-card-tight" style={{ padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className="ui-wrap" style={{ flex: 1, fontSize: 13.5, color: 'var(--ui-muted)', lineHeight: 1.4 }}>Com ida e volta, o roteiro mostra um dia de cada vez.</div>
+              <Button variant="soft" size="sm" onClick={abrirDatas} style={{ minHeight: 40 }}>Definir datas</Button>
+            </div>
+          ) : (
+            // Faixa discreta de números — a contagem de dias já está no subtítulo, aqui é só apoio.
+            <div style={{ marginBottom: 16 }}>
+              <div className="ui-card-tight" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', padding: '2px 6px' }}>
+                <Stat label={tileFaltam.label} valor={tileFaltam.v} sub={tileFaltam.sub} />
+                <Stat label={nParadas === 1 ? 'parada' : 'paradas'} valor={String(nParadas)} />
+                <Stat label="na estrada" valor={totaisRota.min > 0 ? fmtHHMM(totaisRota.min) : '—'} sub={totaisRota.min > 0 ? 'h' : ''} />
+                <Stat label="distância" valor={totaisRota.km > 0 ? Math.round(totaisRota.km).toLocaleString('pt-BR') : '—'} sub={totaisRota.km > 0 ? 'km' : ''} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 6, padding: '0 4px' }}>
+                <span className="ui-caption ui-wrap">{fmtDiaData(ida)} → {fmtDiaData(volta)} · {prog.total} dias</span>
+                <button onClick={abrirDatas} style={{ ...acaoTxt, fontSize: 12.5, minHeight: 40, padding: '0 4px' }}>editar datas</button>
+              </div>
+            </div>
+          )}
+
+          {grupos.length === 0 && (
+            <EmptyState icone="🗺️" titulo="Seu roteiro ainda está vazio." texto="Comece adicionando o primeiro destino." cta="Adicionar parada" onCta={() => abrirNovo(ultimaData(), null)} />
+          )}
+
+          {grupos.map((g, gi) => {
+            const corDia = g.data ? CORES_DIA[gi % CORES_DIA.length] : 'var(--ui-faint)';
+            const dn = (g.data && ida) ? diffDias(ida, g.data) + 1 : gi + 1;
+            const aberto = abertos.has(g.key);
+            const ehHoje = g.data === hojeS;
+            const ehDestaque = destaque && destaque.key === g.key;
+            const passado = g.data && g.data < hojeS;
+            // Rota do dia inteiro no Google Maps: primeira parada → ... → última
+            // (só com 2+ paradas que tenham local; o Maps aceita até ~9 pontos no meio).
+            const destinosDia = g.stops.map((p) => destinoParada(p, viagem)).filter(Boolean);
+            const urlRotaDia = destinosDia.length >= 2
+              ? urlGoogleMaps({ origem: destinosDia[0], destino: destinosDia[destinosDia.length - 1], waypoints: destinosDia.slice(1, -1).slice(0, 9) })
+              : null;
+            const gastoDia = g.data ? gastos.filter((x) => x.data === g.data).reduce((t, x) => t + valorEmBRL(x, cambio), 0) : 0;
+            const resumo = g.stops.map((p) => p.nome).join(' → ');
+            const nStops = g.stops.length;
+            return (
+              <div key={g.key} className={ehDestaque ? 'ui-card' : 'ui-card-tight'} style={{ overflow: 'hidden', marginBottom: ehDestaque ? 14 : 10, opacity: passado && !aberto ? 0.72 : 1 }}>
+                {/* Cabeçalho do dia: toque abre/fecha. O dia de hoje / próximo ganha fundo teal suave. */}
+                <button onClick={() => alternarDia(g.key)} aria-expanded={aberto} className="ui-rowbtn" style={{ padding: ehDestaque ? '14px 16px' : '10px 16px', minHeight: ehDestaque ? 64 : 56, background: ehDestaque ? 'var(--ui-teal-soft)' : 'transparent', cursor: 'pointer' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: corDia, flex: '0 0 auto' }} />
+                      <span style={{ fontSize: ehDestaque ? 17 : 15, fontWeight: 800, letterSpacing: '-0.3px', color: ehDestaque ? 'var(--ui-teal-ink)' : 'var(--ui-ink)', whiteSpace: 'nowrap' }}>{g.data ? `Dia ${dn}` : 'Sem data'}</span>
+                      <span className="ui-clamp1" style={{ fontSize: 13, color: 'var(--ui-muted)', minWidth: 0 }}>{fmtDiaData(g.data)}</span>
+                      {ehHoje && <span className="ui-pill ui-pill-info" style={{ background: 'var(--ui-teal)', color: '#fff' }}>HOJE</span>}
+                      {ehDestaque && !ehHoje && <span className="ui-pill ui-pill-info" style={{ background: 'var(--ui-card)' }}>PRÓXIMO</span>}
                     </div>
-                    <span style={{ fontSize: 11.5, fontWeight: 700, padding: '4px 10px', borderRadius: 999, background: aberto ? 'rgba(255,255,255,.2)' : `${cor}22`, color: aberto ? '#fff' : cor, whiteSpace: 'nowrap', flex: '0 0 auto' }}>{g.stops.length} {g.stops.length === 1 ? 'parada' : 'paradas'}</span>
-                    <span style={{ width: 30, height: 30, borderRadius: '50%', background: aberto ? 'rgba(255,255,255,.2)' : `${cor}22`, color: aberto ? '#fff' : cor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flex: '0 0 auto', transform: aberto ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
-                  </div>
-
-                  {aberto && (
-                  <div style={{ padding: '4px 14px 12px' }}>
-                    {(urlRotaDia || gastoDia > 0) && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 0 4px' }}>
-                        {urlRotaDia && <a href={urlRotaDia} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, padding: '4px 10px', fontSize: 11.5, background: `${cor}18`, color: cor }}>🗺 Rota do dia</a>}
-                        {gastoDia > 0 && <span style={{ fontSize: 12, color: 'var(--muted)' }}>💳 gasto no dia: <b style={{ color: 'var(--ink)' }}>{fmtBRL(gastoDia)}</b></span>}
+                    {!aberto && (
+                      <div className="ui-clamp1" style={{ fontSize: 12.5, color: nStops ? 'var(--ui-muted)' : 'var(--ui-faint)', marginTop: 3, paddingLeft: 16 }}>
+                        {nStops ? resumo : 'Nada planejado ainda'}
                       </div>
                     )}
-                    {g.stops.length === 0 && (
-                      <div onClick={() => abrirNovo(g.data, null)} style={{ padding: '16px 4px', textAlign: 'center', color: 'var(--muted)', fontSize: 13, cursor: 'pointer' }}>
-                        Nada planejado ainda — <span style={{ color: 'var(--brand)', fontWeight: 700 }}>+ adicionar parada</span>
+                  </div>
+                  <span className="ui-num" style={{ fontSize: 12, fontWeight: 700, color: 'var(--ui-muted)', whiteSpace: 'nowrap', flex: '0 0 auto' }}>{nStops} {nStops === 1 ? 'parada' : 'paradas'}</span>
+                  <span aria-hidden="true" style={{ color: 'var(--ui-faint)', fontSize: 14, flex: '0 0 auto', transform: aberto ? 'rotate(180deg)' : 'none', transition: 'transform .18s var(--ease)' }}>▾</span>
+                </button>
+
+                <Expand aberto={aberto}>
+                  <div style={{ padding: '2px 16px 10px' }}>
+                    {(urlRotaDia || gastoDia > 0) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 0 2px' }}>
+                        {urlRotaDia && <a href={urlRotaDia} target="_blank" rel="noopener noreferrer" className="ui-btn ui-btn-soft ui-btn-sm" style={LINK_SEM_SUBLINHADO}>🗺 Rota do dia</a>}
+                        {gastoDia > 0 && <span className="ui-caption">💳 gasto no dia: <b className="ui-num" style={{ color: 'var(--ui-ink)' }}>{fmtBRL(gastoDia)}</b></span>}
                       </div>
+                    )}
+                    {nStops === 0 && (
+                      <button onClick={() => abrirNovo(g.data, null)} className="ui-rowbtn" style={{ minHeight: 48, padding: '6px 0', justifyContent: 'flex-start' }}>
+                        <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 12, border: '1.5px dashed var(--ui-line-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'var(--ui-muted)', flex: '0 0 auto' }}>+</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ui-teal-ink)' }}>adicionar parada</span>
+                      </button>
                     )}
                     {g.stops.map((p, i) => {
                       const abertaP = paradaAberta === p.id;
@@ -447,122 +518,117 @@ export default function Roteiro({ ir }) {
                       // uma linha só de resumo: tipo · endereço curto (ou clima)
                       const linha = [nomeTipo(p.tipo), p.endereco ? p.endereco.split(',')[0] : (p.local || ''), cl ? `${iconeClima(cl.code)} ${cl.max}°` : ''].filter(Boolean).join(' · ');
                       return (
-                      <div key={p.id} style={{ borderTop: i > 0 ? '0.5px solid var(--line)' : 'none' }}>
-                        {/* Linha resumida da parada: toque abre os detalhes */}
-                        <div onClick={() => setParadaAberta(abertaP ? null : p.id)} role="button" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 0', cursor: 'pointer' }}>
-                          <span style={{ width: 40, fontSize: 12.5, color: 'var(--muted)', fontWeight: 600, flex: '0 0 auto' }}>{p.hora || '—'}</span>
-                          <span style={{ width: 36, height: 36, borderRadius: '50%', background: fundoTipo(p.tipo), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flex: '0 0 auto' }}>{emojiTipo(p.tipo)}</span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.25, whiteSpace: abertaP ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.nome}</div>
-                            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2, whiteSpace: abertaP ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{linha}</div>
-                            {p.status && <div style={{ marginTop: 4 }}><StatusBadge st={p.status} /></div>}
-                          </div>
-                          <span style={{ color: 'var(--faint)', fontSize: 16, flex: '0 0 auto', transform: abertaP ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
-                        </div>
-
-                        {abertaP && (
-                        <div style={{ padding: '0 0 12px 50px' }}>
-                          {p.endereco && <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 4 }}>📍 {p.endereco}</div>}
-                          {cl && <div style={{ fontSize: 12, color: 'var(--faint)', marginBottom: 4 }}>{iconeClima(cl.code)} {cl.max}° / {cl.min}°{cl.chuva != null ? ` · 🌧 ${cl.chuva}% de chuva` : ''}</div>}
-                          {(() => {
-                            const gx = ordenados.findIndex((s) => s.id === p.id);
-                            const nx = ordenados[gx + 1];
-                            if (!nx || p.lat == null || p.lng == null || nx.lat == null || nx.lng == null) return null;
-                            const rota = rotas[`${p.id}_${nx.id}`];
-                            // toque no trecho abre o Google Maps já com a rota desta parada até a próxima
-                            // (endereço escrito quando tem — a coordenada só entra se não houver texto nenhum)
-                            const urlTrecho = urlGoogleMaps({ origem: destinoParada(p, viagem) || `${p.lat},${p.lng}`, destino: destinoParada(nx, viagem) || `${nx.lat},${nx.lng}` });
-                            return (
-                              <a href={urlTrecho} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 4, textDecoration: 'none' }}>
-                                ↘ {rota === undefined ? 'calculando…' : rota === 'erro' ? 'distância indisponível' : `≈ ${rota.km.toFixed(0)} km · ${fmtDur(rota.min)} de carro até ${nx.nome}`} <span style={{ color: 'var(--brand)', fontWeight: 600 }}>· ver rota</span>
-                              </a>
-                            );
-                          })()}
-
-                          {(() => {
-                            // GPS: "me leva até aqui" a partir de onde a pessoa está.
-                            // Google Maps já abre navegando; Waze como alternativa (comum em estrada no Brasil).
-                            const dest = destinoParada(p, viagem);
-                            if (!dest) return null;
-                            const exato = temEnderecoExato(p);
-                            const wz = urlWaze(p, viagem);
-                            // Com endereço exato: já sai navegando. Sem: abre a rota no Maps
-                            // mas deixa a pessoa conferir o lugar antes de iniciar.
-                            return (
-                              <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                                <a href={urlGoogleMaps({ destino: dest, navegar: exato })} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, background: exato ? 'var(--brand)' : 'var(--brand-soft)', color: exato ? '#fff' : 'var(--brand)' }}>🧭 {exato ? 'Ir com GPS' : 'Ver no Maps'}</a>
-                                {wz && <a href={wz} target="_blank" rel="noopener noreferrer" style={{ ...linkBtn, background: 'var(--brand-soft)', color: 'var(--brand)' }}>Waze</a>}
-                                {!exato && <button className="btn-ghost" style={{ padding: 0, fontSize: 11, color: 'var(--debit)' }} onClick={() => abrirEdicao(p)}>sem endereço exato — toque pra preencher</button>}
-                              </div>
-                            );
-                          })()}
-
-                          {notaEdit === p.id ? (
-                            <div style={{ marginTop: 8 }}>
-                              <textarea className="input" style={{ height: 60, padding: 8 }} value={notaTxt} onChange={(e) => setNotaTxt(e.target.value)} placeholder="Escreva um comentário…" />
-                              <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>
-                                <button className="btn-ghost" style={{ padding: 0, fontSize: 13 }} onClick={() => salvarNota(p)}>Salvar comentário</button>
-                                <button className="btn-ghost" style={{ padding: 0, fontSize: 13, color: 'var(--faint)' }} onClick={() => setNotaEdit(null)}>Cancelar</button>
-                              </div>
+                        <div key={p.id} style={{ borderTop: i > 0 ? '1px solid var(--ui-line)' : 'none' }}>
+                          {/* Linha resumida da parada: toque abre os detalhes */}
+                          <button onClick={() => setParadaAberta(abertaP ? null : p.id)} aria-expanded={abertaP} className="ui-rowbtn" style={{ padding: '10px 0', alignItems: 'center' }}>
+                            <span className="ui-num" style={{ width: 42, fontSize: 12.5, color: p.hora ? 'var(--ui-muted)' : 'var(--ui-faint)', fontWeight: 700, flex: '0 0 auto' }}>{p.hora || '—'}</span>
+                            <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 12, background: abertaP ? 'var(--ui-teal-soft)' : 'var(--ui-sunken)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flex: '0 0 auto' }}>{emojiTipo(p.tipo)}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div className={abertaP ? 'ui-wrap' : 'ui-clamp1'} style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.25 }}>{p.nome}</div>
+                              <div className={abertaP ? 'ui-wrap' : 'ui-clamp1'} style={{ fontSize: 12, color: 'var(--ui-muted)', marginTop: 2, lineHeight: 1.35 }}>{linha}</div>
+                              {p.status && <div style={{ marginTop: 5 }}><StatusBadge st={p.status} /></div>}
                             </div>
-                          ) : p.nota ? (
-                            <div onClick={() => abrirNota(p)} style={{ marginTop: 8, background: 'var(--bg)', border: '0.5px solid var(--line)', borderRadius: 8, padding: '7px 10px', fontSize: 13, color: 'var(--ink)', cursor: 'pointer', whiteSpace: 'pre-wrap' }}>
-                              <span style={{ color: 'var(--faint)', fontSize: 11, display: 'block', marginBottom: 2 }}>comentário (toque para editar)</span>{p.nota}
-                            </div>
-                          ) : null}
+                            <span aria-hidden="true" style={{ color: 'var(--ui-faint)', fontSize: 18, flex: '0 0 auto', transform: abertaP ? 'rotate(90deg)' : 'none', transition: 'transform .18s var(--ease)' }}>›</span>
+                          </button>
 
-                          <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13 }} onClick={() => abrirEdicao(p)}>✏️ Editar</button>
-                            {!p.nota && notaEdit !== p.id && <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13 }} onClick={() => abrirNota(p)}>+ comentário</button>}
-                            <button aria-label="Subir" className="btn-ghost" style={{ padding: '2px 6px', fontSize: 15 }} onClick={() => mover(g, i, -1)}>↑</button>
-                            <button aria-label="Descer" className="btn-ghost" style={{ padding: '2px 6px', fontSize: 15 }} onClick={() => mover(g, i, 1)}>↓</button>
-                            <span style={{ flex: 1 }} />
-                            <button className="btn-ghost" style={{ padding: '2px 0', fontSize: 13, color: 'var(--debit)' }} onClick={() => excluir(p)}>Excluir</button>
-                          </div>
-                          <div onClick={() => abrirNovo(g.data, p.id)} style={{ fontSize: 11.5, color: 'var(--brand)', cursor: 'pointer', marginTop: 8 }}>+ inserir parada depois desta</div>
+                          <Expand aberto={abertaP}>
+                            <div style={{ padding: '0 0 12px 50px' }}>
+                              {p.endereco && <div className="ui-wrap" style={{ fontSize: 13, color: 'var(--ui-muted)', marginBottom: 6, lineHeight: 1.4 }}>📍 {p.endereco}</div>}
+                              {cl && <div className="ui-caption" style={{ marginBottom: 6 }}>{iconeClima(cl.code)} {cl.max}° / {cl.min}°{cl.chuva != null ? ` · 🌧 ${cl.chuva}% de chuva` : ''}</div>}
+                              {(() => {
+                                const gx = ordenados.findIndex((s) => s.id === p.id);
+                                const nx = ordenados[gx + 1];
+                                if (!nx || p.lat == null || p.lng == null || nx.lat == null || nx.lng == null) return null;
+                                const rota = rotas[`${p.id}_${nx.id}`];
+                                // toque no trecho abre o Google Maps já com a rota desta parada até a próxima
+                                // (endereço escrito quando tem — a coordenada só entra se não houver texto nenhum)
+                                const urlTrecho = urlGoogleMaps({ origem: destinoParada(p, viagem) || `${p.lat},${p.lng}`, destino: destinoParada(nx, viagem) || `${nx.lat},${nx.lng}` });
+                                return (
+                                  <a href={urlTrecho} target="_blank" rel="noopener noreferrer" className="ui-wrap" style={{ ...LINK_SEM_SUBLINHADO, display: 'block', fontSize: 12.5, color: 'var(--ui-muted)', marginBottom: 6, lineHeight: 1.4 }}>
+                                    ↘ {rota === undefined ? 'calculando…' : rota === 'erro' ? 'distância indisponível' : `≈ ${rota.km.toFixed(0)} km · ${fmtDur(rota.min)} de carro até ${nx.nome}`} <span style={{ color: 'var(--ui-teal-ink)', fontWeight: 700 }}>· ver rota</span>
+                                  </a>
+                                );
+                              })()}
+
+                              {(() => {
+                                // GPS: "me leva até aqui" a partir de onde a pessoa está.
+                                // Google Maps já abre navegando; Waze como alternativa (comum em estrada no Brasil).
+                                const dest = destinoParada(p, viagem);
+                                if (!dest) return null;
+                                const exato = temEnderecoExato(p);
+                                const wz = urlWaze(p, viagem);
+                                // Com endereço exato: já sai navegando (ação primária). Sem: abre a rota
+                                // no Maps mas deixa a pessoa conferir o lugar antes de iniciar.
+                                return (
+                                  <div style={{ marginTop: 8 }}>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                      <a href={urlGoogleMaps({ destino: dest, navegar: exato })} target="_blank" rel="noopener noreferrer" className={`ui-btn ${exato ? 'ui-btn-primary' : 'ui-btn-soft'}`} style={{ ...LINK_SEM_SUBLINHADO, flex: 1, minWidth: 0 }}>🧭 {exato ? 'Ir com GPS' : 'Ver no Maps'}</a>
+                                      {wz && <a href={wz} target="_blank" rel="noopener noreferrer" className="ui-btn ui-btn-secondary" style={{ ...LINK_SEM_SUBLINHADO, flex: '0 0 auto' }}>Waze</a>}
+                                    </div>
+                                    {!exato && <button onClick={() => abrirEdicao(p)} style={{ ...acaoTxt, padding: 0, marginTop: 4, minHeight: 40, fontSize: 12.5, color: 'var(--ui-gold)' }}>⚠️ sem endereço exato — toque pra preencher</button>}
+                                  </div>
+                                );
+                              })()}
+
+                              {notaEdit === p.id ? (
+                                <div style={{ marginTop: 10 }}>
+                                  <textarea className="ui-input" autoFocus value={notaTxt} onChange={(e) => setNotaTxt(e.target.value)} placeholder="Escreva um comentário…" />
+                                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                                    <Button size="sm" onClick={() => salvarNota(p)} style={{ minHeight: 40 }}>Salvar comentário</Button>
+                                    <Button variant="ghost" size="sm" onClick={() => setNotaEdit(null)} style={{ minHeight: 40 }}>Cancelar</Button>
+                                  </div>
+                                </div>
+                              ) : p.nota ? (
+                                <button onClick={() => abrirNota(p)} className="ui-sunken ui-wrap" style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 10, border: 'none', padding: '9px 12px', fontSize: 13.5, lineHeight: 1.45, color: 'var(--ui-ink)', whiteSpace: 'pre-wrap' }}>
+                                  <span className="ui-label" style={{ margin: '0 0 3px' }}>Comentário · toque pra editar</span>{p.nota}
+                                </button>
+                              ) : null}
+
+                              <div style={{ display: 'flex', gap: 2, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <button style={acaoTxt} onClick={() => abrirEdicao(p)}>✏️ Editar</button>
+                                {!p.nota && notaEdit !== p.id && <button style={acaoTxt} onClick={() => abrirNota(p)}>+ comentário</button>}
+                                <button aria-label="Mover para cima" className="ui-iconbtn" style={{ width: 40, height: 40, background: 'transparent', fontSize: 16, color: 'var(--ui-muted)', opacity: i === 0 ? 0.35 : 1 }} onClick={() => mover(g, i, -1)} disabled={i === 0}>↑</button>
+                                <button aria-label="Mover para baixo" className="ui-iconbtn" style={{ width: 40, height: 40, background: 'transparent', fontSize: 16, color: 'var(--ui-muted)', opacity: i === nStops - 1 ? 0.35 : 1 }} onClick={() => mover(g, i, 1)} disabled={i === nStops - 1}>↓</button>
+                                <span style={{ flex: 1 }} />
+                                <button style={{ ...acaoTxt, color: 'var(--ui-debit)' }} onClick={() => excluir(p)}>Excluir</button>
+                              </div>
+                              <button onClick={() => abrirNovo(g.data, p.id)} style={{ ...acaoTxt, padding: 0, minHeight: 40, fontSize: 12.5 }}>+ inserir parada depois desta</button>
+                            </div>
+                          </Expand>
                         </div>
-                        )}
-                      </div>
                       );
                     })}
-                    {g.stops.length > 0 && (
-                      <div onClick={() => abrirNovo(g.data, null)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0 2px', borderTop: '0.5px solid var(--line)', cursor: 'pointer' }}>
-                        <span style={{ width: 40 }} />
-                        <span style={{ width: 36, height: 36, borderRadius: '50%', border: '1.5px dashed var(--line-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'var(--muted)', flex: '0 0 auto' }}>+</span>
-                        <div><div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--muted)' }}>Adicionar parada</div><div style={{ fontSize: 11.5, color: 'var(--faint)' }}>Restaurante, atração, hotel…</div></div>
-                      </div>
+                    {nStops > 0 && (
+                      <button onClick={() => abrirNovo(g.data, null)} className="ui-rowbtn" style={{ minHeight: 48, padding: '8px 0 2px', borderTop: '1px solid var(--ui-line)' }}>
+                        <span style={{ width: 42, flex: '0 0 auto' }} />
+                        <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 12, border: '1.5px dashed var(--ui-line-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'var(--ui-muted)', flex: '0 0 auto' }}>+</span>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ui-muted)' }}>adicionar parada</span>
+                      </button>
                     )}
                   </div>
-                  )}
-                </div>
-              );
-              });
-            })()}
+                </Expand>
+              </div>
+            );
+          })}
 
-            <button className="btn-outline" style={{ marginTop: 2 }} onClick={() => abrirNovo(ultimaData(), null)}>+ Adicionar parada</button>
+          {grupos.length > 0 && <Button variant="secondary" full style={{ marginTop: 4 }} onClick={() => abrirNovo(ultimaData(), null)}>+ Adicionar parada</Button>}
 
-            <div className="card" style={{ marginTop: 16, padding: 0, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
-              <div onClick={() => ir('resumo')} style={{ flex: 1, padding: '14px 8px', cursor: 'pointer', textAlign: 'center' }}>
-                <div style={{ fontSize: 9.5, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.3px', fontWeight: 600 }}>Orçamento</div>
-                <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.3px', marginTop: 3 }}>{fmtBRL(Number(viagem.orcamento_brl) || 0)}</div>
-                <div style={{ fontSize: 10.5, color: 'var(--brand)', marginTop: 1 }}>ver resumo</div>
-              </div>
-              <div style={{ width: '0.5px', background: 'var(--line)', flex: '0 0 auto' }} />
-              <div onClick={() => ir('checklist')} style={{ flex: 1, padding: '14px 8px', cursor: 'pointer', textAlign: 'center' }}>
-                <div style={{ fontSize: 9.5, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.3px', fontWeight: 600 }}>Tarefas</div>
-                <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.3px', marginTop: 3 }}>{tarefasPend}</div>
-                <div style={{ fontSize: 10.5, color: 'var(--brand)', marginTop: 1 }}>{tarefasPend === 1 ? 'pendente' : 'pendentes'}</div>
-              </div>
-              <div style={{ width: '0.5px', background: 'var(--line)', flex: '0 0 auto' }} />
-              <div onClick={() => ir('pessoas')} style={{ flex: 1, padding: '14px 8px', cursor: 'pointer', textAlign: 'center' }}>
-                <div style={{ fontSize: 9.5, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.3px', fontWeight: 600 }}>Pessoas</div>
-                <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.3px', marginTop: 3 }}>{nPessoas}</div>
-                <div style={{ fontSize: 10.5, color: 'var(--brand)', marginTop: 1 }}>ver detalhes</div>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+          {/* Atalhos pro resto do app: uma linha só, três colunas tocáveis */}
+          <div className="ui-card-tight" style={{ marginTop: 16, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
+            {[
+              { rotulo: 'Orçamento', valor: fmtBRL(Number(viagem.orcamento_brl) || 0), acao: 'ver resumo', tela: 'resumo' },
+              { rotulo: 'Tarefas', valor: String(tarefasPend), acao: tarefasPend === 1 ? 'pendente' : 'pendentes', tela: 'checklist' },
+              { rotulo: 'Pessoas', valor: String(nPessoas), acao: 'ver detalhes', tela: 'pessoas' },
+            ].map((c, i) => (
+              <button key={c.tela} onClick={() => ir(c.tela)} className="ui-press" style={{ flex: 1, minWidth: 0, minHeight: 64, padding: '12px 6px', border: 'none', borderLeft: i > 0 ? '1px solid var(--ui-line)' : 'none', background: 'transparent', textAlign: 'center' }}>
+                <div className="ui-label" style={{ margin: '0 0 2px' }}>{c.rotulo}</div>
+                <div className="ui-num ui-clamp1" style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.3px' }}>{c.valor}</div>
+                <div style={{ fontSize: 11, color: 'var(--ui-teal-ink)', fontWeight: 600, marginTop: 1 }}>{c.acao}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

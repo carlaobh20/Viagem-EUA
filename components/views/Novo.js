@@ -2,7 +2,29 @@
 import { useState, useRef, useEffect } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
-import { CATEGORIAS, hojeLocal, usaDolar } from '../../lib/format';
+import { CATEGORIAS, hojeLocal, usaDolar, fmtBRL, fmtUSD } from '../../lib/format';
+import { PageHeader, Button, Field, Expand } from '../ui';
+
+// Novo gasto / editar gasto. Feito pra ser rápido: valor → descrição → categoria,
+// com defaults (hoje, moeda da viagem, quem pagou = eu, dividir = eu). Data, ponto do
+// roteiro e visibilidade ficam atrás de "+ mais detalhes" quando não são usados.
+// O comprovante (com leitura por IA) fica no topo, compacto. Tudo que existia continua aqui.
+
+const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+function dataCurta(iso) {
+  if (!iso) return '';
+  if (iso === hojeLocal()) return 'hoje';
+  const [a, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+  if (!a || !m || !d) return iso;
+  const dt = new Date(a, m - 1, d);
+  return `${DIAS[dt.getDay()]}, ${d} ${MESES[m - 1]}`;
+}
+
+// Estilos fixos (fora do componente: nada remonta a cada render)
+const VALOR_INPUT = { fontSize: 30, fontWeight: 800, letterSpacing: '-0.8px', minHeight: 60, padding: '8px 14px', fontVariantNumeric: 'tabular-nums' };
+const PESSOA_BTN = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 64, padding: '8px 4px', borderRadius: 14, cursor: 'pointer', transition: 'background .15s ease, border-color .15s ease' };
+const BARRA_FIXA = { position: 'sticky', bottom: 0, margin: '16px -18px 0', padding: '10px 18px calc(12px + env(safe-area-inset-bottom))', background: 'linear-gradient(to top, var(--ui-bg) 78%, transparent)' };
 
 export default function Novo({ ir }) {
   const { viagem, perfis, pontos, perfil, divisoes, gastoVistoPor, salvarGasto, atualizarGasto, gastoEditando, setGastoEditando, urlRecibo } = useData();
@@ -10,6 +32,7 @@ export default function Novo({ ir }) {
   const inputCamera = useRef(null);
   const inputGaleria = useRef(null);
   const comDolar = usaDolar(viagem);
+  const cambio = Number(viagem?.cotacao_usd) || 0;
 
   const [descricao, setDescricao] = useState(ed ? (ed.descricao || '') : '');
   const [valor, setValor] = useState(ed ? String(ed.valor).replace('.', ',') : '');
@@ -28,7 +51,11 @@ export default function Novo({ ir }) {
     if (ed) { divisoes.filter((d) => d.gasto_id === ed.id).forEach((d) => { init[d.perfil_id] = Number(d.partes) || 1; }); }
     return init;
   });
+  // "+ mais detalhes" já vem aberto quando algum opcional está em uso (edição)
+  const [detalhes, setDetalhes] = useState(() => !!(ed && (ed.ponto_id || ed.privado || (ed.data && ed.data !== hoje()))));
   const [salvando, setSalvando] = useState(false);
+  const [salvo, setSalvo] = useState(false);
+  const [erro, setErro] = useState('');
   // Comprovante: foto nova (blob) ou a já salva (recibo_url → link assinado)
   const [reciboBlob, setReciboBlob] = useState(null);
   const [reciboBase64, setReciboBase64] = useState(null);
@@ -48,13 +75,18 @@ export default function Novo({ ir }) {
   function toggleVeQuem(id) { setCompartilhadoCom((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]); }
   const outrasPessoas = perfis.filter((p) => p.id !== (perfil && perfil.id));
   const participantes = perfis.filter((p) => (partes[p.id] || 0) > 0).map((p) => ({ id: p.id, partes: partes[p.id] }));
+  const totalPartes = participantes.reduce((s, p) => s + p.partes, 0);
   const valorNum = parseFloat((valor || '').replace(',', '.'));
   const valido = valorNum > 0 && pagoPor && participantes.length > 0;
+  const falta = !(valorNum > 0) ? 'Falta o valor.' : !pagoPor ? 'Escolhe quem pagou.' : participantes.length === 0 ? 'Marca pelo menos uma pessoa em "Dividir entre".' : '';
+  const fmt = (v, m) => (m === 'USD' ? fmtUSD(v) : fmtBRL(v));
+  // conversão aproximada, só informativa (mesmo câmbio da viagem)
+  const conversao = comDolar && cambio > 0 && valorNum > 0 ? (moeda === 'USD' ? `≈ ${fmtBRL(valorNum * cambio)}` : `≈ ${fmtUSD(valorNum / cambio)}`) : '';
 
   function preencher(d) {
     if (d.valor != null) setValor(String(d.valor).replace('.', ','));
     if (d.moeda) setMoeda(d.moeda === 'BRL' ? 'BRL' : 'USD');
-    if (d.data) setData(d.data);
+    if (d.data) { setData(d.data); if (d.data !== hoje()) setDetalhes(true); }
     if (d.estabelecimento) setDescricao(d.estabelecimento);
     if (d.categoria && CATEGORIAS.some((c) => c.id === d.categoria)) setCategoria(d.categoria);
   }
@@ -97,126 +129,186 @@ export default function Novo({ ir }) {
   function voltar() { setGastoEditando(null); ir(ed ? 'gastos' : 'resumo'); }
 
   async function salvar() {
-    if (!valido) return;
-    setSalvando(true);
+    if (!valido || salvando || salvo) return;
+    setSalvando(true); setErro('');
     try {
       const payload = { descricao: descricao.trim() || nomeDe(categoria), valor: valorNum, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile: reciboBlob, privado, compartilhadoCom };
       if (ed) await atualizarGasto({ id: ed.id, ...payload, reciboUrlAtual: ed.recibo_url, removerRecibo, userIdAtual: ed.user_id });
       else await salvarGasto(payload);
-      setGastoEditando(null);
-      ir('gastos');
-    } catch (e) { alert('Não consegui salvar: ' + e.message); setSalvando(false); }
+      // feedback rápido de sucesso antes de trocar de tela
+      setSalvo(true);
+      setTimeout(() => { setGastoEditando(null); ir('gastos'); }, 550);
+    } catch (e) { setErro('Não consegui salvar: ' + e.message); setSalvando(false); }
   }
 
+  const mostrando = reciboPreview || (!removerRecibo && reciboAtualUrl);
+  const temSalvo = !!(ed && ed.recibo_url) && !removerRecibo && !reciboPreview;
+  const resumoDetalhes = [
+    dataCurta(data),
+    pontoId ? (pontos.find((p) => p.id === pontoId)?.nome || 'ponto do roteiro') : null,
+    privado ? '🔒 restrito' : 'todo mundo vê',
+  ].filter(Boolean).join(' · ');
+
   return (
-    <div className="app">
-      <div className="screen" style={{ paddingTop: 18 }}>
-        <div className="fab-back"><button onClick={voltar} aria-label="Voltar">←</button><span className="ttl">{ed ? 'Editar gasto' : 'Novo gasto'}</span></div>
+    <div className="ui-screen" style={{ paddingBottom: 12 }}>
+      <PageHeader
+        titulo={ed ? 'Editar gasto' : 'Novo gasto'}
+        subtitulo={ed ? 'Mexe no que precisar e salva.' : 'Valor, descrição e pronto — o resto é opcional.'}
+        onVoltar={voltar}
+        compacto
+      />
 
-        <input ref={inputCamera} type="file" accept="image/*" capture="environment" onChange={aoEscolherRecibo} style={{ display: 'none' }} />
-        <input ref={inputGaleria} type="file" accept="image/*" onChange={aoEscolherRecibo} style={{ display: 'none' }} />
+      <input ref={inputCamera} type="file" accept="image/*" capture="environment" onChange={aoEscolherRecibo} style={{ display: 'none' }} />
+      <input ref={inputGaleria} type="file" accept="image/*" onChange={aoEscolherRecibo} style={{ display: 'none' }} />
 
-        {/* Comprovante: quem racha o gasto vê a foto na lista (📎) e sabe o que foi pago de fato */}
-        {(() => {
-          const mostrando = reciboPreview || (!removerRecibo && reciboAtualUrl);
-          const temSalvo = !!(ed && ed.recibo_url) && !removerRecibo && !reciboPreview;
-          return (
-            <div className="field">
-              <label>Comprovante (recibo / nota) — {perfis.length > 1 ? 'quem racha vê a foto' : 'opcional'}</label>
-              {mostrando ? (
-                <div style={{ border: '0.5px solid var(--line)', borderRadius: 12, padding: 8, background: 'var(--surface)' }}>
-                  <a href={mostrando} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
-                    <img src={mostrando} alt="Comprovante" style={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8, display: 'block' }} />
-                  </a>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                    <button className="btn-outline" style={{ flex: 1, height: 40, fontSize: 13, minWidth: 120 }} onClick={() => inputGaleria.current && inputGaleria.current.click()}>🔄 Trocar foto</button>
-                    {reciboBase64 && <button className="btn-outline" style={{ flex: 1, height: 40, fontSize: 13, minWidth: 120 }} onClick={lerComIA} disabled={lendoRecibo}>{lendoRecibo ? 'Lendo…' : '✨ Preencher pela foto'}</button>}
-                    <button className="btn-outline" style={{ flex: '0 0 auto', height: 40, fontSize: 13, color: 'var(--faint)', borderColor: 'var(--line-strong)' }} onClick={tirarComprovante}>✕ Remover</button>
-                  </div>
-                  {temSalvo && <p style={{ fontSize: 11, color: 'var(--faint)', marginTop: 6 }}>Comprovante já salvo neste gasto. Toque na imagem pra abrir em tamanho grande.</p>}
-                </div>
-              ) : (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn-outline" style={{ flex: 1 }} onClick={() => inputCamera.current && inputCamera.current.click()}>📷 Tirar foto</button>
-                  <button className="btn-outline" style={{ flex: 1 }} onClick={() => inputGaleria.current && inputGaleria.current.click()}>🖼️ Da galeria</button>
-                </div>
+      {/* Comprovante (compacto): quem racha o gasto vê a foto na lista (📎). Com foto, a IA pode preencher o resto. */}
+      <div className="ui-card-tight" style={{ padding: '12px 14px', marginBottom: 16 }}>
+        {mostrando ? (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <a href={mostrando} target="_blank" rel="noreferrer" aria-label="Abrir comprovante em tamanho grande" style={{ flex: '0 0 auto', display: 'block' }}>
+              <img src={mostrando} alt="Comprovante" style={{ width: 68, height: 68, objectFit: 'cover', borderRadius: 12, display: 'block', background: 'var(--ui-sunken)' }} />
+            </a>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="ui-label" style={{ margin: '0 0 6px' }}>Comprovante{temSalvo ? ' · salvo' : ''}</div>
+              {reciboBase64 && (
+                <Button variant="soft" full onClick={lerComIA} disabled={lendoRecibo} style={{ marginBottom: 6 }}>{lendoRecibo ? 'Lendo a foto…' : '✨ Preencher pela foto'}</Button>
               )}
-              {avisoRecibo && <p style={{ fontSize: 12, marginTop: 8, color: avisoRecibo.startsWith('✓') ? 'var(--credit, #0F9D6B)' : 'var(--debit, #C2410C)' }}>{avisoRecibo}</p>}
-            </div>
-          );
-        })()}
-
-        <div className="field"><label>Descrição</label>
-          <input className="input" value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex.: Jantar no restaurante" /></div>
-        <div className="field"><label>Valor</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input className="input" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" style={{ flex: 1 }} />
-            {comDolar && (
-              <div className="toggle" style={{ width: 150 }}>
-                <button className={moeda === 'USD' ? 'on' : ''} onClick={() => setMoeda('USD')}>USD</button>
-                <button className={moeda === 'BRL' ? 'on' : ''} onClick={() => setMoeda('BRL')}>BRL</button>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button className="ui-btn ui-btn-ghost" style={{ flex: 1, minHeight: 40, fontSize: 13 }} onClick={() => inputGaleria.current && inputGaleria.current.click()}>🔄 Trocar</button>
+                <button className="ui-btn ui-btn-ghost" style={{ flex: 1, minHeight: 40, fontSize: 13, color: 'var(--ui-muted)' }} onClick={tirarComprovante}>✕ Remover</button>
               </div>
-            )}
+            </div>
           </div>
-        </div>
-        <div className="field"><label>Categoria</label>
-          <select className="select" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-            {CATEGORIAS.map((c) => (<option key={c.id} value={c.id}>{c.emoji} {c.nome}</option>))}
-          </select></div>
-        <div className="field"><label>Quem pagou</label>
-          <select className="select" value={pagoPor} onChange={(e) => setPagoPor(e.target.value)}>
-            {perfis.map((p) => (<option key={p.id} value={p.id}>{p.nome}</option>))}
-          </select></div>
-        {pontos.length > 0 && (
-          <div className="field"><label>Ponto do roteiro (opcional)</label>
-            <select className="select" value={pontoId} onChange={(e) => setPontoId(e.target.value)}>
-              <option value="">—</option>
-              {pontos.map((p) => (<option key={p.id} value={p.id}>{p.nome}</option>))}
-            </select></div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 130px', minWidth: 0 }}>
+              <div className="ui-label" style={{ margin: 0 }}>Comprovante <span style={{ fontWeight: 500, color: 'var(--ui-faint)', letterSpacing: 0 }}>· opcional</span></div>
+              <div className="ui-caption" style={{ marginTop: 2 }}>{perfis.length > 1 ? 'Quem racha vê a foto. A IA preenche os campos pra você.' : 'A IA lê a nota e preenche os campos.'}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flex: '0 0 auto' }}>
+              <Button variant="secondary" onClick={() => inputCamera.current && inputCamera.current.click()} aria-label="Tirar foto do comprovante">📷 Foto</Button>
+              <Button variant="secondary" onClick={() => inputGaleria.current && inputGaleria.current.click()} aria-label="Escolher comprovante da galeria">🖼️ Galeria</Button>
+            </div>
+          </div>
         )}
-        <div className="field"><label>Data</label>
-          <input className="input" type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
-        <div className="field"><label>Dividir entre (toque para incluir)</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-            {perfis.map((p) => {
-              const ativo = (partes[p.id] || 0) > 0;
-              return (
-                <div key={p.id} onClick={() => togglePessoa(p.id)} style={{
-                  borderRadius: 10, cursor: 'pointer',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '7px 3px',
-                  background: ativo ? 'var(--credit)' : 'var(--surface)',
-                  border: ativo ? '1px solid var(--credit)' : '0.5px solid var(--line-strong)',
-                  transition: 'background .15s, border-color .15s'
-                }}>
-                  <span style={{ width: 20, height: 20, borderRadius: '50%', background: ativo ? 'rgba(255,255,255,.28)' : (p.cor || 'var(--brand)'), color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>{p.nome.slice(0, 2).toUpperCase()}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: ativo ? '#fff' : 'var(--ink)', textAlign: 'center', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{p.nome}</span>
-                </div>
-              );
-            })}
-          </div>
-          <p style={{ fontSize: 11, color: 'var(--faint)', marginTop: 10 }}>Por padrão só você fica marcado. Toque em quem mais participa desse gasto — a divisão é igual entre os selecionados.</p>
-        </div>
-        <div className="field"><label>Visibilidade</label>
-          <div className="toggle">
-            <button className={!privado ? 'on' : ''} onClick={() => setPrivado(false)}>👥 Todo mundo vê</button>
-            <button className={privado ? 'on' : ''} onClick={() => setPrivado(true)}>🔒 Restrito</button>
-          </div>
-          {privado && (
-            <div style={{ marginTop: 10 }}>
-              <p style={{ fontSize: 11, color: 'var(--faint)', marginBottom: 8 }}>Só você vê por padrão. Toque em quem mais da viagem pode ver esse gasto (opcional):</p>
-              {outrasPessoas.length === 0 && <p style={{ fontSize: 12, color: 'var(--faint)' }}>Não tem mais ninguém nessa viagem ainda.</p>}
-              {outrasPessoas.map((p) => {
-                const ativo = compartilhadoCom.includes(p.id);
-                return (
-                  <button key={p.id} className={'chip' + (ativo ? ' on' : '')} onClick={() => toggleVeQuem(p.id)} style={{ marginRight: 8, marginBottom: 8 }}>
-                    {ativo ? '✓ ' : ''}{p.nome}
-                  </button>
-                );
-              })}
+        {avisoRecibo && <div className={avisoRecibo.startsWith('✓') ? 'ui-success' : 'ui-error'} style={{ margin: '10px 0 0' }}>{avisoRecibo}</div>}
+      </div>
+
+      {/* 1. Valor (+ moeda) — o campo que a pessoa mais quer preencher */}
+      <Field label="Valor" hint={conversao || undefined}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+          <input className="ui-input ui-num" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" autoFocus={!ed} aria-label="Valor" style={{ ...VALOR_INPUT, flex: 1, minWidth: 0 }} />
+          {comDolar && (
+            <div className="ui-seg" role="tablist" aria-label="Moeda" style={{ flex: '0 0 auto', width: 132, alignItems: 'stretch' }}>
+              <button role="tab" aria-selected={moeda === 'USD'} className={moeda === 'USD' ? 'on' : ''} onClick={() => setMoeda('USD')} style={{ minHeight: 0 }}>US$</button>
+              <button role="tab" aria-selected={moeda === 'BRL'} className={moeda === 'BRL' ? 'on' : ''} onClick={() => setMoeda('BRL')} style={{ minHeight: 0 }}>R$</button>
             </div>
           )}
         </div>
-        <button className="btn-primary" onClick={salvar} disabled={!valido || salvando}>{salvando ? 'Salvando…' : ed ? 'Salvar alterações' : 'Salvar gasto'}</button>
+      </Field>
+
+      {/* 2. Descrição */}
+      <Field label="Descrição">
+        <input className="ui-input" value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder={`Ex.: Jantar no restaurante (vazio = "${nomeDe(categoria)}")`} />
+      </Field>
+
+      {/* 3. Categoria */}
+      <Field label="Categoria">
+        <select className="ui-input" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+          {CATEGORIAS.map((c) => (<option key={c.id} value={c.id}>{c.emoji} {c.nome}</option>))}
+        </select>
+      </Field>
+
+      {/* 4. Quem pagou (default: eu) */}
+      <div className="ui-field">
+        <label className="ui-label">Quem pagou</label>
+        <div className="ui-chips-scroll" role="radiogroup" aria-label="Quem pagou" style={{ paddingBottom: 2 }}>
+          {perfis.map((p) => (
+            <button key={p.id} role="radio" aria-checked={pagoPor === p.id} className={'ui-chipbtn' + (pagoPor === p.id ? ' on' : '')} onClick={() => setPagoPor(p.id)}>
+              {p.nome}{perfil && p.id === perfil.id ? ' (você)' : ''}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 5. Dividir entre (default: eu) */}
+      <div className="ui-field">
+        <label className="ui-label">Dividir entre</label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(78px, 1fr))', gap: 8 }}>
+          {perfis.map((p) => {
+            const n = partes[p.id] || 0;
+            const ativo = n > 0;
+            return (
+              <button key={p.id} type="button" onClick={() => togglePessoa(p.id)} aria-pressed={ativo} className="ui-press" style={{
+                ...PESSOA_BTN,
+                background: ativo ? 'var(--ui-teal-soft)' : 'var(--ui-card)',
+                border: ativo ? '1px solid transparent' : '1px solid var(--ui-line-strong)',
+                color: ativo ? 'var(--ui-teal-ink)' : 'var(--ui-ink)',
+              }}>
+                <span aria-hidden="true" style={{ width: 26, height: 26, borderRadius: '50%', background: ativo ? 'var(--ui-teal)' : (p.cor || 'var(--ui-faint)'), color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>{ativo ? '✓' : p.nome.slice(0, 2).toUpperCase()}</span>
+                <span className="ui-clamp1" style={{ fontSize: 11.5, fontWeight: 700, maxWidth: '100%', lineHeight: 1.15 }}>{p.nome}{n > 1 ? ` ×${n}` : ''}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="ui-hint">
+          {participantes.length === 0
+            ? 'Toque em quem participa desse gasto.'
+            : participantes.length === 1
+              ? (perfil && participantes[0].id === perfil.id ? 'Só você. Toque em quem mais participa — a divisão é igual entre os marcados.' : 'Uma pessoa só. Toque em quem mais participa.')
+              : `${participantes.length} pessoas${valorNum > 0 && totalPartes > 0 ? ` · ${fmt(valorNum / totalPartes, moeda)} por parte` : ''}.`}
+        </div>
+      </div>
+
+      {/* Opcionais: data, ponto do roteiro, visibilidade */}
+      <button type="button" onClick={() => setDetalhes((v) => !v)} aria-expanded={detalhes} className="ui-btn ui-btn-ghost" style={{ width: '100%', justifyContent: 'space-between', padding: '0 4px', borderRadius: 12 }}>
+        <span style={{ flex: '0 0 auto' }}>{detalhes ? '− menos detalhes' : '+ mais detalhes'}</span>
+        {!detalhes && <span className="ui-caption ui-clamp1" style={{ fontWeight: 500, flex: '1 1 0', minWidth: 0, textAlign: 'right' }}>{resumoDetalhes}</span>}
+      </button>
+      <Expand aberto={detalhes}>
+        <div style={{ paddingTop: 10 }}>
+          <Field label="Data">
+            <input className="ui-input" type="date" value={data} onChange={(e) => setData(e.target.value)} />
+          </Field>
+          {pontos.length > 0 && (
+            <Field label="Ponto do roteiro" opcional>
+              <select className="ui-input" value={pontoId} onChange={(e) => setPontoId(e.target.value)}>
+                <option value="">Nenhum</option>
+                {pontos.map((p) => (<option key={p.id} value={p.id}>{p.nome}</option>))}
+              </select>
+            </Field>
+          )}
+          <div className="ui-field">
+            <label className="ui-label">Visibilidade</label>
+            <div className="ui-seg" role="tablist" aria-label="Visibilidade">
+              <button role="tab" aria-selected={!privado} className={!privado ? 'on' : ''} onClick={() => setPrivado(false)}>👥 Todo mundo vê</button>
+              <button role="tab" aria-selected={privado} className={privado ? 'on' : ''} onClick={() => setPrivado(true)}>🔒 Restrito</button>
+            </div>
+            <Expand aberto={privado}>
+              <div style={{ paddingTop: 10 }}>
+                <div className="ui-caption" style={{ marginBottom: 8 }}>Só você vê por padrão. Toque em quem mais pode ver esse gasto:</div>
+                {outrasPessoas.length === 0 && <div className="ui-caption ui-faint">Não tem mais ninguém nessa viagem ainda.</div>}
+                <div className="chips">
+                  {outrasPessoas.map((p) => {
+                    const ativo = compartilhadoCom.includes(p.id);
+                    return (
+                      <button key={p.id} className={'chip' + (ativo ? ' on' : '')} aria-pressed={ativo} onClick={() => toggleVeQuem(p.id)}>{ativo ? '✓ ' : ''}{p.nome}</button>
+                    );
+                  })}
+                </div>
+              </div>
+            </Expand>
+          </div>
+        </div>
+      </Expand>
+
+      {/* Ação primária fixa no rodapé (essa tela não tem barra de navegação) */}
+      <div style={BARRA_FIXA}>
+        {erro && <div className="ui-error" role="alert" style={{ margin: '0 0 8px' }}>{erro}</div>}
+        <Button size="lg" full onClick={salvar} disabled={!valido || salvando || salvo} style={salvo ? { background: 'var(--ui-credit)', opacity: 1 } : undefined}>
+          {salvo ? '✓ Salvo!' : salvando ? 'Salvando…' : ed ? 'Salvar alterações' : 'Salvar gasto'}
+        </Button>
+        {!valido && !salvo && <div className="ui-caption" style={{ textAlign: 'center', marginTop: 8 }}>{falta}</div>}
       </div>
     </div>
   );

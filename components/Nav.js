@@ -13,7 +13,7 @@ const PATHS = {
 // checklist NÃO entra aqui: quando não tem aba própria de Checklist (viagem com
 // Motorhome no transporte), ele mora dentro do Menu como sempre foi; quando tem aba
 // própria (viagem sem Motorhome), a própria aba acende — ver `ativo` mais abaixo.
-const NO_MENU = ['menu', 'gastos', 'checklist', 'compras', 'pessoas', 'acerto', 'conta', 'diario', 'lugares', 'frases', 'appsinstalar', 'passagens', 'documentos'];
+const NO_MENU = ['menu', 'gastos', 'checklist', 'compras', 'pessoas', 'acerto', 'conta', 'diario', 'lugares', 'frases', 'appsinstalar', 'passagens', 'documentos', 'mapa'];
 
 export default function Nav({ view, setView }) {
   const { viagem } = useData();
@@ -29,17 +29,17 @@ export default function Nav({ view, setView }) {
 
   const ativo = (view === 'checklist' && mostrarChecklistNaBarra) ? 'checklist' : (NO_MENU.includes(view) ? 'menu' : view);
   const item = (id, label) => (
-    <button onClick={() => setView(id)} aria-label={label} style={{ color: ativo === id ? 'var(--ui-teal)' : 'var(--ui-faint)' }}>
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{PATHS[id]}</svg>
-      <span style={{ fontSize: 10, fontWeight: 600 }}>{label}</span>
+    <button onClick={() => setView(id)} aria-label={label} aria-current={ativo === id ? 'page' : undefined} className={ativo === id ? 'on' : undefined} style={{ color: ativo === id ? 'var(--ui-teal-ink)' : 'var(--ui-faint)' }}>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={ativo === id ? 2.4 : 2} strokeLinecap="round" strokeLinejoin="round">{PATHS[id]}</svg>
+      <span style={{ fontSize: 10.5, fontWeight: ativo === id ? 800 : 600 }}>{label}</span>
     </button>
   );
   return (
     <nav className="nav">
       {item('resumo', 'Início')}
       {mostrarMotorhome ? item('motorhome', 'Motorhome') : item('checklist', 'Checklist')}
-      <button onClick={() => setView('novo')} aria-label="Novo gasto"
-        style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg,#10B981,#0EA5E9)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: -26, boxShadow: '0 8px 20px rgba(14,165,180,.45)', border: 'none' }}>
+      <button onClick={() => setView('novo')} aria-label="Novo gasto" className="ui-press"
+        style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--ui-teal)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: -26, boxShadow: '0 8px 20px rgba(0,199,177,.42)', border: '3px solid var(--ui-card)' }}>
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
       </button>
       {item('roteiro', 'Roteiro')}

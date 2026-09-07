@@ -1,14 +1,19 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { useData } from '../DataProvider';
 import { fmtBRL, fmtUSD, usaDolar } from '../../lib/format';
+import { Button, Field, PageHeader, EmptyState, Segmented, Reveal, SectionHeader, ProgressBar } from '../ui';
+import { motion as motionTokens } from '../../lib/design-tokens';
 
 // "Antes de embarcar" (🛫) só faz sentido pra quem vai de avião — viagem sem
 // avião no transporte usa "Antes de sair" (🎒) no lugar, sem nada de avião.
 const TEMAS = ['Documentos', 'Dinheiro', 'Saúde', 'Bagagem', 'Carro', 'Antes de embarcar', 'Antes de sair'];
 const ICON_TEMA = { Documentos: '📄', Dinheiro: '💳', 'Saúde': '💊', Bagagem: '🧳', Carro: '🚗', 'Antes de embarcar': '🛫', 'Antes de sair': '🎒' };
 const PRAZO_LABEL = { '30d': '30 dias', '7d': '7 dias', '1d': '1 dia' };
-const PRAZO_COR = { '30d': '#2F6FE4', '7d': '#E0A22B', '1d': '#00C7B1' };
+// Prazo é categoria, não estado: só o "1 dia" (mais urgente) ganha destaque teal,
+// "7 dias" fica em atenção (dourado) e "30 dias" neutro.
+const PRAZO_PILL = { '30d': 'ui-pill-neutral', '7d': 'ui-pill-warning', '1d': 'ui-pill-info' };
 
 // Viagem sem avião marcado no transporte não deve ver nada de "embarcar"/avião.
 // Viagem sem perfil de transporte definido ainda (todas as existentes até essa
@@ -101,6 +106,90 @@ function sugestoesComprar(viagem) {
   return { ...COMPRAR_SUG, viagem: COMPRAR_SUG.viagem.filter((s) => s !== 'Seguro viagem' && s !== 'Dólar em espécie' && s !== 'Cartão internacional') };
 }
 
+// ===== Peças de lista (fora do componente da tela: se fossem definidas lá
+// dentro, o React remontaria a cada render e o campo de valor perderia o foco) =====
+
+// Bolinha de "feito": o desenho tem 24px, mas a área de toque é 44px.
+// Pequeno "pop" ao marcar (initial={false} evita animar quando a lista só carrega).
+function Marcar({ feito, onToggle }) {
+  return (
+    <button onClick={onToggle} aria-label={feito ? 'Desmarcar' : 'Marcar como feito'} aria-pressed={feito}
+      style={{ width: 44, height: 44, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', cursor: 'pointer', padding: 0 }}>
+      <motion.span initial={false} animate={feito ? { scale: [0.7, 1.18, 1] } : { scale: 1 }} transition={{ duration: 0.28, ease: motionTokens.easing }}
+        style={{ width: 24, height: 24, borderRadius: '50%', border: feito ? 'none' : '2px solid var(--ui-line-strong)', background: feito ? 'var(--ui-teal)' : 'transparent', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {feito ? '✓' : ''}
+      </motion.span>
+    </button>
+  );
+}
+
+// ✕ de apagar: desenho pequeno, alvo de 40px.
+function Apagar({ onClick, label = 'Apagar' }) {
+  return (
+    <button onClick={onClick} aria-label={label} style={{ width: 40, height: 40, border: 'none', background: 'transparent', color: 'var(--ui-faint)', fontSize: 14, cursor: 'pointer', flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, padding: 0 }}>✕</button>
+  );
+}
+
+const textoItem = (feito) => ({ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 500, lineHeight: 1.35, cursor: 'text', textDecoration: feito ? 'line-through' : 'none', color: feito ? 'var(--ui-faint)' : 'var(--ui-ink)' });
+
+function LinhaTarefa({ it, onToggle, onEditar, onApagar }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', minHeight: 52 }}>
+      <Marcar feito={!!it.feito} onToggle={onToggle} />
+      <span onClick={onEditar} className="ui-wrap" style={textoItem(it.feito)}>{it.texto}</span>
+      {it.prazo && <span className={`ui-pill ${PRAZO_PILL[it.prazo] || 'ui-pill-neutral'}`} style={{ flex: '0 0 auto' }}>{PRAZO_LABEL[it.prazo]}</span>}
+      <Apagar onClick={onApagar} />
+    </div>
+  );
+}
+
+function LinhaCompra({ it, moeda, valorTexto, onToggle, onEditar, onApagar, onTrocarMoeda, onValor, onSalvarValor }) {
+  const usd = moeda === 'USD';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', minHeight: 52 }}>
+      <Marcar feito={!!it.feito} onToggle={onToggle} />
+      <span onClick={onEditar} className="ui-wrap" style={textoItem(it.feito)}>{it.texto}</span>
+      {/* moeda + valor: um controle só, rebaixado; tocar no R$/US$ troca a moeda do item */}
+      <div className="ui-sunken" style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '0 6px 0 2px', flex: '0 0 auto', minHeight: 36 }}>
+        <button onClick={onTrocarMoeda} title="Trocar R$ / US$" aria-label="Trocar moeda"
+          style={{ border: 'none', background: usd ? 'var(--ui-teal-soft)' : 'transparent', borderRadius: 8, minHeight: 30, padding: '0 6px', fontSize: 11, color: usd ? 'var(--ui-teal-ink)' : 'var(--ui-muted)', fontWeight: 800, cursor: 'pointer' }}>{usd ? 'US$' : 'R$'}</button>
+        <input
+          inputMode="decimal"
+          className="ui-num"
+          value={valorTexto}
+          onChange={onValor}
+          onFocus={(e) => e.target.select()}
+          onBlur={onSalvarValor}
+          onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+          placeholder="0,00"
+          aria-label={`Valor de ${it.texto}`}
+          style={{ width: 58, border: 'none', outline: 'none', padding: '6px 0', fontSize: 13, fontWeight: 700, textAlign: 'right', background: 'transparent', color: 'var(--ui-ink)' }}
+        />
+      </div>
+      <Apagar onClick={onApagar} />
+    </div>
+  );
+}
+
+// Botão tracejado de "+ Adicionar item" (superfície outlined do design system, inline com tokens)
+function BotaoAdicionar({ onClick, children, style }) {
+  return (
+    <button onClick={onClick} className="ui-press" style={{ width: '100%', minHeight: 48, border: '1.5px dashed var(--ui-line-strong)', borderRadius: 16, background: 'transparent', color: 'var(--ui-teal-ink)', fontSize: 14, fontWeight: 700, cursor: 'pointer', ...style }}>{children}</button>
+  );
+}
+
+// Cabeçalho de um grupo (tema ou categoria): emoji + nome + feitos/total (+ subtotal à direita)
+function TituloGrupo({ emoji, nome, feitos, total, direita }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 4px 8px', minWidth: 0 }}>
+      <span style={{ fontSize: 16 }} aria-hidden="true">{emoji}</span>
+      <span style={{ fontSize: 14.5, fontWeight: 700 }}>{nome}</span>
+      <span className="ui-num" style={{ fontSize: 12, color: 'var(--ui-faint)' }}>{feitos}/{total}</span>
+      {direita ? <span className="ui-num" style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 800, color: 'var(--ui-teal-ink)', whiteSpace: 'nowrap' }}>{direita}</span> : null}
+    </div>
+  );
+}
+
 export default function Checklist({ ir, abaInicial }) {
   const { viagem, perfil, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorItem } = useData();
   const meu = perfil?.user_id;
@@ -177,6 +266,7 @@ export default function Checklist({ ir, abaInicial }) {
   const feitos = visiveis.filter((i) => i.feito).length;
   const total = visiveis.length;
   const pct = total > 0 ? Math.round((feitos / total) * 100) : 0;
+  const feitosGeral = itens.filter((i) => i.feito).length;
 
   // ----- Comprar -----
   const compras = (checklist || []).filter((i) => i.tema === 'Comprar' && souDono(i));
@@ -222,203 +312,221 @@ export default function Checklist({ ir, abaInicial }) {
     setAdd(null);
   }
   function editar(it) { const t = window.prompt('Editar item', it.texto); if (t && t.trim()) editarChecklist(it.id, t.trim()); }
+  function apagarItem(it) { if (window.confirm('Apagar este item?')) removerChecklist(it.id); }
 
-  const card = { background: 'var(--ui-card)', borderRadius: 18, boxShadow: 'var(--ui-shadow)' };
+  // Subtítulo do cabeçalho: o que importa agora, em uma linha
+  const subtitulo = aba === 'tarefas'
+    ? (precisaDecidir || itens.length === 0 ? 'Pra não esquecer nada' : `${feitosGeral} de ${itens.length} feita${itens.length === 1 ? '' : 's'}`)
+    : (compras.length === 0 ? 'O que comprar antes de viajar' : `${compFeitos} de ${compras.length} comprado${compras.length === 1 ? '' : 's'}${temTotal ? ` · ${fmtSoma(totalGeral)}` : ''}`);
+
+  const sugestoes = sugestoesComprar(viagem);
+  const naLista = new Set(compras.map((i) => (i.texto || '').toLowerCase()));
 
   return (
-    <div style={{ background: 'var(--ui-bg)', minHeight: '100%', padding: '14px 18px 28px', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif', color: 'var(--ui-ink)' }}>
-
-      {/* header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '2px 2px 16px' }}>
-        <button onClick={() => ir('resumo')} aria-label="Voltar" style={{ border: 'none', background: 'var(--ui-card)', width: 34, height: 34, borderRadius: 11, boxShadow: 'var(--ui-shadow)', fontSize: 18, cursor: 'pointer', flex: '0 0 auto' }}>←</button>
-        <div>
-          <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.5px' }}>Checklist</div>
-          <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 1 }}>Pra não esquecer nada</div>
-        </div>
-      </div>
+    <div className="ui-screen ui-theme">
+      <PageHeader titulo="Checklist" subtitulo={subtitulo} onVoltar={() => ir('resumo')} />
 
       {/* abas Tarefas / Comprar */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-        {[['tarefas', 'Tarefas'], ['comprar', 'Comprar']].map(([id, lbl]) => (
-          <button key={id} onClick={() => setAba(id)} style={{ flex: 1, border: 'none', borderRadius: 14, padding: '10px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer', background: aba === id ? 'var(--ui-teal)' : 'var(--ui-card)', color: aba === id ? '#fff' : 'var(--ui-muted)', boxShadow: aba === id ? 'none' : 'var(--ui-shadow)' }}>{lbl}</button>
-        ))}
-      </div>
+      <Segmented opcoes={[{ id: 'tarefas', label: 'Tarefas' }, { id: 'comprar', label: 'Comprar' }]} valor={aba} onChange={setAba} style={{ marginBottom: 16 }} />
 
+      {/* ================= TAREFAS ================= */}
       {aba === 'tarefas' && precisaDecidir && (
-        <div style={{ ...card, padding: 22, textAlign: 'center' }}>
-          <div style={{ fontSize: 30, marginBottom: 10 }}>📝</div>
-          <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>Como você quer montar seu checklist?</div>
-          <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginBottom: 18, lineHeight: 1.4 }}>Pode começar com sugestões prontas pro perfil dessa viagem (dá pra editar e apagar depois) ou montar do zero, item por item.</div>
-          <button onClick={() => decidir('pronto')} style={{ width: '100%', border: 'none', borderRadius: 14, padding: '14px', background: 'var(--ui-teal)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 10 }}>✨ Começar com sugestões prontas</button>
-          <button onClick={() => decidir('zero')} style={{ width: '100%', border: '1.5px dashed var(--ui-line)', borderRadius: 14, padding: '14px', background: 'transparent', color: 'var(--ui-ink)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>📋 Montar do zero, do meu jeito</button>
-        </div>
+        <EmptyState
+          icone="📝"
+          titulo="Como você quer montar seu checklist?"
+          texto="Pode começar com sugestões prontas pro perfil dessa viagem (dá pra editar e apagar depois) ou montar do zero, item por item."
+          cta="✨ Começar com sugestões prontas"
+          onCta={() => decidir('pronto')}
+          secundario={<Button variant="secondary" full onClick={() => decidir('zero')}>📋 Montar do zero, do meu jeito</Button>}
+        />
       )}
 
-      {aba === 'tarefas' && !precisaDecidir && (<>
-      {/* progresso */}
-      <div style={{ ...card, padding: 16, marginBottom: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 }}>
-          <span style={{ fontSize: 14, fontWeight: 700 }}>{feitos} de {total} prontos</span>
-          <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--ui-teal)' }}>{pct}%</span>
-        </div>
-        <div style={{ height: 8, borderRadius: 5, background: 'var(--ui-line)', overflow: 'hidden' }}><div style={{ width: pct + '%', height: '100%', borderRadius: 5, background: 'var(--ui-teal)', transition: 'width .3s' }} /></div>
-      </div>
-
-      {/* filtro por prazo */}
-      <div style={{ display: 'flex', gap: 7, marginBottom: 16, overflowX: 'auto' }}>
-        {[['todos', 'Tudo'], ['30d', '30 dias'], ['7d', '7 dias'], ['1d', '1 dia']].map(([id, l]) => (
-          <button key={id} onClick={() => setFiltro(id)} style={{ flex: '0 0 auto', border: 'none', borderRadius: 20, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', background: filtro === id ? 'var(--ui-teal)' : 'var(--ui-card)', color: filtro === id ? '#fff' : 'var(--ui-muted)', boxShadow: filtro === id ? 'none' : 'var(--ui-shadow)' }}>{l}</button>
-        ))}
-      </div>
-
-      {/* seções por tema */}
-      {temasVisiveis.map((tema) => {
-        const lista = visiveis.filter((i) => i.tema === tema);
-        if (lista.length === 0) return null;
-        return (
-          <div key={tema} style={{ marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 2px 9px' }}>
-              <span style={{ fontSize: 16 }}>{ICON_TEMA[tema]}</span>
-              <span style={{ fontSize: 14.5, fontWeight: 700 }}>{tema}</span>
-              <span style={{ fontSize: 12, color: 'var(--ui-faint)' }}>{lista.filter((i) => i.feito).length}/{lista.length}</span>
-            </div>
-            <div style={{ ...card, padding: '4px 14px' }}>
-              {lista.map((it, idx) => (
-                <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 0', borderTop: idx > 0 ? '1px solid var(--ui-line)' : 'none' }}>
-                  <button onClick={() => alternarChecklist(it.id, !it.feito)} aria-label="Marcar" style={{ width: 24, height: 24, borderRadius: '50%', flex: '0 0 auto', cursor: 'pointer', border: it.feito ? 'none' : '2px solid var(--ui-line)', background: it.feito ? 'var(--ui-teal)' : 'transparent', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{it.feito ? '✓' : ''}</button>
-                  <span onClick={() => editar(it)} style={{ flex: 1, minWidth: 0, fontSize: 14, cursor: 'text', textDecoration: it.feito ? 'line-through' : 'none', color: it.feito ? 'var(--ui-faint)' : 'var(--ui-ink)' }}>{it.texto}</span>
-                  {it.prazo && <span style={{ fontSize: 10.5, fontWeight: 600, color: PRAZO_COR[it.prazo], background: PRAZO_COR[it.prazo] + '1A', padding: '3px 7px', borderRadius: 7, flex: '0 0 auto' }}>{PRAZO_LABEL[it.prazo]}</span>}
-                  <button onClick={() => { if (window.confirm('Apagar este item?')) removerChecklist(it.id); }} aria-label="Apagar" style={{ border: 'none', background: 'none', color: 'var(--ui-faint)', fontSize: 14, cursor: 'pointer', flex: '0 0 auto' }}>✕</button>
+      {aba === 'tarefas' && !precisaDecidir && (
+        <Reveal>
+          {itens.length === 0 ? (add ? null : (
+            <EmptyState
+              icone="✅"
+              titulo="Seu checklist ainda está vazio."
+              texto="Comece com as sugestões ou adicione o primeiro item."
+              cta="+ Adicionar item"
+              onCta={() => setAdd({ texto: '', tema: 'Documentos', prazo: '' })}
+              secundario={<Button variant="ghost" onClick={() => decidir('pronto')}>✨ Usar sugestões prontas</Button>}
+            />
+          )) : (
+            <>
+              {/* o bloco de destaque: progresso */}
+              <div className="ui-card" style={{ padding: 16, marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, gap: 8 }}>
+                  {/* o cabeçalho já diz "X de Y feitas"; aqui entra o que falta */}
+                  <span style={{ fontSize: 14.5, fontWeight: 700 }}>
+                    {total > 0 && feitos === total ? 'Tudo pronto! 🎉' : `${total - feitos} por fazer`}
+                    {filtro !== 'todos' ? <span className="ui-muted" style={{ fontWeight: 500 }}> · prazo de {PRAZO_LABEL[filtro]}</span> : null}
+                  </span>
+                  <span className="ui-num" style={{ fontSize: 18, fontWeight: 800, color: 'var(--ui-teal-ink)' }}>{pct}%</span>
                 </div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
+                <ProgressBar pct={pct} />
+              </div>
 
-      {total === 0 && <div style={{ ...card, padding: 24, textAlign: 'center', color: 'var(--ui-faint)', fontSize: 13, marginBottom: 14 }}>Nada por aqui {filtro !== 'todos' ? 'nesse prazo' : 'ainda'}.</div>}
+              {/* filtro por prazo */}
+              <div className="ui-chips-scroll" style={{ marginBottom: 8 }}>
+                {[['todos', 'Tudo'], ['30d', '30 dias'], ['7d', '7 dias'], ['1d', '1 dia']].map(([id, l]) => (
+                  <button key={id} onClick={() => setFiltro(id)} className={`ui-chipbtn${filtro === id ? ' on' : ''}`} aria-pressed={filtro === id}>{l}</button>
+                ))}
+              </div>
 
-      {/* adicionar */}
-      {add ? (
-        <div style={{ ...card, padding: 16 }}>
-          <input autoFocus value={add.texto} onChange={(e) => setAdd({ ...add, texto: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && novoItem()} placeholder="O que não pode esquecer?" style={{ width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 14, marginBottom: 9, background: 'var(--ui-bg)', color: 'var(--ui-ink)' }} />
-          <div style={{ display: 'flex', gap: 8, marginBottom: 11 }}>
-            <select value={add.tema} onChange={(e) => setAdd({ ...add, tema: e.target.value })} style={{ flex: 1, border: '1px solid var(--ui-line)', borderRadius: 12, padding: '10px', fontSize: 13, background: 'var(--ui-bg)', color: 'var(--ui-ink)' }}>{temasVisiveis.map((t) => <option key={t} value={t}>{t}</option>)}</select>
-            <select value={add.prazo} onChange={(e) => setAdd({ ...add, prazo: e.target.value })} style={{ width: 110, border: '1px solid var(--ui-line)', borderRadius: 12, padding: '10px', fontSize: 13, background: 'var(--ui-bg)', color: 'var(--ui-ink)' }}><option value="">sem prazo</option><option value="30d">30 dias</option><option value="7d">7 dias</option><option value="1d">1 dia</option></select>
-          </div>
-          <button onClick={novoItem} style={{ width: '100%', border: 'none', borderRadius: 12, padding: '12px', background: 'var(--ui-teal)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Adicionar</button>
-          <button onClick={() => setAdd(null)} style={{ width: '100%', border: 'none', background: 'none', color: 'var(--ui-muted)', fontSize: 13, marginTop: 8, cursor: 'pointer' }}>Cancelar</button>
-        </div>
-      ) : (
-        <button onClick={() => setAdd({ texto: '', tema: 'Documentos', prazo: '' })} style={{ width: '100%', border: '1.5px dashed var(--ui-line)', borderRadius: 14, padding: '14px', background: 'transparent', color: 'var(--ui-teal)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>+ Adicionar item</button>
+              {/* seções por tema: lista simples dentro de um card por tema */}
+              {temasVisiveis.map((tema) => {
+                const lista = visiveis.filter((i) => i.tema === tema);
+                if (lista.length === 0) return null;
+                return (
+                  <div key={tema} style={{ marginBottom: 18 }}>
+                    <TituloGrupo emoji={ICON_TEMA[tema]} nome={tema} feitos={lista.filter((i) => i.feito).length} total={lista.length} />
+                    <div className="ui-card ui-list" style={{ padding: '4px 8px' }}>
+                      {lista.map((it) => (
+                        <LinhaTarefa key={it.id} it={it} onToggle={() => alternarChecklist(it.id, !it.feito)} onEditar={() => editar(it)} onApagar={() => apagarItem(it)} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {total === 0 && <EmptyState compacto icone="🗓️" titulo="Nada nesse prazo." texto="Troque o filtro pra ver os outros itens." />}
+            </>
+          )}
+
+          {/* adicionar: 1 toque abre o campo com foco; Enter salva */}
+          {add ? (
+            <Reveal>
+              <div className="ui-card" style={{ padding: 16 }}>
+                <Field label="Novo item">
+                  <input className="ui-input" autoFocus value={add.texto} onChange={(e) => setAdd({ ...add, texto: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && novoItem()} placeholder="O que não pode esquecer?" />
+                </Field>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Field label="Tema" style={{ flex: 1, minWidth: 0 }}>
+                    <select className="ui-input" value={add.tema} onChange={(e) => setAdd({ ...add, tema: e.target.value })}>{temasVisiveis.map((t) => <option key={t} value={t}>{t}</option>)}</select>
+                  </Field>
+                  <Field label="Prazo" style={{ width: 128, flex: '0 0 auto' }}>
+                    <select className="ui-input" value={add.prazo} onChange={(e) => setAdd({ ...add, prazo: e.target.value })}><option value="">sem prazo</option><option value="30d">30 dias</option><option value="7d">7 dias</option><option value="1d">1 dia</option></select>
+                  </Field>
+                </div>
+                <Button full onClick={novoItem} disabled={!add.texto.trim()}>Adicionar</Button>
+                <Button variant="ghost" full onClick={() => setAdd(null)} style={{ marginTop: 6, color: 'var(--ui-muted)' }}>Cancelar</Button>
+              </div>
+            </Reveal>
+          ) : itens.length > 0 ? (
+            <BotaoAdicionar onClick={() => setAdd({ texto: '', tema: 'Documentos', prazo: '' })}>+ Adicionar item</BotaoAdicionar>
+          ) : null}
+        </Reveal>
       )}
-      </>)}
 
-      {aba === 'comprar' && (<>
-        {/* progresso compras */}
-        <div style={{ ...card, padding: 16, marginBottom: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 }}>
-            <span style={{ fontSize: 14, fontWeight: 700 }}>{compFeitos} de {compras.length} comprados</span>
-            <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--ui-teal)' }}>{compPct}%</span>
-          </div>
-          <div style={{ height: 8, borderRadius: 5, background: 'var(--ui-line)', overflow: 'hidden' }}><div style={{ width: compPct + '%', height: '100%', borderRadius: 5, background: 'var(--ui-teal)', transition: 'width .3s' }} /></div>
-          {temTotal && (
-            <div style={{ fontSize: 12.5, color: 'var(--ui-muted)', marginTop: 10 }}>
-              Total da lista: <b style={{ color: 'var(--ui-ink)' }}>{fmtSoma(totalGeral)}</b>
-              {totalGeral.USD > 0 && totalGeral.BRL > 0 && cambio > 0 && <span> · ≈ {fmtBRL(emReais(totalGeral))}</span>}
-              {totalGeral.USD > 0 && cambio <= 0 && <span style={{ color: 'var(--ui-faint)' }}> · defina o câmbio no Resumo pra somar tudo em reais</span>}
+      {/* ================= COMPRAR ================= */}
+      {aba === 'comprar' && (
+        <Reveal>
+          {compras.length === 0 ? (
+            <EmptyState
+              icone="🛍️"
+              titulo="Sua lista de compras ainda está vazia."
+              texto="Toque numa sugestão abaixo ou adicione o primeiro item."
+              cta="+ Adicionar item"
+              onCta={() => setCompForm({ texto: '', cat: 'bagagem' })}
+            />
+          ) : (
+            <div className="ui-card" style={{ padding: 16, marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, gap: 8 }}>
+                <span style={{ fontSize: 14.5, fontWeight: 700 }}>{compFeitos === compras.length ? 'Tudo comprado! 🎉' : `${compras.length - compFeitos} por comprar`}</span>
+                <span className="ui-num" style={{ fontSize: 18, fontWeight: 800, color: 'var(--ui-teal-ink)' }}>{compPct}%</span>
+              </div>
+              <ProgressBar pct={compPct} />
+              {temTotal && (
+                <div className="ui-caption" style={{ marginTop: 10 }}>
+                  Total da lista: <b className="ui-num" style={{ color: 'var(--ui-ink)' }}>{fmtSoma(totalGeral)}</b>
+                  {totalGeral.USD > 0 && totalGeral.BRL > 0 && cambio > 0 && <span className="ui-num"> · ≈ {fmtBRL(emReais(totalGeral))}</span>}
+                  {totalGeral.USD > 0 && cambio <= 0 && <span className="ui-faint"> · defina o câmbio no Resumo pra somar tudo em reais</span>}
+                </div>
+              )}
+              {compFeitos > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <Button variant="ghost" size="sm" onClick={limparCompradas} style={{ color: 'var(--ui-muted)', padding: 0 }}>Remover {compFeitos} comprado{compFeitos === 1 ? '' : 's'}</Button>
+                </div>
+              )}
             </div>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-            <span style={{ fontSize: 12, color: 'var(--ui-muted)' }}>Itens novos em:</span>
-            <div style={{ display: 'flex', border: '1px solid var(--ui-line)', borderRadius: 999, overflow: 'hidden' }}>
-              {[['BRL', 'R$ real'], ['USD', 'US$ dólar']].map(([id, lbl]) => (
-                <button key={id} onClick={() => setMoedaPadrao(id)} style={{ border: 'none', padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: moedaPadrao === id ? 'var(--ui-teal)' : 'transparent', color: moedaPadrao === id ? '#fff' : 'var(--ui-muted)' }}>{lbl}</button>
-              ))}
-            </div>
+
+          {/* moeda padrão dos itens novos — controle secundário, discreto */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 2px 4px' }}>
+            <span className="ui-caption" style={{ flex: 1, minWidth: 0 }}>Itens novos em</span>
+            <Segmented opcoes={[{ id: 'BRL', label: 'R$' }, { id: 'USD', label: 'US$' }]} valor={moedaPadrao} onChange={setMoedaPadrao} style={{ width: 150, flex: '0 0 auto' }} />
           </div>
-          <div style={{ fontSize: 11, color: 'var(--ui-faint)', marginTop: 6 }}>Pra trocar a moeda de um item, toque no R$ / US$ ao lado do valor.{comDolar ? ' Compra feita lá nos EUA? Deixa em US$.' : ''}</div>
-          {compFeitos > 0 && <button onClick={limparCompradas} style={{ width: '100%', marginTop: 10, border: 'none', background: 'none', color: 'var(--ui-muted)', fontSize: 12.5, cursor: 'pointer' }}>Remover {compFeitos} comprado{compFeitos === 1 ? '' : 's'}</button>}
-        </div>
+          <div className="ui-hint" style={{ margin: '0 2px 14px' }}>Pra trocar a moeda de um item, toque no R$ / US$ ao lado do valor.{comDolar ? ' Compra feita lá nos EUA? Deixa em US$.' : ''}</div>
 
-        {/* seções por categoria */}
-        {COMPRAR_CATS.map(([catId]) => {
-          const lista = compras.filter((i) => (i.prazo || 'outros') === catId);
-          if (lista.length === 0) return null;
-          const subtotalCat = somar(lista);
-          return (
-            <div key={catId} style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 2px 9px' }}>
-                <span style={{ fontSize: 16 }}>{COMPRAR_EMOJI[catId]}</span>
-                <span style={{ fontSize: 14.5, fontWeight: 700 }}>{COMPRAR_LABEL[catId]}</span>
-                <span style={{ fontSize: 12, color: 'var(--ui-faint)' }}>{lista.filter((i) => i.feito).length}/{lista.length}</span>
-                {(subtotalCat.BRL > 0 || subtotalCat.USD > 0) && <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 800, color: 'var(--ui-teal)', whiteSpace: 'nowrap' }}>{fmtSoma(subtotalCat)}</span>}
+          {/* seções por categoria */}
+          {COMPRAR_CATS.map(([catId]) => {
+            const lista = compras.filter((i) => (i.prazo || 'outros') === catId);
+            if (lista.length === 0) return null;
+            const subtotalCat = somar(lista);
+            return (
+              <div key={catId} style={{ marginBottom: 16 }}>
+                <TituloGrupo emoji={COMPRAR_EMOJI[catId]} nome={COMPRAR_LABEL[catId]} feitos={lista.filter((i) => i.feito).length} total={lista.length} direita={(subtotalCat.BRL > 0 || subtotalCat.USD > 0) ? fmtSoma(subtotalCat) : null} />
+                <div className="ui-card ui-list" style={{ padding: '4px 8px' }}>
+                  {lista.map((it) => (
+                    <LinhaCompra
+                      key={it.id}
+                      it={it}
+                      moeda={moedaDe(it)}
+                      valorTexto={it.id in valorEdit ? valorEdit[it.id] : (it.valor != null ? Number(it.valor).toFixed(2).replace('.', ',') : '')}
+                      onToggle={() => alternarChecklist(it.id, !it.feito)}
+                      onEditar={() => editar(it)}
+                      onApagar={() => apagarItem(it)}
+                      onTrocarMoeda={() => alternarMoedaItem(it)}
+                      onValor={(e) => { const v = e.target.value; setValorEdit((s) => ({ ...s, [it.id]: v })); }}
+                      onSalvarValor={() => salvarValorItem(it.id)}
+                    />
+                  ))}
+                </div>
               </div>
-              <div style={{ ...card, padding: '4px 14px' }}>
-                {lista.map((it, idx) => (
-                  <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '12px 0', borderTop: idx > 0 ? '1px solid var(--ui-line)' : 'none' }}>
-                    <button onClick={() => alternarChecklist(it.id, !it.feito)} aria-label="Marcar" style={{ width: 24, height: 24, borderRadius: '50%', flex: '0 0 auto', cursor: 'pointer', border: it.feito ? 'none' : '2px solid var(--ui-line)', background: it.feito ? 'var(--ui-teal)' : 'transparent', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{it.feito ? '✓' : ''}</button>
-                    <span onClick={() => { const t = window.prompt('Editar item', it.texto); if (t && t.trim()) editarChecklist(it.id, t.trim()); }} style={{ flex: 1, minWidth: 0, fontSize: 14, cursor: 'text', textDecoration: it.feito ? 'line-through' : 'none', color: it.feito ? 'var(--ui-faint)' : 'var(--ui-ink)' }}>{it.texto}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, border: '1px solid var(--ui-line)', borderRadius: 9, background: 'var(--ui-bg)', padding: '0 8px', flex: '0 0 auto' }}>
-                      <button onClick={() => alternarMoedaItem(it)} title="Trocar R$ / US$" aria-label="Trocar moeda" style={{ border: 'none', background: moedaDe(it) === 'USD' ? 'rgba(14,156,140,.14)' : 'transparent', borderRadius: 6, padding: '2px 4px', fontSize: 11, color: moedaDe(it) === 'USD' ? 'var(--ui-teal)' : 'var(--ui-faint)', fontWeight: 800, cursor: 'pointer' }}>{moedaDe(it) === 'USD' ? 'US$' : 'R$'}</button>
-                      <input
-                        inputMode="decimal"
-                        value={it.id in valorEdit ? valorEdit[it.id] : (it.valor != null ? Number(it.valor).toFixed(2).replace('.', ',') : '')}
-                        onChange={(e) => setValorEdit((v) => ({ ...v, [it.id]: e.target.value }))}
-                        onFocus={(e) => e.target.select()}
-                        onBlur={() => salvarValorItem(it.id)}
-                        onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-                        placeholder="0,00"
-                        aria-label={`Valor de ${it.texto}`}
-                        style={{ width: 58, border: 'none', outline: 'none', padding: '7px 0', fontSize: 12.5, fontWeight: 600, textAlign: 'right', background: 'transparent', color: 'var(--ui-ink)' }}
-                      />
-                    </div>
-                    <button onClick={() => { if (window.confirm('Apagar este item?')) removerChecklist(it.id); }} aria-label="Apagar" style={{ border: 'none', background: 'none', color: 'var(--ui-faint)', fontSize: 14, cursor: 'pointer', flex: '0 0 auto' }}>✕</button>
-                  </div>
-                ))}
+            );
+          })}
+
+          {/* adicionar manual */}
+          {compForm ? (
+            <Reveal>
+              <div className="ui-card" style={{ padding: 16, marginBottom: 16 }}>
+                <Field label="O que comprar?">
+                  <input className="ui-input" autoFocus value={compForm.texto} onChange={(e) => setCompForm({ ...compForm, texto: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && salvarCompForm()} placeholder="Ex.: mala de bordo" />
+                </Field>
+                <Field label="Categoria">
+                  <select className="ui-input" value={compForm.cat} onChange={(e) => setCompForm({ ...compForm, cat: e.target.value })}>{COMPRAR_CATS.map(([id, e, l]) => <option key={id} value={id}>{e} {l}</option>)}</select>
+                </Field>
+                <Button full onClick={salvarCompForm} disabled={!compForm.texto.trim()}>Adicionar</Button>
+                <Button variant="ghost" full onClick={() => setCompForm(null)} style={{ marginTop: 6, color: 'var(--ui-muted)' }}>Fechar</Button>
               </div>
-            </div>
-          );
-        })}
+            </Reveal>
+          ) : compras.length > 0 ? (
+            <BotaoAdicionar onClick={() => setCompForm({ texto: '', cat: 'bagagem' })} style={{ marginBottom: 8 }}>+ Adicionar item</BotaoAdicionar>
+          ) : null}
 
-        {compras.length === 0 && <div style={{ ...card, padding: 24, textAlign: 'center', color: 'var(--ui-faint)', fontSize: 13, marginBottom: 14 }}>Nada na lista ainda. Toque numa sugestão ou adicione um item.</div>}
-
-        {/* adicionar manual */}
-        {compForm ? (
-          <div style={{ ...card, padding: 16, marginBottom: 16 }}>
-            <input autoFocus value={compForm.texto} onChange={(e) => setCompForm({ ...compForm, texto: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && salvarCompForm()} placeholder="O que comprar?" style={{ width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 14, marginBottom: 9, background: 'var(--ui-bg)', color: 'var(--ui-ink)' }} />
-            <select value={compForm.cat} onChange={(e) => setCompForm({ ...compForm, cat: e.target.value })} style={{ width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '10px', fontSize: 13, background: 'var(--ui-bg)', color: 'var(--ui-ink)', marginBottom: 11 }}>{COMPRAR_CATS.map(([id, e, l]) => <option key={id} value={id}>{e} {l}</option>)}</select>
-            <button onClick={salvarCompForm} style={{ width: '100%', border: 'none', borderRadius: 12, padding: '12px', background: 'var(--ui-teal)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Adicionar</button>
-            <button onClick={() => setCompForm(null)} style={{ width: '100%', border: 'none', background: 'none', color: 'var(--ui-muted)', fontSize: 13, marginTop: 8, cursor: 'pointer' }}>Fechar</button>
-          </div>
-        ) : (
-          <button onClick={() => setCompForm({ texto: '', cat: 'bagagem' })} style={{ width: '100%', border: '1.5px dashed var(--ui-line)', borderRadius: 14, padding: '14px', background: 'transparent', color: 'var(--ui-teal)', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 16 }}>+ Adicionar item</button>
-        )}
-
-        {/* sugestões */}
-        <div style={{ fontSize: 11, color: 'var(--ui-faint)', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600, margin: '0 2px 8px' }}>Sugestões — toque para adicionar</div>
-        {COMPRAR_CATS.map(([catId, emoji, label]) => {
-          const naLista = new Set(compras.map((i) => (i.texto || '').toLowerCase()));
-          const sugestoes = sugestoesComprar(viagem);
-          const chips = (sugestoes[catId] || []).filter((s) => !naLista.has(s.toLowerCase()));
-          if (chips.length === 0) return null;
-          return (
-            <div key={catId} style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ui-muted)', margin: '0 2px 6px' }}>{emoji} {label}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-                {chips.map((s) => (
-                  <button key={s} onClick={() => addCompra(s, catId)} style={{ border: 'none', background: 'var(--ui-card)', boxShadow: 'var(--ui-shadow)', borderRadius: 16, padding: '7px 13px', fontSize: 12.5, fontWeight: 600, color: 'var(--ui-muted)', cursor: 'pointer' }}>+ {s}</button>
-                ))}
+          {/* sugestões: chips discretos, toque adiciona */}
+          <SectionHeader title="Sugestões · toque pra adicionar" style={{ marginTop: 16 }} />
+          {COMPRAR_CATS.map(([catId, emoji, label]) => {
+            const chips = (sugestoes[catId] || []).filter((s) => !naLista.has(s.toLowerCase()));
+            if (chips.length === 0) return null;
+            return (
+              <div key={catId} style={{ marginBottom: 12 }}>
+                <div className="ui-caption" style={{ fontWeight: 700, margin: '0 4px 6px' }}>{emoji} {label}</div>
+                <div className="chips">
+                  {chips.map((s) => (
+                    <button key={s} className="chip ui-press" onClick={() => addCompra(s, catId)}>+ {s}</button>
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
 
-        <p style={{ fontSize: 11, color: 'var(--ui-faint)', lineHeight: 1.5, padding: '10px 4px 0' }}>
-          Lista do que comprar antes de viajar — equipamento, bagagem, eletrônicos. 🔒 É só sua: cada pessoa da viagem tem a própria lista. (Os mantimentos do supermercado ficam na aba Mercado, dentro do Motorhome, e essa sim é do grupo.)
-        </p>
-      </>)}
-
+          <p className="ui-caption ui-faint" style={{ padding: '10px 4px 0', lineHeight: 1.5 }}>
+            Lista do que comprar antes de viajar — equipamento, bagagem, eletrônicos. 🔒 É só sua: cada pessoa da viagem tem a própria lista. (Os mantimentos do supermercado ficam na aba Mercado, dentro do Motorhome, e essa sim é do grupo.)
+          </p>
+        </Reveal>
+      )}
     </div>
   );
 }

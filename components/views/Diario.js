@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useData } from '../DataProvider';
 import { dataLocal, hojeLocal } from '../../lib/format';
 import { supabase } from '../../lib/supabaseClient';
+import { Button, PageHeader, Segmented, Reveal } from '../ui';
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -48,6 +49,15 @@ function reduzirImagem(file) {
   });
 }
 
+// Botão da barra do composer (Foto, Áudio, Limpar): só ícone, redondo, alvo de 44px.
+// Em 375px não cabe Foto + Áudio + 🗑 + Publicar com rótulo — o rótulo vai no aria-label/title.
+function BotaoComposer({ label, onClick, disabled, tom, children }) {
+  const cores = tom === 'danger' ? { background: 'var(--ui-debit-soft)', color: 'var(--ui-debit)' } : { background: 'var(--ui-sunken)', color: 'var(--ui-ink)' };
+  return (
+    <button onClick={onClick} disabled={disabled} aria-label={label} title={label} className="ui-iconbtn ui-press" style={{ borderRadius: 999, fontSize: 18, opacity: disabled ? 0.5 : 1, ...cores }}>{children}</button>
+  );
+}
+
 export default function Diario({ ir }) {
   const { viagem, diario, perfis, perfil, adicionarEntradaDiario, removerEntradaDiario, urlDiario } = useData();
 
@@ -60,8 +70,9 @@ export default function Diario({ ir }) {
   const diarioDoModo = (diario || []).filter((e) => (e.modo || 'grupo') === modoEfetivo);
 
   const diasComEntrada = Array.from(new Set(diarioDoModo.map((e) => e.data))).sort();
+  const temDatasDaViagem = !!(viagem && viagem.data_ida && viagem.data_volta);
   const diasBase = (() => {
-    if (viagem && viagem.data_ida && viagem.data_volta) {
+    if (temDatasDaViagem) {
       const lista = [];
       let d = new Date(viagem.data_ida + 'T00:00:00');
       const fim = new Date(viagem.data_volta + 'T00:00:00');
@@ -206,6 +217,19 @@ export default function Diario({ ir }) {
   }
 
   const podePublicar = (texto.trim() || fotos.length > 0 || audioBlob) && !publicando && !gravando;
+  const temRascunho = !!(texto.trim() || fotos.length > 0 || audioBlob);
+  // Descarta tudo o que ainda não foi publicado: texto (inclusive o que a IA
+  // escreveu), áudio gravado e fotos escolhidas.
+  function limparTudo() {
+    if (!temRascunho) return;
+    if (!window.confirm('Apagar o que você escreveu, gravou e escolheu? Nada disso foi publicado ainda.')) return;
+    if (gravando) pararGravacao();
+    setTexto('');
+    fotos.forEach((f) => URL.revokeObjectURL(f.preview));
+    setFotos([]);
+    descartarAudio();
+    setIa({ rodando: false, msg: '', ok: false });
+  }
 
   async function publicar() {
     if (!podePublicar) return;
@@ -236,69 +260,71 @@ export default function Diario({ ir }) {
 
   function autorDe(entrada) { return (perfis || []).find((p) => p.id === entrada.perfil_id); }
 
-  const card = { background: 'var(--ui-card)', borderRadius: 18, boxShadow: 'var(--ui-shadow)' };
+  // Cabeçalho: "Dia 3 de 12 · 2 registros" (ou a data, quando a viagem não tem datas)
+  const diaVazio = entradasDoDia.length === 0;
+  const idxDia = diasBase.indexOf(diaSel);
+  const n = entradasDoDia.length;
+  const registros = n === 0 ? 'nenhum registro ainda' : `${n} registro${n === 1 ? '' : 's'}`;
+  const subtitulo = temDatasDaViagem && idxDia >= 0
+    ? `Dia ${idxDia + 1} de ${diasBase.length} · ${registros}`
+    : `${fmtTituloDia(diaSel)} · ${registros}`;
 
   return (
-    <div style={{ background: 'var(--ui-bg)', minHeight: '100%', padding: '14px 18px 96px', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif', color: 'var(--ui-ink)' }}>
-      <div style={{ padding: '4px 2px 16px' }}>
-        <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.5px' }}>Diário da viagem</div>
-        <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 2 }}>Escreva, grave um áudio ou guarde uma foto de cada dia</div>
-      </div>
+    <div className="ui-screen ui-theme">
+      <PageHeader titulo="Diário da viagem" subtitulo={subtitulo} />
 
       {/* individual x grupo — só aparece com mais de uma pessoa na viagem */}
       {sozinho ? (
-        <div style={{ fontSize: 11.5, color: 'var(--ui-faint)', margin: '0 2px 16px' }}>🔒 Diário particular — só você vê.</div>
+        <div className="ui-caption ui-faint" style={{ margin: '0 2px 14px' }}>🔒 Diário particular — só você vê.</div>
       ) : (
-        <>
-          <div className="toggle" style={{ marginBottom: 6 }}>
-            <button className={modo === 'grupo' ? 'on' : ''} onClick={() => setModo('grupo')}>👥 Em grupo</button>
-            <button className={modo === 'individual' ? 'on' : ''} onClick={() => setModo('individual')}>🔒 Individual</button>
-          </div>
-          <div style={{ fontSize: 11.5, color: 'var(--ui-faint)', margin: '0 2px 16px' }}>
+        <div style={{ marginBottom: 14 }}>
+          <Segmented opcoes={[{ id: 'grupo', label: '👥 Em grupo' }, { id: 'individual', label: '🔒 Individual' }]} valor={modo} onChange={setModo} />
+          <div className="ui-hint" style={{ margin: '6px 2px 0' }}>
             {modo === 'grupo' ? 'Todo mundo da viagem vê e participa dessa conversa.' : 'Só você vê o que escrever aqui — seu diário particular da viagem.'}
           </div>
-        </>
+        </div>
       )}
 
       {/* seletor de dias */}
-      <div ref={chipsRef} style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 16, WebkitOverflowScrolling: 'touch' }}>
+      <div ref={chipsRef} className="ui-chips-scroll" style={{ marginBottom: 12, alignItems: 'stretch' }}>
         {dias.map((d) => {
           const c = fmtChip(d);
           const ativo = d === diaSel;
           const temEntrada = diasComEntrada.includes(d);
           return (
-            <button key={d} data-dia={d} onClick={() => setDiaSel(d)} style={{
-              flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-              padding: '8px 13px', borderRadius: 14, border: 'none', cursor: 'pointer',
-              background: ativo ? 'var(--ui-teal, #0E9C8C)' : 'var(--ui-card)',
-              color: ativo ? '#fff' : 'var(--ui-ink)', boxShadow: 'var(--ui-shadow)', position: 'relative',
+            <button key={d} data-dia={d} onClick={() => setDiaSel(d)} aria-pressed={ativo} aria-label={fmtTituloDia(d)} className="ui-press" style={{
+              flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
+              minWidth: 52, minHeight: 56, padding: '6px 10px', borderRadius: 14, border: 'none', cursor: 'pointer',
+              background: ativo ? 'var(--ui-teal)' : 'var(--ui-card)',
+              color: ativo ? '#fff' : 'var(--ui-ink)', boxShadow: ativo ? 'none' : 'var(--ui-shadow)', position: 'relative',
             }}>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', opacity: 0.85 }}>{c.wd}</span>
-              <span style={{ fontSize: 15, fontWeight: 800 }}>{c.dia}</span>
-              <span style={{ fontSize: 9.5, opacity: 0.85 }}>{c.mes}</span>
-              {temEntrada && !ativo && <span style={{ position: 'absolute', top: 6, right: 8, width: 6, height: 6, borderRadius: '50%', background: 'var(--ui-teal, #0E9C8C)' }} />}
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', opacity: ativo ? 0.9 : 0.7 }}>{c.wd}</span>
+              <span className="ui-num" style={{ fontSize: 16, fontWeight: 800, lineHeight: 1.1 }}>{c.dia}</span>
+              <span style={{ fontSize: 9.5, opacity: ativo ? 0.9 : 0.7 }}>{c.mes}</span>
+              {temEntrada && !ativo && <span aria-hidden="true" style={{ position: 'absolute', top: 6, right: 7, width: 6, height: 6, borderRadius: '50%', background: 'var(--ui-teal)' }} />}
             </button>
           );
         })}
-        <button onClick={() => dataInputRef.current && dataInputRef.current.showPicker ? dataInputRef.current.showPicker() : dataInputRef.current.click()} style={{
-          flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44,
-          borderRadius: 14, border: '1px dashed var(--ui-line-strong, var(--ui-line))', cursor: 'pointer', background: 'transparent', color: 'var(--ui-muted)', fontSize: 18,
+        <button onClick={() => dataInputRef.current && dataInputRef.current.showPicker ? dataInputRef.current.showPicker() : dataInputRef.current.click()} className="ui-press" style={{
+          flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, minHeight: 56,
+          borderRadius: 14, border: '1.5px dashed var(--ui-line-strong)', cursor: 'pointer', background: 'transparent', color: 'var(--ui-muted)', fontSize: 20, position: 'relative',
         }} aria-label="Escolher outro dia">+
-          <input ref={dataInputRef} type="date" style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
+          <input ref={dataInputRef} type="date" tabIndex={-1} style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
             onChange={(e) => { const v = e.target.value; if (v) { setDiaExtra((prev) => Array.from(new Set([...prev, v]))); setDiaSel(v); } }} />
         </button>
       </div>
 
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ui-muted)', margin: '0 2px 10px' }}>{fmtTituloDia(diaSel)}</div>
+      <div className="ui-section" style={{ margin: '0 4px 10px' }}>{fmtTituloDia(diaSel)}</div>
 
-      {/* composer */}
-      <div style={{ ...card, padding: 14, marginBottom: 18 }}>
+      {/* composer: protagonista quando o dia está vazio; mais compacto quando já tem registros */}
+      <div className="ui-card" style={{ padding: 14, marginBottom: 18 }}>
         <textarea
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          placeholder={modoEfetivo === 'individual' ? 'Escreva algo só seu sobre esse dia...' : 'O que aconteceu nesse dia?'}
-          rows={3}
-          style={{ width: '100%', border: 'none', outline: 'none', resize: 'vertical', fontSize: 14, fontFamily: 'inherit', background: 'transparent', color: 'var(--ui-ink)', minHeight: 60 }}
+          placeholder={modoEfetivo === 'individual' ? 'Escreva algo só seu sobre esse dia…' : 'O que aconteceu nesse dia?'}
+          rows={diaVazio ? 4 : 2}
+          aria-label="Texto do diário"
+          style={{ width: '100%', border: 'none', outline: 'none', resize: 'vertical', fontSize: 15, lineHeight: 1.45, fontFamily: 'inherit', background: 'transparent', color: 'var(--ui-ink)', minHeight: diaVazio ? 84 : 48, padding: '2px 0' }}
         />
 
         {fotos.length > 0 && (
@@ -307,8 +333,8 @@ export default function Diario({ ir }) {
               <div key={i} style={{ position: 'relative', aspectRatio: '1', borderRadius: 10, overflow: 'hidden' }}>
                 <img src={f.preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 <button onClick={() => removerFoto(i)} aria-label="Remover foto" style={{
-                  position: 'absolute', top: 3, right: 3, width: 20, height: 20, borderRadius: '50%', border: 'none',
-                  background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 12, lineHeight: 1, cursor: 'pointer',
+                  position: 'absolute', top: 2, right: 2, width: 28, height: 28, borderRadius: '50%', border: 'none',
+                  background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 12, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>✕</button>
               </div>
             ))}
@@ -316,19 +342,19 @@ export default function Diario({ ir }) {
         )}
 
         {(gravando || audioBlob) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, padding: '8px 12px', borderRadius: 12, background: 'var(--ui-bg)' }}>
+          <div className="ui-sunken" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, padding: '6px 6px 6px 12px', minHeight: 48 }}>
             {gravando ? (
               <>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E0413B', animation: 'v3Pulse 1.1s ease-in-out infinite' }} />
-                <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>Gravando… {fmtDur(tempoGrav)}</span>
-                <button onClick={pararGravacao} style={{ border: 'none', background: '#E0413B', color: '#fff', borderRadius: 20, padding: '6px 14px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Parar</button>
+                <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--ui-debit)', animation: 'v3Pulse 1.1s ease-in-out infinite', flex: '0 0 auto' }} />
+                <span className="ui-num" style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>Gravando… {fmtDur(tempoGrav)}</span>
+                <Button variant="danger" size="sm" onClick={pararGravacao} style={{ minHeight: 40 }}>Parar</Button>
               </>
             ) : (
               <>
-                <span style={{ fontSize: 16 }}>🎙️</span>
-                <audio src={audioPreview} controls style={{ flex: 1, height: 32 }} />
-                <span style={{ fontSize: 12, color: 'var(--ui-muted)' }}>{fmtDur(audioSeg || tempoGrav)}</span>
-                <button onClick={descartarAudio} aria-label="Descartar áudio" style={{ border: 'none', background: 'transparent', color: 'var(--ui-faint)', fontSize: 15, cursor: 'pointer' }}>✕</button>
+                <span style={{ fontSize: 16 }} aria-hidden="true">🎙️</span>
+                <audio src={audioPreview} controls style={{ flex: 1, minWidth: 0, height: 32 }} />
+                <span className="ui-caption ui-num">{fmtDur(audioSeg || tempoGrav)}</span>
+                <button onClick={descartarAudio} aria-label="Descartar áudio" style={{ width: 40, height: 40, border: 'none', background: 'transparent', color: 'var(--ui-faint)', fontSize: 15, cursor: 'pointer', borderRadius: 10, flex: '0 0 auto' }}>✕</button>
               </>
             )}
           </div>
@@ -336,98 +362,100 @@ export default function Diario({ ir }) {
 
         {/* IA do diário */}
         {(audioBlob || texto.trim().length >= 8 || ia.msg) && !gravando && (
-          <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: 'linear-gradient(135deg, rgba(16,185,129,.10), rgba(14,165,233,.10))' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <button onClick={escreverComIA} disabled={!podeIA} className="v3-press" style={{ border: 'none', borderRadius: 20, padding: '8px 14px', fontSize: 12.5, fontWeight: 800, cursor: podeIA ? 'pointer' : 'default', background: podeIA ? 'linear-gradient(135deg,#7C3AED,#0EA5E9)' : 'var(--ui-line)', color: podeIA ? '#fff' : 'var(--ui-faint)' }}>
+          <div className="ui-sunken" style={{ marginTop: 10, padding: '8px 10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <Button variant="soft" onClick={escreverComIA} disabled={!podeIA} style={{ borderRadius: 999, flex: '0 0 auto' }}>
                 {ia.rodando ? '✨ Escrevendo…' : audioBlob ? '✨ Escrever com IA (do áudio)' : '✨ Arrumar com IA'}
-              </button>
-              <span style={{ fontSize: 11.5, color: 'var(--ui-muted)', flex: 1, minWidth: 140 }}>
-                {ia.msg ? <span style={{ color: ia.ok ? '#0F9D6B' : (ia.rodando ? 'var(--ui-muted)' : '#C2410C') }}>{ia.msg}</span> : (audioBlob ? 'A IA ouve o que você contou e escreve o dia bonito: título, parágrafos, destaques e lugares.' : 'A IA organiza seu rascunho em título, parágrafos e destaques.')}
+              </Button>
+              <span className="ui-caption" style={{ flex: 1, minWidth: 140 }}>
+                {ia.msg
+                  ? <span style={{ color: ia.ok ? 'var(--ui-credit)' : (ia.rodando ? 'var(--ui-muted)' : 'var(--ui-debit)'), fontWeight: ia.rodando ? 500 : 600 }}>{ia.msg}</span>
+                  : (audioBlob ? 'A IA ouve o que você contou e escreve o dia bonito: título, parágrafos, destaques e lugares.' : 'A IA organiza seu rascunho em título, parágrafos e destaques.')}
               </span>
             </div>
           </div>
         )}
-        {!audioBlob && !gravando && !texto.trim() && (
-          <div style={{ fontSize: 11.5, color: 'var(--ui-faint)', marginTop: 6 }}>Dica: toca em 🎤, conta o dia do seu jeito (até uns 5 min), e depois em ✨ pra IA escrever por você.</div>
+        {!audioBlob && !gravando && !texto.trim() && diaVazio && (
+          <div className="ui-hint" style={{ marginTop: 4 }}>Dica: toca em 🎤, conta o dia do seu jeito (até uns 5 min), e depois em ✨ pra IA escrever por você.</div>
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
           <input ref={fileRef} type="file" accept="image/*" multiple onChange={aoEscolherFotos} style={{ display: 'none' }} />
-          <button onClick={() => fileRef.current && fileRef.current.click()} disabled={processandoFotos} className="v3-press" style={{
-            border: '1px solid var(--ui-line)', background: 'var(--ui-card)', color: 'var(--ui-ink)', borderRadius: 20, padding: '8px 13px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-          }}>📷 {processandoFotos ? 'Processando…' : 'Foto'}</button>
+          <BotaoComposer label={processandoFotos ? 'Processando fotos…' : 'Adicionar foto'} onClick={() => fileRef.current && fileRef.current.click()} disabled={processandoFotos}>{processandoFotos ? '⏳' : '📷'}</BotaoComposer>
 
           {!gravando && !audioBlob && (
-            <button onClick={iniciarGravacao} className="v3-press" style={{
-              border: '1px solid var(--ui-line)', background: 'var(--ui-card)', color: 'var(--ui-ink)', borderRadius: 20, padding: '8px 13px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-            }}>🎤 Áudio</button>
+            <BotaoComposer label="Gravar áudio" onClick={iniciarGravacao}>🎤</BotaoComposer>
           )}
 
-          <div style={{ flex: 1 }} />
-          <button onClick={publicar} disabled={!podePublicar} className="v3-press" style={{
-            border: 'none', borderRadius: 20, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: podePublicar ? 'pointer' : 'default',
-            background: podePublicar ? 'linear-gradient(135deg,#10B981,#0EA5E9)' : 'var(--ui-line)', color: podePublicar ? '#fff' : 'var(--ui-faint)',
-          }}>{publicando ? 'Publicando…' : 'Publicar'}</button>
+          {temRascunho && !publicando && (
+            <BotaoComposer label="Apagar texto, áudio e fotos não publicados" onClick={limparTudo} tom="danger">🗑</BotaoComposer>
+          )}
+
+          <span className="ui-caption ui-faint" style={{ flex: 1, minWidth: 0, fontSize: 11 }}>{processandoFotos ? 'Processando fotos…' : ''}</span>
+          <Button onClick={publicar} disabled={!podePublicar} style={{ borderRadius: 999, flex: '0 0 auto' }}>{publicando ? 'Publicando…' : 'Publicar'}</Button>
         </div>
       </div>
 
       {/* feed do dia */}
-      {entradasDoDia.length === 0 && (
-        <div style={{ textAlign: 'center', color: 'var(--ui-faint)', fontSize: 13, padding: '30px 10px' }}>
-          {modoEfetivo === 'individual' ? 'Nada no seu diário particular nesse dia ainda.' : 'Ninguém escreveu nada nesse dia ainda.'} Comece escrevendo, gravando um áudio ou adicionando uma foto acima.
+      {diaVazio && (
+        <div className="ui-empty ui-in" style={{ padding: '10px 18px 20px' }}>
+          <div className="ico" aria-hidden="true">{modoEfetivo === 'individual' ? '🔒' : '📖'}</div>
+          <div className="t">{modoEfetivo === 'individual' ? 'Nada no seu diário particular nesse dia ainda.' : 'Ninguém escreveu nada nesse dia ainda.'}</div>
+          <div className="s">Comece escrevendo, gravando um áudio ou adicionando uma foto acima.</div>
         </div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {entradasDoDia.map((entrada) => {
+        {entradasDoDia.map((entrada, i) => {
           const autor = autorDe(entrada);
           const meu = perfil && entrada.perfil_id === perfil.id;
+          const temMidia = (entrada.fotos && entrada.fotos.length) || entrada.audio_url;
           return (
-            <div key={entrada.id} className="v3-in" style={{ ...card, padding: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ width: 26, height: 26, borderRadius: '50%', background: (autor && autor.cor) || 'var(--ui-teal, #0E9C8C)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>
-                  {(autor ? autor.nome : '?').slice(0, 2).toUpperCase()}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{autor ? autor.nome : 'Alguém da viagem'}</div>
+            <Reveal key={entrada.id} delay={Math.min(i, 4) * 0.04}>
+              <div className="ui-card" style={{ padding: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span className="avatar" style={{ width: 28, height: 28, background: (autor && autor.cor) || 'var(--ui-teal)' }}>
+                    {(autor ? autor.nome : '?').slice(0, 2).toUpperCase()}
+                  </span>
+                  <div className="ui-clamp1" style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700 }}>{autor ? autor.nome : 'Alguém da viagem'}</div>
+                  <span className="ui-caption ui-faint ui-num">{fmtHora(entrada.criado_em)}</span>
+                  {meu && (
+                    <button onClick={() => apagar(entrada)} aria-label="Apagar" title="Apagar" style={{ width: 40, height: 40, margin: '-8px -10px -8px 0', border: 'none', background: 'transparent', color: 'var(--ui-faint)', fontSize: 14, cursor: 'pointer', borderRadius: 10, flex: '0 0 auto' }}>🗑️</button>
+                  )}
                 </div>
-                <span style={{ fontSize: 11.5, color: 'var(--ui-faint)' }}>{fmtHora(entrada.criado_em)}</span>
-                {meu && (
-                  <button onClick={() => apagar(entrada)} aria-label="Apagar" style={{ border: 'none', background: 'transparent', color: 'var(--ui-faint)', fontSize: 14, cursor: 'pointer', padding: '2px 4px' }}>🗑️</button>
+
+                {entrada.texto && <div className="ui-wrap" style={{ fontSize: 14.5, lineHeight: 1.5, whiteSpace: 'pre-wrap', marginBottom: temMidia ? 10 : 0 }}>{entrada.texto}</div>}
+
+                {entrada.fotos && entrada.fotos.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: entrada.fotos.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(96px, 1fr))', gap: 6, marginBottom: entrada.audio_url ? 10 : 0 }}>
+                    {entrada.fotos.map((p, i2) => {
+                      const url = urlDiario(p);
+                      return (
+                        <button key={i2} onClick={() => setFotoAberta(url)} aria-label="Abrir foto" className="ui-press" style={{ border: 'none', padding: 0, cursor: 'pointer', borderRadius: 12, overflow: 'hidden', aspectRatio: entrada.fotos.length === 1 ? '16/10' : '1', background: 'var(--ui-sunken)' }}>
+                          <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {entrada.audio_url && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 15 }} aria-hidden="true">🎙️</span>
+                    <audio src={urlDiario(entrada.audio_url)} controls style={{ flex: 1, minWidth: 0, height: 32 }} />
+                    {entrada.audio_duracao ? <span className="ui-caption ui-faint ui-num">{fmtDur(entrada.audio_duracao)}</span> : null}
+                  </div>
                 )}
               </div>
-
-              {entrada.texto && <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', marginBottom: (entrada.fotos && entrada.fotos.length) || entrada.audio_url ? 10 : 0 }}>{entrada.texto}</div>}
-
-              {entrada.fotos && entrada.fotos.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: entrada.fotos.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(96px, 1fr))', gap: 6, marginBottom: entrada.audio_url ? 10 : 0 }}>
-                  {entrada.fotos.map((p, i) => {
-                    const url = urlDiario(p);
-                    return (
-                      <button key={i} onClick={() => setFotoAberta(url)} style={{ border: 'none', padding: 0, cursor: 'pointer', borderRadius: 10, overflow: 'hidden', aspectRatio: entrada.fotos.length === 1 ? '16/10' : '1' }}>
-                        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {entrada.audio_url && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 15 }}>🎙️</span>
-                  <audio src={urlDiario(entrada.audio_url)} controls style={{ flex: 1, height: 32 }} />
-                  {entrada.audio_duracao ? <span style={{ fontSize: 11.5, color: 'var(--ui-faint)' }}>{fmtDur(entrada.audio_duracao)}</span> : null}
-                </div>
-              )}
-            </div>
+            </Reveal>
           );
         })}
       </div>
 
       {fotoAberta && (
-        <div onClick={() => setFotoAberta(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.9)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <img src={fotoAberta} alt="" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8 }} />
-          <button onClick={() => setFotoAberta(null)} aria-label="Fechar" style={{ position: 'absolute', top: 18, right: 18, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.15)', color: '#fff', fontSize: 18, cursor: 'pointer' }}>✕</button>
+        <div onClick={() => setFotoAberta(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,43,54,.92)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <img src={fotoAberta} alt="" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12 }} />
+          <button onClick={() => setFotoAberta(null)} aria-label="Fechar" style={{ position: 'absolute', top: 18, right: 18, width: 44, height: 44, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.16)', color: '#fff', fontSize: 18, cursor: 'pointer' }}>✕</button>
         </div>
       )}
     </div>

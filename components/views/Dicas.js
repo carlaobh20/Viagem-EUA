@@ -1,15 +1,17 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { useData } from '../DataProvider';
+import { PageHeader, Button, Field, EmptyState, Reveal, Expand, Skeleton } from '../ui';
 
+// Temas: o emoji já diferencia — sem cor por tema (paleta do app só).
 const CATS = [
-  { id: 'cartao', label: 'Cartão & câmbio', emoji: '💳', cor: '#2D66A8', bg: 'rgba(45,102,168,.12)' },
-  { id: 'postos', label: 'Postos', emoji: '⛽', cor: '#0F9D6B', bg: 'rgba(16,185,129,.12)' },
-  { id: 'compras', label: 'Compras', emoji: '🛍️', cor: '#7C3AED', bg: 'rgba(124,58,237,.12)' },
-  { id: 'comida', label: 'Alimentação', emoji: '🍔', cor: '#C2410C', bg: 'rgba(234,88,12,.12)' },
-  { id: 'apps', label: 'Apps & internet', emoji: '📱', cor: '#0E7C9C', bg: 'rgba(14,124,156,.12)' },
-  { id: 'passeios', label: 'Passeios', emoji: '🎢', cor: '#D4537E', bg: 'rgba(212,83,126,.12)' },
-  { id: 'outros', label: 'Outros', emoji: '📌', cor: '#57534E', bg: 'rgba(87,83,78,.12)' },
+  { id: 'cartao', label: 'Cartão & câmbio', emoji: '💳' },
+  { id: 'postos', label: 'Postos', emoji: '⛽' },
+  { id: 'compras', label: 'Compras', emoji: '🛍️' },
+  { id: 'comida', label: 'Alimentação', emoji: '🍔' },
+  { id: 'apps', label: 'Apps & internet', emoji: '📱' },
+  { id: 'passeios', label: 'Passeios', emoji: '🎢' },
+  { id: 'outros', label: 'Outros', emoji: '📌' },
 ];
 const catDe = (id) => CATS.find((c) => c.id === id) || CATS[CATS.length - 1];
 
@@ -50,16 +52,19 @@ function reduzImg(file) {
   });
 }
 
+// ação secundária em texto com alvo de 44px
+const acaoTxt = { background: 'none', border: 'none', minHeight: 44, padding: '0 6px', fontSize: 13.5, fontWeight: 700, color: 'var(--ui-teal-ink)', borderRadius: 10, display: 'inline-flex', alignItems: 'center', gap: 4 };
+// Imagem da dica na lista: acompanha o texto, não domina — toque abre em tamanho real.
+const IMG_LISTA = { display: 'block', width: '100%', maxHeight: 176, objectFit: 'cover', objectPosition: 'top', borderRadius: 12, background: 'var(--ui-sunken)' };
+
 export default function Dicas({ ir }) {
   const { dicas, adicionarDica, editarDica, removerDica, semearDicas, subirImagemDica, urlImagemDica } = useData();
   const [filtro, setFiltro] = useState('todos');
   const [form, setForm] = useState(null);
+  const [formErro, setFormErro] = useState('');
   const [verSugestoes, setVerSugestoes] = useState(false);
   const [imgUrls, setImgUrls] = useState({});
   const fileRef = useRef(null);
-
-  const card = { background: 'var(--ui-card)', borderRadius: 18, boxShadow: 'var(--ui-shadow)' };
-  const inp = { width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 14, background: 'var(--ui-bg)', color: 'var(--ui-ink)', boxSizing: 'border-box' };
 
   const todas = dicas || [];
 
@@ -83,12 +88,13 @@ export default function Dicas({ ir }) {
     .map((c) => ({ cat: c, itens: lista.filter((d) => (d.categoria || 'outros') === c.id) }))
     .filter((g) => g.itens.length);
 
-  function abrirNova() { setForm({ id: null, categoria: 'cartao', titulo: '', texto: '', link: '', imagem: null, imgPreview: null, subindo: false }); }
-  function abrirEdicao(d) { setForm({ id: d.id, categoria: d.categoria || 'outros', titulo: d.titulo || '', texto: d.texto || '', link: d.link || '', imagem: d.imagem || null, imgPreview: imgUrls[d.id] || null, subindo: false }); }
+  function abrirNova() { setFormErro(''); setForm({ id: null, categoria: filtro !== 'todos' ? filtro : 'cartao', titulo: '', texto: '', link: '', imagem: null, imgPreview: null, subindo: false }); }
+  function abrirEdicao(d) { setFormErro(''); setForm({ id: d.id, categoria: d.categoria || 'outros', titulo: d.titulo || '', texto: d.texto || '', link: d.link || '', imagem: d.imagem || null, imgPreview: imgUrls[d.id] || null, subindo: false }); }
 
   async function aoEscolherImagem(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    setFormErro('');
     setForm((f) => ({ ...f, subindo: true }));
     try {
       const reduzida = await reduzImg(file);
@@ -98,7 +104,7 @@ export default function Dicas({ ir }) {
       setForm((f) => ({ ...f, imagem: path, imgPreview: preview, subindo: false }));
     } catch (err) {
       setForm((f) => ({ ...f, subindo: false }));
-      window.alert('Não consegui subir a imagem: ' + err.message);
+      setFormErro('Não consegui subir a imagem: ' + err.message);
     } finally {
       if (fileRef.current) fileRef.current.value = '';
     }
@@ -108,8 +114,9 @@ export default function Dicas({ ir }) {
   function salvar() {
     if (!form) return;
     const temTitulo = form.titulo.trim();
-    if (!temTitulo && !form.imagem) { window.alert('Escreva um título ou adicione uma imagem.'); return; }
-    if (form.subindo) { window.alert('Espere a imagem terminar de subir.'); return; }
+    if (!temTitulo && !form.imagem) { setFormErro('Escreva um título ou adicione uma imagem.'); return; }
+    if (form.subindo) { setFormErro('Espere a imagem terminar de subir.'); return; }
+    setFormErro('');
     const campos = { categoria: form.categoria, titulo: temTitulo || null, texto: form.texto.trim() || null, link: form.link.trim() || null, imagem: form.imagem || null };
     if (form.id) editarDica(form.id, campos);
     else adicionarDica(campos);
@@ -122,136 +129,145 @@ export default function Dicas({ ir }) {
 
   const previewSrc = form ? (form.imgPreview || (form.id ? imgUrls[form.id] : null)) : null;
 
+  const subtitulo = todas.length === 0
+    ? 'Descontos e bônus da viagem, por tema'
+    : `${todas.length} ${todas.length === 1 ? 'dica' : 'dicas'} em ${catsComItem.length} ${catsComItem.length === 1 ? 'tema' : 'temas'}`;
+
   return (
-    <div style={{ background: 'var(--ui-bg)', minHeight: '100%', padding: '14px 18px 96px', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif', color: 'var(--ui-ink)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '2px 2px 16px' }}>
-        <button onClick={() => ir('menu')} aria-label="Voltar" style={{ border: 'none', background: 'var(--ui-card)', width: 34, height: 34, borderRadius: 11, boxShadow: 'var(--ui-shadow)', fontSize: 18, cursor: 'pointer', flex: '0 0 auto' }}>←</button>
-        <div>
-          <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.5px' }}>Dicas imperdíveis</div>
-          <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 1 }}>Descontos e bônus da viagem, por setor</div>
-        </div>
-      </div>
+    <div className="ui-screen">
+      <PageHeader
+        titulo="Dicas imperdíveis"
+        subtitulo={subtitulo}
+        onVoltar={() => (form ? setForm(null) : ir('menu'))}
+        acao={!form ? <Button variant="soft" size="sm" onClick={abrirNova} style={{ minHeight: 40 }}>+ Dica</Button> : null}
+      />
 
       {form ? (
-        <div style={{ ...card, padding: 16, marginBottom: 16 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>{form.id ? 'Editar dica' : 'Nova dica'}</div>
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ fontSize: 12, color: 'var(--ui-muted)', display: 'block', marginBottom: 5 }}>Setor</label>
-            <select value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} style={inp}>
-              {CATS.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
-            </select>
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ fontSize: 12, color: 'var(--ui-muted)', display: 'block', marginBottom: 5 }}>Título (opcional se tiver imagem)</label>
-            <input value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder="Ex.: Cashback de gasolina" style={inp} />
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ fontSize: 12, color: 'var(--ui-muted)', display: 'block', marginBottom: 5 }}>Detalhe (opcional)</label>
-            <textarea value={form.texto} onChange={(e) => setForm({ ...form, texto: e.target.value })} placeholder="Como funciona, onde usar…" style={{ ...inp, minHeight: 64, resize: 'vertical' }} />
-          </div>
+        <Reveal>
+          <div className="ui-card" style={{ padding: 16, marginBottom: 16 }}>
+            <div className="ui-h2" style={{ marginBottom: 14 }}>{form.id ? 'Editar dica' : 'Nova dica'}</div>
+            <Field label="Tema">
+              <select className="ui-input" value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })}>
+                {CATS.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Título" hint={form.imagem ? undefined : 'Pode ficar vazio se você colocar uma imagem.'}>
+              <input className="ui-input" value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder="Ex.: Cashback de gasolina" autoFocus={!form.id} />
+            </Field>
+            <Field label="Detalhe" opcional>
+              <textarea className="ui-input" value={form.texto} onChange={(e) => setForm({ ...form, texto: e.target.value })} placeholder="Como funciona, onde usar…" style={{ minHeight: 84 }} />
+            </Field>
 
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ fontSize: 12, color: 'var(--ui-muted)', display: 'block', marginBottom: 5 }}>Imagem / print (opcional)</label>
-            <input ref={fileRef} type="file" accept="image/*" onChange={aoEscolherImagem} style={{ display: 'none' }} />
-            {previewSrc ? (
-              <div>
-                <img src={previewSrc} alt="Imagem da dica" style={{ width: '100%', maxHeight: 260, objectFit: 'contain', borderRadius: 12, border: '1px solid var(--ui-line)', background: 'var(--ui-bg)' }} />
-                <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
-                  <button onClick={() => fileRef.current && fileRef.current.click()} disabled={form.subindo} style={{ border: 'none', background: 'none', padding: 0, fontSize: 13, fontWeight: 600, color: 'var(--ui-teal)', cursor: 'pointer' }}>Trocar</button>
-                  <button onClick={removerImagemDoForm} style={{ border: 'none', background: 'none', padding: 0, fontSize: 13, fontWeight: 600, color: '#C2410C', cursor: 'pointer' }}>Remover</button>
+            <Field label="Imagem ou print" opcional>
+              <input ref={fileRef} type="file" accept="image/*" onChange={aoEscolherImagem} style={{ display: 'none' }} />
+              {previewSrc ? (
+                <div>
+                  <img src={previewSrc} alt="Imagem da dica" style={{ display: 'block', width: '100%', maxHeight: 240, objectFit: 'contain', borderRadius: 12, background: 'var(--ui-sunken)' }} />
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                    <button type="button" onClick={() => fileRef.current && fileRef.current.click()} disabled={form.subindo} style={acaoTxt}>Trocar</button>
+                    <button type="button" onClick={removerImagemDoForm} style={{ ...acaoTxt, color: 'var(--ui-debit)' }}>Remover</button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <button onClick={() => fileRef.current && fileRef.current.click()} disabled={form.subindo} style={{ width: '100%', border: '1px dashed var(--ui-line)', borderRadius: 12, padding: '13px 0', fontSize: 14, fontWeight: 700, background: 'var(--ui-bg)', color: form.subindo ? 'var(--ui-muted)' : 'var(--ui-teal)', cursor: 'pointer' }}>{form.subindo ? 'Subindo imagem…' : '📷 Adicionar imagem / print'}</button>
-            )}
-          </div>
+              ) : (
+                <Button type="button" variant="secondary" full onClick={() => fileRef.current && fileRef.current.click()} disabled={form.subindo} style={{ borderStyle: 'dashed' }}>{form.subindo ? 'Subindo imagem…' : '📷 Adicionar imagem / print'}</Button>
+              )}
+            </Field>
 
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ fontSize: 12, color: 'var(--ui-muted)', display: 'block', marginBottom: 5 }}>Link (opcional)</label>
-            <input value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="https://…" style={inp} />
+            <Field label="Link" opcional><input className="ui-input" type="url" inputMode="url" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="https://…" /></Field>
+
+            {formErro && <div className="ui-error">{formErro}</div>}
+            <Button size="lg" full onClick={salvar} disabled={form.subindo}>{form.id ? 'Salvar dica' : 'Adicionar dica'}</Button>
+            <Button variant="ghost" full style={{ marginTop: 6 }} onClick={() => setForm(null)}>Cancelar</Button>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={salvar} style={{ flex: 1, border: 'none', borderRadius: 12, padding: '12px 0', fontSize: 14, fontWeight: 700, background: 'var(--ui-teal)', color: '#fff', cursor: 'pointer' }}>{form.id ? 'Salvar' : 'Adicionar'}</button>
-            <button onClick={() => setForm(null)} style={{ flex: '0 0 auto', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '12px 18px', fontSize: 14, fontWeight: 600, background: 'var(--ui-card)', color: 'var(--ui-muted)', cursor: 'pointer' }}>Cancelar</button>
-          </div>
-        </div>
+        </Reveal>
       ) : (
-        <button onClick={abrirNova} style={{ width: '100%', border: '1px dashed var(--ui-line)', borderRadius: 14, padding: '13px 0', fontSize: 14, fontWeight: 700, background: 'var(--ui-card)', color: 'var(--ui-teal)', cursor: 'pointer', marginBottom: 16 }}>+ Nova dica</button>
-      )}
+        <>
+          {todas.length === 0 && (
+            <EmptyState
+              icone="💡"
+              titulo="Comece com nossas dicas prontas."
+              texto={`${SUGESTOES.length} dicas checadas de desconto e bônus pra viagem aos EUA. Você edita ou apaga depois.`}
+              cta={`Adicionar as ${SUGESTOES.length} dicas`}
+              onCta={() => semearDicas(SUGESTOES)}
+              secundario={<button onClick={abrirNova} style={acaoTxt}>ou escreva a sua primeira dica</button>}
+            />
+          )}
 
-      {todas.length === 0 && !form && (
-        <div style={{ ...card, padding: 18, marginBottom: 16, textAlign: 'center' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Comece com nossas dicas prontas 💡</div>
-          <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginBottom: 14 }}>{SUGESTOES.length} dicas checadas de desconto e bônus pra viagem aos EUA. Você edita ou apaga depois.</div>
-          <button onClick={() => semearDicas(SUGESTOES)} style={{ border: 'none', borderRadius: 12, padding: '12px 20px', fontSize: 14, fontWeight: 700, background: 'var(--ui-teal)', color: '#fff', cursor: 'pointer' }}>Adicionar as {SUGESTOES.length} dicas sugeridas</button>
-        </div>
-      )}
-
-      {catsComItem.length > 1 && (
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 14 }}>
-          {[{ id: 'todos', label: 'Todas', emoji: '' }, ...catsComItem].map((c) => (
-            <button key={c.id} onClick={() => setFiltro(c.id)} style={{ flex: '0 0 auto', border: 'none', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: filtro === c.id ? 'var(--ui-teal)' : 'var(--ui-card)', color: filtro === c.id ? '#fff' : 'var(--ui-muted)', boxShadow: filtro === c.id ? 'none' : 'var(--ui-shadow)' }}>{c.emoji ? c.emoji + ' ' : ''}{c.label}</button>
-          ))}
-        </div>
-      )}
-
-      {grupos.map((g) => (
-        <div key={g.cat.id} style={{ marginBottom: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 4px 10px' }}>
-            <span style={{ width: 30, height: 30, borderRadius: '50%', background: g.cat.bg, color: g.cat.cor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: '0 0 auto' }}>{g.cat.emoji}</span>
-            <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: '.5px', color: 'var(--ui-muted)' }}>{g.cat.label.toUpperCase()}</span>
-          </div>
-          <div style={{ ...card, padding: '4px 16px' }}>
-            {g.itens.map((d, i) => (
-              <div key={d.id} style={{ padding: '14px 0', borderTop: i > 0 ? '1px solid var(--ui-line)' : 'none' }}>
-                {d.titulo && <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ui-ink)' }}>{d.titulo}</div>}
-                {d.texto && <div style={{ fontSize: 13.5, color: 'var(--ui-muted)', marginTop: 3, lineHeight: 1.45 }}>{d.texto}</div>}
-                {d.imagem && (
-                  <div style={{ marginTop: 8 }}>
-                    {imgUrls[d.id] ? (
-                      <a href={imgUrls[d.id]} target="_blank" rel="noreferrer">
-                        <img src={imgUrls[d.id]} alt={d.titulo || 'Imagem da dica'} style={{ width: '100%', maxHeight: 320, objectFit: 'contain', borderRadius: 12, border: '1px solid var(--ui-line)', background: 'var(--ui-bg)' }} />
-                      </a>
-                    ) : (
-                      <div style={{ height: 120, borderRadius: 12, border: '1px solid var(--ui-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--ui-faint)' }}>carregando imagem…</div>
-                    )}
-                  </div>
-                )}
-                {d.link && <a href={d.link} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: 'var(--ui-teal)', display: 'inline-block', marginTop: 6, wordBreak: 'break-all' }}>🔗 abrir link</a>}
-                <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-                  <button onClick={() => abrirEdicao(d)} style={{ border: 'none', background: 'none', padding: 0, fontSize: 13, fontWeight: 600, color: 'var(--ui-muted)', cursor: 'pointer' }}>Editar</button>
-                  <button onClick={() => excluir(d)} style={{ border: 'none', background: 'none', padding: 0, fontSize: 13, fontWeight: 600, color: '#C2410C', cursor: 'pointer' }}>Excluir</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-
-      {sugestoesRestantes.length > 0 && todas.length > 0 && (
-        <div style={{ marginTop: 8 }}>
-          <button onClick={() => setVerSugestoes((v) => !v)} style={{ width: '100%', border: 'none', background: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px', cursor: 'pointer', color: 'var(--ui-muted)' }}>
-            <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: '.5px' }}>SUGESTÕES PRONTAS ({sugestoesRestantes.length})</span>
-            <span style={{ fontSize: 16 }}>{verSugestoes ? '▾' : '▸'}</span>
-          </button>
-          {verSugestoes && (
-            <div style={{ ...card, padding: '4px 16px', marginTop: 6 }}>
-              {sugestoesRestantes.map((s, i) => {
-                const c = catDe(s.categoria);
-                return (
-                  <div key={s.titulo} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '13px 0', borderTop: i > 0 ? '1px solid var(--ui-line)' : 'none' }}>
-                    <span style={{ fontSize: 16, marginTop: 1, flex: '0 0 auto' }}>{c.emoji}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700 }}>{s.titulo}</div>
-                      {s.texto && <div style={{ fontSize: 12.5, color: 'var(--ui-muted)', marginTop: 2, lineHeight: 1.4 }}>{s.texto}</div>}
-                    </div>
-                    <button onClick={() => adicionarDica(s)} style={{ flex: '0 0 auto', border: 'none', borderRadius: 10, padding: '7px 12px', fontSize: 13, fontWeight: 700, background: 'var(--ui-teal)', color: '#fff', cursor: 'pointer' }}>+ Add</button>
-                  </div>
-                );
-              })}
+          {/* navegação por tema: chips roláveis */}
+          {catsComItem.length > 1 && (
+            <div className="ui-chips-scroll" style={{ marginBottom: 6 }}>
+              {[{ id: 'todos', label: 'Todas', emoji: '' }, ...catsComItem].map((c) => (
+                <button key={c.id} onClick={() => setFiltro(c.id)} className={`ui-chipbtn${filtro === c.id ? ' on' : ''}`} aria-pressed={filtro === c.id}>{c.emoji ? c.emoji + ' ' : ''}{c.label}</button>
+              ))}
             </div>
           )}
-        </div>
+
+          {grupos.map((g, gi) => (
+            <Reveal key={g.cat.id} delay={Math.min(gi, 4) * 0.04}>
+              <div className="ui-section" style={{ marginTop: gi === 0 ? 12 : 22 }}><span>{g.cat.emoji} {g.cat.label}</span></div>
+              <div className="ui-card" style={{ padding: '2px 16px' }}>
+                <div className="ui-list">
+                  {g.itens.map((d) => (
+                    <article key={d.id} style={{ padding: '16px 0 8px' }}>
+                      {d.titulo && <h3 className="ui-wrap" style={{ fontSize: 15.5, fontWeight: 800, letterSpacing: '-0.2px', lineHeight: 1.3, margin: 0 }}>{d.titulo}</h3>}
+                      {d.texto && <p className="ui-wrap" style={{ fontSize: 14.5, fontWeight: 500, color: 'var(--ui-ink)', marginTop: d.titulo ? 6 : 0, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{d.texto}</p>}
+                      {d.imagem && (
+                        <div style={{ marginTop: 10 }}>
+                          {imgUrls[d.id] ? (
+                            <a href={imgUrls[d.id]} target="_blank" rel="noreferrer" style={{ display: 'block' }} aria-label="Abrir imagem em tamanho real">
+                              <img src={imgUrls[d.id]} alt={d.titulo || 'Imagem da dica'} style={IMG_LISTA} />
+                              <span className="ui-caption" style={{ display: 'block', marginTop: 4, color: 'var(--ui-faint)' }}>toque pra ampliar</span>
+                            </a>
+                          ) : (
+                            <Skeleton height={120} radiusPx={12} />
+                          )}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 6, flexWrap: 'wrap' }}>
+                        {d.link && <a href={d.link} target="_blank" rel="noreferrer" style={{ ...acaoTxt, padding: '0 6px 0 0', textDecoration: 'none' }}>🔗 abrir link</a>}
+                        <span style={{ flex: 1 }} />
+                        <button onClick={() => abrirEdicao(d)} style={{ ...acaoTxt, color: 'var(--ui-muted)' }}>Editar</button>
+                        <button onClick={() => excluir(d)} style={{ ...acaoTxt, color: 'var(--ui-debit)', paddingRight: 0 }}>Excluir</button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </Reveal>
+          ))}
+
+          {todas.length > 0 && lista.length === 0 && (
+            <EmptyState compacto icone={catDe(filtro).emoji} titulo={`Nada em ${catDe(filtro).label.toLowerCase()} ainda.`} texto="Escreva uma dica nesse tema ou veja todas." cta="Nova dica" onCta={abrirNova} secundario={<button onClick={() => setFiltro('todos')} style={acaoTxt}>ver todas</button>} />
+          )}
+
+          {sugestoesRestantes.length > 0 && todas.length > 0 && (
+            <div style={{ marginTop: 22 }}>
+              <button onClick={() => setVerSugestoes((v) => !v)} aria-expanded={verSugestoes} className="ui-section" style={{ width: '100%', margin: '0 0 8px', background: 'none', border: 'none', minHeight: 44, cursor: 'pointer' }}>
+                <span>Sugestões prontas · {sugestoesRestantes.length}</span>
+                <span aria-hidden="true" style={{ fontSize: 14, transform: verSugestoes ? 'rotate(180deg)' : 'none', transition: 'transform .18s var(--ease)' }}>▾</span>
+              </button>
+              <Expand aberto={verSugestoes}>
+                <div className="ui-card" style={{ padding: '2px 16px' }}>
+                  <div className="ui-list">
+                    {sugestoesRestantes.map((s) => {
+                      const c = catDe(s.categoria);
+                      return (
+                        <div key={s.titulo} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '13px 0' }}>
+                          <span aria-hidden="true" style={{ width: 36, height: 36, borderRadius: 12, background: 'var(--ui-sunken)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flex: '0 0 auto' }}>{c.emoji}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="ui-wrap" style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.3 }}>{s.titulo}</div>
+                            {s.texto && <div className="ui-wrap" style={{ fontSize: 13, color: 'var(--ui-muted)', marginTop: 3, lineHeight: 1.45 }}>{s.texto}</div>}
+                          </div>
+                          <Button variant="soft" size="sm" onClick={() => adicionarDica(s)} style={{ flex: '0 0 auto', minHeight: 40 }}>+ Add</Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Expand>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -4,8 +4,7 @@ import { useData } from '../DataProvider';
 import ReservasRV from './ReservasRV';
 import { supabase } from '../../lib/supabaseClient';
 import { valorEmBRL, fmtBRL, fmtUSD, nomeCategoria, emojiCategoria, CATEGORIAS_MOTORHOME, hojeLocal, usaDolar } from '../../lib/format';
-
-const CORES = ['#BA7517', '#0F6E56', '#534AB7', '#185FA5', '#1D9E75', '#D4537E', '#993C1D', '#5F5E5A'];
+import { PageHeader, Segmented, EmptyState, Button, Field, Reveal, Expand, SectionHeader, ProgressBar } from '../ui';
 
 // ===== Mercado (lista de suprimentos do motorhome) =====
 // Os itens ficam na tabela checklist_itens com tema 'Mercado' (não aparecem na tela Checklist,
@@ -29,14 +28,52 @@ const SUGESTOES = {
   outros: ['Pilhas', 'Carvão', 'Toalha', 'Lanterna'],
 };
 
+const ABAS = [
+  { id: 'custos', label: '💵 Custos' },
+  { id: 'rvparks', label: '🏕️ RV Parks' },
+  { id: 'mercado', label: '🛒 Mercado' },
+];
+const MI = 1.60934;
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
 function fmtData(d) {
   if (!d) return '';
   const [, m, dia] = d.split('-');
-  const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-  return `${dia} ${meses[Number(m) - 1]}`;
+  return `${dia} ${MESES[Number(m) - 1]}`;
+}
+function fmtDiaCurto(d) {
+  if (!d) return '—';
+  const dt = new Date(d + 'T00:00:00');
+  return `${String(dt.getDate()).padStart(2, '0')} ${MESES[dt.getMonth()]}`;
+}
+const fmtNum = (n, dec = 0) => Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: dec });
+
+// Pedaços visuais fora do componente da tela: definidos lá dentro, o React
+// trataria como componente novo a cada render e os campos perderiam o foco.
+
+// Segmentado pequeno (R$/US$, km/mi) — mesmo desenho do .ui-seg, só que compacto.
+function MiniSeg({ opcoes, valor, onChange }) {
+  return (
+    <div className="ui-seg" style={{ padding: 2, gap: 2, borderRadius: 10 }}>
+      {opcoes.map(([id, lbl, desabilitado]) => (
+        <button key={id} onClick={() => onChange(id)} disabled={!!desabilitado} className={valor === id ? 'on' : ''}
+          style={{ minHeight: 32, padding: '0 11px', fontSize: 12, borderRadius: 8, opacity: desabilitado ? 0.4 : 1 }}>{lbl}</button>
+      ))}
+    </div>
+  );
 }
 
-export default function Motorhome({ ir }) {
+// Célula de estatística do resumo (rótulo em cima, número embaixo).
+function Stat({ label, valor, tom }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div className="ui-caption ui-clamp1" style={{ fontSize: 11, fontWeight: 600 }}>{label}</div>
+      <div className="ui-num ui-clamp1" style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.3px', marginTop: 2, color: tom || 'var(--ui-ink)' }}>{valor}</div>
+    </div>
+  );
+}
+
+export default function Motorhome({ ir, abaInicial }) {
   const {
     viagem, gastos, pontos, perfis, recarregar, registrosKm, adicionarKm, removerKm,
     checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist,
@@ -45,23 +82,25 @@ export default function Motorhome({ ir }) {
   const comDolar = usaDolar(viagem);
   const [km, setKm] = useState(null); // null = calculando; 0 = sem trecho de carro
   const [moeda, setMoeda] = useState('brl'); // 'brl' | 'usd'
-  const [aba, setAba] = useState('custos'); // 'custos' | 'rvparks' | 'mercado'
+  const [aba, setAba] = useState(abaInicial || 'custos'); // 'custos' | 'rvparks' | 'mercado' (abaInicial vem do Menu → Reservas RV Park)
   const cambioOk = comDolar && cambio > 0;
   const fmtMoeda = (brl) => (moeda === 'usd' && cambioOk) ? fmtUSD(brl / cambio) : fmtBRL(brl);
-  const MI = 1.60934;
   const [unKm, setUnKm] = useState('km');
   const [kmForm, setKmForm] = useState(null);
+  const [kmErro, setKmErro] = useState('');
   const kmReal = (registrosKm || []).reduce((s, r) => s + Number(r.km || 0), 0);
   async function salvarKm() {
     const v = parseFloat((kmForm.valor || '').replace(',', '.'));
-    if (!(v > 0)) { window.alert('Informe a distância.'); return; }
-    const km = kmForm.unidade === 'mi' ? v * MI : v;
-    await adicionarKm({ km, valorOrigem: v, unidade: kmForm.unidade, data: kmForm.data, origem: (kmForm.origem || '').trim(), destino: (kmForm.destino || '').trim(), nota: (kmForm.nota || '').trim() });
+    if (!(v > 0)) { setKmErro('Informe a distância rodada.'); return; }
+    setKmErro('');
+    const kmV = kmForm.unidade === 'mi' ? v * MI : v;
+    await adicionarKm({ km: kmV, valorOrigem: v, unidade: kmForm.unidade, data: kmForm.data, origem: (kmForm.origem || '').trim(), destino: (kmForm.destino || '').trim(), nota: (kmForm.nota || '').trim() });
     setKmForm(null);
   }
   const [editPeriodo, setEditPeriodo] = useState(false);
   const [dRet, setDRet] = useState('');
   const [dEnt, setDEnt] = useState('');
+  const [periodoErro, setPeriodoErro] = useState('');
 
   // ----- estado do Mercado -----
   const [novoMerc, setNovoMerc] = useState(null); // null ou { texto, cat }
@@ -106,18 +145,13 @@ export default function Motorhome({ ir }) {
   const diasBase = diasRV || diasViagem;
   const custoDia = totalMH / diasBase;
 
-  function abrirPeriodo() { setDRet(viagem.mh_retirada || ''); setDEnt(viagem.mh_entrega || ''); setEditPeriodo(true); }
+  function abrirPeriodo() { setDRet(viagem.mh_retirada || ''); setDEnt(viagem.mh_entrega || ''); setPeriodoErro(''); setEditPeriodo(true); }
   async function salvarPeriodo() {
-    if (dRet && dEnt && dEnt < dRet) { window.alert('A entrega não pode ser antes da retirada.'); return; }
+    if (dRet && dEnt && dEnt < dRet) { setPeriodoErro('A entrega não pode ser antes da retirada.'); return; }
+    setPeriodoErro('');
     await supabase.from('viagens').update({ mh_retirada: dRet || null, mh_entrega: dEnt || null }).eq('id', viagem.id);
     setEditPeriodo(false);
     await recarregar();
-  }
-  function fmtDiaCurto(d) {
-    if (!d) return '—';
-    const dt = new Date(d + 'T00:00:00');
-    const m = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][dt.getMonth()];
-    return `${String(dt.getDate()).padStart(2, '0')} ${m}`;
   }
 
   // quebra por categoria
@@ -158,210 +192,217 @@ export default function Motorhome({ ir }) {
   const custoKm = kmUsado > 0 ? totalMH / kmExib : null;
   const recentes = [...gastosMH].sort((a, b) => (a.data < b.data ? 1 : -1)).slice(0, 8);
 
+  // Subtítulo do cabeçalho: período + km — o contexto que vale pra qualquer aba.
+  const txtPeriodo = diasRV ? `${fmtDiaCurto(ret)} → ${fmtDiaCurto(ent)} · ${diasRV} ${diasRV === 1 ? 'dia' : 'dias'}` : 'Período ainda não definido';
+  const txtKm = km === null && kmReal === 0 ? 'calculando km…' : kmUsado > 0 ? `${fmtNum(kmExib)} ${unKm} rodados` : 'sem km ainda';
+
+  // Linha do período do motorhome (aparece no resumo e no estado vazio).
+  const linhaPeriodo = (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 56, padding: '8px 0' }}>
+        <span style={{ width: 38, height: 38, borderRadius: 12, background: 'var(--ui-teal-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flex: '0 0 auto' }}>📅</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="ui-caption">Período do motorhome</div>
+          {diasRV
+            ? <div style={{ fontSize: 14.5, fontWeight: 700 }}>{fmtDiaCurto(ret)} → {fmtDiaCurto(ent)} <span className="ui-muted" style={{ fontWeight: 500 }}>· {diasRV} {diasRV === 1 ? 'dia' : 'dias'}</span></div>
+            : <div style={{ fontSize: 13.5, color: 'var(--ui-muted)' }}>Defina retirada e entrega pro custo por dia certo</div>}
+        </div>
+        {!editPeriodo && <Button variant={diasRV ? 'ghost' : 'soft'} size="sm" onClick={abrirPeriodo}>{diasRV ? 'Editar' : 'Definir'}</Button>}
+      </div>
+      <Expand aberto={editPeriodo}>
+        <div style={{ padding: '6px 0 4px' }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Field label="Retirada" style={{ flex: 1, minWidth: 0 }}><input className="ui-input" type="date" value={dRet} onChange={(e) => setDRet(e.target.value)} /></Field>
+            <Field label="Entrega" style={{ flex: 1, minWidth: 0 }}><input className="ui-input" type="date" value={dEnt} onChange={(e) => setDEnt(e.target.value)} /></Field>
+          </div>
+          {periodoErro && <div className="ui-error">{periodoErro}</div>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="secondary" onClick={() => setEditPeriodo(false)} style={{ flex: 1 }}>Cancelar</Button>
+            <Button onClick={salvarPeriodo} style={{ flex: 2 }}>Salvar período</Button>
+          </div>
+        </div>
+      </Expand>
+    </div>
+  );
+
   return (
-    <div className="app">
-      <div className="screen" style={{ paddingTop: 18 }}>
-        <div className="fab-back">
-          <button onClick={() => ir('resumo')} aria-label="Voltar">←</button>
-          <span className="ttl">🚐 Motorhome</span>
-          {comDolar && aba === 'custos' && totalMH > 0 && (
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: '#EFEDE6', borderRadius: 20, padding: 3, flex: '0 0 auto' }}>
-              {[['brl', 'R$'], ['usd', 'US$']].map(([id, lbl]) => (
-                <button key={id} onClick={() => setMoeda(id)} disabled={id === 'usd' && !cambioOk}
-                  style={{ border: 'none', borderRadius: 16, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: moeda === id ? 'var(--brand)' : 'transparent', color: moeda === id ? '#fff' : 'var(--muted)' }}>{lbl}</button>
-              ))}
-            </div>
-          )}
-        </div>
+    <div className="ui-screen">
+      <PageHeader
+        titulo="🚐 Motorhome"
+        subtitulo={`${txtPeriodo} · ${txtKm}`}
+        onVoltar={() => ir('resumo')}
+        acao={comDolar && aba === 'custos' && totalMH > 0 ? <MiniSeg opcoes={[['brl', 'R$'], ['usd', 'US$', !cambioOk]]} valor={moeda} onChange={setMoeda} /> : null}
+      />
 
-        {/* abas Custos / Mercado */}
-        <div style={{ display: 'flex', gap: 4, background: '#EFEDE6', borderRadius: 16, padding: 3, marginBottom: 14 }}>
-          {[['custos', '💵 Custos'], ['rvparks', '🏕️ RV Parks'], ['mercado', '🛒 Mercado']].map(([id, lbl]) => (
-            <button key={id} onClick={() => setAba(id)}
-              style={{ flex: 1, border: 'none', borderRadius: 13, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: aba === id ? 'var(--brand)' : 'transparent', color: aba === id ? '#fff' : 'var(--muted)' }}>{lbl}</button>
-          ))}
-        </div>
+      {/* abas Custos / RV Parks / Mercado */}
+      <Segmented opcoes={ABAS} valor={aba} onChange={setAba} style={{ marginBottom: 16 }} />
 
-        {aba === 'custos' && (<>
-        {editPeriodo ? (
-          <div className="card" style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Período do motorhome</div>
-            <div className="field"><label>Retirada</label><input className="input" type="date" value={dRet} onChange={(e) => setDRet(e.target.value)} /></div>
-            <div className="field"><label>Entrega</label><input className="input" type="date" value={dEnt} onChange={(e) => setDEnt(e.target.value)} /></div>
-            <button className="btn-primary" onClick={salvarPeriodo}>Salvar período</button>
-            <button className="btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => setEditPeriodo(false)}>Cancelar</button>
-          </div>
-        ) : (
-          <div className="card" style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ width: 36, height: 36, borderRadius: 11, background: 'var(--brand-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flex: '0 0 auto' }}>📅</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, color: 'var(--faint)' }}>Período do motorhome</div>
-              {diasRV ? (
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{fmtDiaCurto(ret)} → {fmtDiaCurto(ent)} · {diasRV} {diasRV === 1 ? 'dia' : 'dias'}</div>
-              ) : (
-                <div style={{ fontSize: 13, color: 'var(--muted)' }}>defina retirada e entrega para o custo/dia exato</div>
-              )}
-            </div>
-            <button className="btn-ghost" style={{ padding: '4px 6px', fontSize: 13 }} onClick={abrirPeriodo}>{diasRV ? 'editar' : 'definir'}</button>
-          </div>
-        )}
-
-        {totalMH === 0 ? (
-          <div className="card">
-            <div className="empty">Nenhum gasto de motorhome ainda. Lance um gasto no “+” com uma categoria de RV (combustível, camping, supermercado…) que ele aparece aqui.</div>
-            <button className="btn-outline" onClick={() => ir('novo')}>Lançar um gasto</button>
-          </div>
-        ) : (
-          <>
-            {/* tiles */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-              <div style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 14, padding: '12px 13px', boxShadow: '0 2px 10px rgba(27,42,47,.05)' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.4px' }}>{fmtMoeda(totalMH)}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Total motorhome</div>
-              </div>
-              <div style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 14, padding: '12px 13px', boxShadow: '0 2px 10px rgba(27,42,47,.05)' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.4px' }}>{fmtMoeda(custoDia)}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Por dia · {diasBase} {diasBase === 1 ? 'dia' : 'dias'}{diasRV ? ' de RV' : ''}</div>
-              </div>
-              <div style={{ background: 'var(--gold-soft)', borderRadius: 14, padding: '12px 13px' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.4px', color: 'var(--gold)' }}>{fmtMoeda(combustivelMH)}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Combustível</div>
-              </div>
-              {custoKm != null ? (
-                <div style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 14, padding: '12px 13px', boxShadow: '0 2px 10px rgba(27,42,47,.05)' }}>
-                  <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.4px' }}>{fmtMoeda(custoKm)}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Por {unKm} · {kmExib.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} {unKm} ({kmFonte})</div>
+      {aba === 'custos' && (
+        <Reveal key="custos">
+          {totalMH === 0 ? (
+            <>
+              <EmptyState icone="🚐" titulo="Nenhum gasto de motorhome ainda." texto="Lance um gasto no “+” com uma categoria de RV (combustível, camping, supermercado…) e ele aparece aqui." cta="Lançar um gasto" onCta={() => ir('novo')} />
+              <div className="ui-card" style={{ padding: '4px 16px', marginTop: 12 }}>{linhaPeriodo}</div>
+            </>
+          ) : (
+            <>
+              {/* resumo: 1 destaque (total) + 3 números de apoio + período */}
+              <div className="ui-card" style={{ padding: '18px 16px 4px' }}>
+                <div className="ui-section" style={{ margin: '0 0 4px' }}><span>Total motorhome</span></div>
+                <div className="ui-num" style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-1px', lineHeight: 1.1 }}>{fmtMoeda(totalMH)}</div>
+                <div className="ui-caption" style={{ marginTop: 3 }}>em {diasBase} {diasBase === 1 ? 'dia' : 'dias'}{diasRV ? ' de motorhome' : ' de viagem'}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--ui-line)' }}>
+                  <Stat label="Por dia" valor={fmtMoeda(custoDia)} />
+                  <Stat label="Combustível" valor={fmtMoeda(combustivelMH)} tom="var(--ui-gold)" />
+                  <Stat label={`Por ${unKm}`} valor={custoKm != null ? fmtMoeda(custoKm) : (km === null && kmReal === 0 ? '…' : '—')} />
                 </div>
-              ) : (
-                <div style={{ background: 'var(--bg)', border: '0.5px dashed var(--line-strong)', borderRadius: 14, padding: '12px 13px', display: 'flex', alignItems: 'center' }}>
-                  <div style={{ fontSize: 11, color: 'var(--faint)', lineHeight: 1.4 }}>
-                    {km === null ? 'Calculando…' : 'Custo por km aparece quando você registrar KM no diário (ou localizar paradas no Roteiro).'}
-                  </div>
-                </div>
-              )}
-            </div>
+                {custoKm == null && km !== null && (
+                  <div className="ui-hint" style={{ marginTop: 6 }}>O custo por km aparece quando você registrar km no diário ou localizar paradas no Roteiro.</div>
+                )}
+                <div style={{ borderTop: '1px solid var(--ui-line)', marginTop: 12 }}>{linhaPeriodo}</div>
+              </div>
 
-            {/* quebra por categoria */}
-            <div className="card" style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600, marginBottom: 4 }}>Por categoria</div>
-              {quebra.map((c, i) => (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: i > 0 ? '0.5px solid var(--line)' : 'none' }}>
-                  <span style={{ width: 30, height: 30, borderRadius: 9, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: '0 0 auto' }}>{emojiCategoria(c.id)}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>{nomeCategoria(c.id)}</div>
-                    <div style={{ height: 6, borderRadius: 5, background: '#EDEAE2', overflow: 'hidden', marginTop: 4 }}>
-                      <div style={{ width: Math.max(4, (c.v / maxV) * 100) + '%', height: '100%', borderRadius: 5, background: CORES[i % CORES.length] }} />
+              {/* quebra por categoria */}
+              <SectionHeader title="Por categoria" />
+              <div className="ui-card" style={{ padding: '4px 16px' }}>
+                {quebra.map((c) => (
+                  <div key={c.id} className="row" style={{ minHeight: 52 }}>
+                    <span className="ic" style={{ width: 34, height: 34, fontSize: 16 }}>{emojiCategoria(c.id)}</span>
+                    <div className="meta">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+                        <span style={{ fontSize: 14.5, fontWeight: 700 }}>{nomeCategoria(c.id)}</span>
+                        <span className="ui-num" style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>{fmtMoeda(c.v)}</span>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 5, background: 'var(--ui-line)', overflow: 'hidden', marginTop: 6 }}>
+                        <div className="v3-bar-fill" style={{ width: Math.max(4, (c.v / maxV) * 100) + '%', height: '100%', borderRadius: 5, background: 'var(--ui-teal)' }} />
+                      </div>
                     </div>
                   </div>
-                  <div style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtMoeda(c.v)}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* lançamentos de motorhome */}
-            <div className="card" style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600, marginBottom: 2 }}>Lançamentos de motorhome</div>
-              {recentes.map((g, i) => (
-                <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 0', borderTop: i > 0 ? '0.5px solid var(--line)' : 'none' }}>
-                  <span style={{ width: 32, height: 32, borderRadius: 10, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: '0 0 auto' }}>{emojiCategoria(g.categoria)}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.descricao || nomeCategoria(g.categoria)}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{nomeP(g.pago_por)} · {fmtData(g.data)}</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{g.moeda === 'USD' ? fmtUSD(g.valor) : fmtBRL(g.valor)}</div>
-                    {g.moeda === 'USD' && <div style={{ fontSize: 10, color: 'var(--faint)' }}>{fmtBRL(valorEmBRL(g, cambio))}</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Diário de KM */}
-            <div className="card" style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600 }}>Diário de KM</span>
-                <div style={{ display: 'flex', gap: 3, background: 'var(--bg)', borderRadius: 12, padding: 2 }}>
-                  {[['km', 'km'], ['mi', 'mi']].map(([id, l]) => (
-                    <button key={id} onClick={() => setUnKm(id)} style={{ border: 'none', borderRadius: 10, padding: '3px 11px', fontSize: 11, fontWeight: 700, cursor: 'pointer', background: unKm === id ? 'var(--brand)' : 'transparent', color: unKm === id ? '#fff' : 'var(--muted)' }}>{l}</button>
-                  ))}
-                </div>
+                ))}
               </div>
-              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>{kmExib.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>{unKm} rodados</span></div>
-              {kmReal > 0
-                ? <div style={{ fontSize: 11, color: 'var(--brand)', marginTop: 2 }}>o custo por km usa este total (real)</div>
-                : <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 2 }}>sem registros ainda — o custo por km usa a estimativa do roteiro</div>}
 
-              {registrosKm.map((r) => (
-                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: '0.5px solid var(--line)' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>{Number(r.valor_origem ?? r.km).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} {r.unidade || 'km'}{(r.origem || r.destino) ? ` · ${r.origem || '?'} → ${r.destino || '?'}` : ''}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{fmtData(r.data)}{r.nota ? ` · ${r.nota}` : ''}</div>
+              {/* lançamentos de motorhome */}
+              <SectionHeader title="Últimos lançamentos" />
+              <div className="ui-card" style={{ padding: '2px 16px' }}>
+                {recentes.map((g) => (
+                  <div key={g.id} className="row" style={{ minHeight: 52, padding: '9px 0' }}>
+                    <span className="ic" style={{ width: 34, height: 34, fontSize: 16 }}>{emojiCategoria(g.categoria)}</span>
+                    <div className="meta">
+                      <div className="t ui-clamp1">{g.descricao || nomeCategoria(g.categoria)}</div>
+                      <div className="s">{nomeP(g.pago_por)} · {fmtData(g.data)}</div>
+                    </div>
+                    <div className="amt">
+                      {g.moeda === 'USD' ? fmtUSD(g.valor) : fmtBRL(g.valor)}
+                      {g.moeda === 'USD' && <span className="conv">{fmtBRL(valorEmBRL(g, cambio))}</span>}
+                    </div>
                   </div>
-                  <button onClick={() => { if (window.confirm('Apagar este registro de KM?')) removerKm(r.id); }} aria-label="Apagar" style={{ border: 'none', background: 'none', color: 'var(--faint)', fontSize: 15, cursor: 'pointer' }}>✕</button>
-                </div>
-              ))}
+                ))}
+              </div>
 
-              {kmForm ? (
-                <div style={{ borderTop: '0.5px solid var(--line)', marginTop: 8, paddingTop: 12 }}>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <input className="input" inputMode="decimal" value={kmForm.valor} onChange={(e) => setKmForm({ ...kmForm, valor: e.target.value })} placeholder="Distância" style={{ flex: 1 }} />
-                    <select className="select" value={kmForm.unidade} onChange={(e) => setKmForm({ ...kmForm, unidade: e.target.value })} style={{ width: 84 }}><option value="km">km</option><option value="mi">mi</option></select>
+              {/* Diário de KM */}
+              <SectionHeader title="Diário de km" />
+              <div className="ui-card" style={{ padding: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="ui-num" style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.6px' }}>{fmtNum(kmExib)} <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ui-muted)', letterSpacing: 0 }}>{unKm} rodados</span></div>
+                    <div className="ui-caption" style={{ marginTop: 2, color: kmReal > 0 ? 'var(--ui-teal-ink)' : 'var(--ui-faint)' }}>
+                      {kmReal > 0 ? 'Total real — é o que vale pro custo por km' : 'Sem registros — usando a estimativa do roteiro'}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <input className="input" value={kmForm.origem} onChange={(e) => setKmForm({ ...kmForm, origem: e.target.value })} placeholder="De" style={{ flex: 1 }} />
-                    <input className="input" value={kmForm.destino} onChange={(e) => setKmForm({ ...kmForm, destino: e.target.value })} placeholder="Para" style={{ flex: 1 }} />
-                  </div>
-                  <input className="input" type="date" value={kmForm.data} onChange={(e) => setKmForm({ ...kmForm, data: e.target.value })} style={{ marginBottom: 8 }} />
-                  <input className="input" value={kmForm.nota} onChange={(e) => setKmForm({ ...kmForm, nota: e.target.value })} placeholder="Nota (ex.: desvio Grand Canyon)" style={{ marginBottom: 8 }} />
-                  <button className="btn-primary" onClick={salvarKm}>Adicionar trecho</button>
-                  <button className="btn-ghost" style={{ width: '100%', marginTop: 6 }} onClick={() => setKmForm(null)}>Cancelar</button>
+                  <MiniSeg opcoes={[['km', 'km'], ['mi', 'mi']]} valor={unKm} onChange={setUnKm} />
                 </div>
-              ) : (
-                <button className="btn-outline" style={{ marginTop: 10 }} onClick={() => setKmForm({ valor: '', unidade: unKm, origem: '', destino: '', data: hojeLocal(), nota: '' })}>+ registrar KM</button>
+
+                {registrosKm.length > 0 && (
+                  <div className="ui-list" style={{ marginTop: 10, borderTop: '1px solid var(--ui-line)' }}>
+                    {registrosKm.map((r) => (
+                      <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 52, padding: '6px 0' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="ui-wrap" style={{ fontSize: 14.5, fontWeight: 700 }}><span className="ui-num">{fmtNum(r.valor_origem ?? r.km, 1)} {r.unidade || 'km'}</span>{(r.origem || r.destino) ? <span style={{ fontWeight: 500, color: 'var(--ui-muted)' }}> · {r.origem || '?'} → {r.destino || '?'}</span> : null}</div>
+                          <div className="ui-caption">{fmtData(r.data)}{r.nota ? ` · ${r.nota}` : ''}</div>
+                        </div>
+                        <button className="ui-iconbtn" onClick={() => { if (window.confirm('Apagar este registro de KM?')) removerKm(r.id); }} aria-label="Apagar" style={{ width: 40, height: 40, background: 'transparent', color: 'var(--ui-faint)', fontSize: 15 }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <Expand aberto={!!kmForm}>
+                  {kmForm && (
+                    <div style={{ borderTop: '1px solid var(--ui-line)', marginTop: 10, paddingTop: 14 }}>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <Field label="Distância" style={{ flex: 1, minWidth: 0 }}><input className="ui-input" inputMode="decimal" autoFocus value={kmForm.valor} onChange={(e) => setKmForm({ ...kmForm, valor: e.target.value })} placeholder="Ex.: 320" /></Field>
+                        <Field label="Unidade" style={{ width: 96 }}><select className="ui-input" value={kmForm.unidade} onChange={(e) => setKmForm({ ...kmForm, unidade: e.target.value })}><option value="km">km</option><option value="mi">mi</option></select></Field>
+                      </div>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <Field label="De" opcional style={{ flex: 1, minWidth: 0 }}><input className="ui-input" value={kmForm.origem} onChange={(e) => setKmForm({ ...kmForm, origem: e.target.value })} placeholder="Orlando" /></Field>
+                        <Field label="Para" opcional style={{ flex: 1, minWidth: 0 }}><input className="ui-input" value={kmForm.destino} onChange={(e) => setKmForm({ ...kmForm, destino: e.target.value })} placeholder="Miami" /></Field>
+                      </div>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <Field label="Data" style={{ flex: 1, minWidth: 0 }}><input className="ui-input" type="date" value={kmForm.data} onChange={(e) => setKmForm({ ...kmForm, data: e.target.value })} /></Field>
+                        <Field label="Nota" opcional style={{ flex: 1.4, minWidth: 0 }}><input className="ui-input" value={kmForm.nota} onChange={(e) => setKmForm({ ...kmForm, nota: e.target.value })} placeholder="desvio Grand Canyon" /></Field>
+                      </div>
+                      {kmErro && <div className="ui-error">{kmErro}</div>}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <Button variant="secondary" onClick={() => { setKmForm(null); setKmErro(''); }} style={{ flex: 1 }}>Cancelar</Button>
+                        <Button onClick={salvarKm} style={{ flex: 2 }}>Adicionar trecho</Button>
+                      </div>
+                    </div>
+                  )}
+                </Expand>
+                {!kmForm && (
+                  <Button variant="soft" full style={{ marginTop: 12 }} onClick={() => { setKmErro(''); setKmForm({ valor: '', unidade: unKm, origem: '', destino: '', data: hojeLocal(), nota: '' }); }}>+ Registrar km</Button>
+                )}
+              </div>
+
+              <p className="ui-caption" style={{ color: 'var(--ui-faint)', marginTop: 16, padding: '0 4px', lineHeight: 1.5 }}>
+                Estes são os mesmos gastos da viagem, filtrados pelas categorias de RV. Lance e racha no “+” de sempre — aqui é só a visão de quanto o motorhome está custando.
+              </p>
+            </>
+          )}
+        </Reveal>
+      )}
+
+      {aba === 'rvparks' && <Reveal key="rvparks"><ReservasRV /></Reveal>}
+
+      {aba === 'mercado' && (
+        <Reveal key="mercado">
+          {itensMerc.length === 0 ? (
+            <EmptyState icone="🛒" titulo="Sua lista de mercado está vazia." texto="Toque nas sugestões abaixo ou adicione o primeiro item — todo mundo da viagem vê a lista." cta="Adicionar item" onCta={() => setNovoMerc({ texto: '', cat: 'comida' })} />
+          ) : (
+            /* progresso do carrinho: o único destaque da aba */
+            <div className="ui-card" style={{ padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
+                <span className="ui-h2">{mercFeitos} de {itensMerc.length} no carrinho</span>
+                <span className="ui-num" style={{ fontSize: 18, fontWeight: 800, color: mercPct === 100 ? 'var(--ui-credit)' : 'var(--ui-teal-ink)' }}>{mercPct}%</span>
+              </div>
+              <ProgressBar pct={mercPct} fillColor={mercPct === 100 ? 'var(--ui-credit)' : 'var(--ui-teal)'} height={8} />
+              {mercFeitos > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+                  <Button variant="ghost" size="sm" onClick={limparComprados} style={{ color: 'var(--ui-muted)' }}>Remover {mercFeitos} comprado{mercFeitos === 1 ? '' : 's'}</Button>
+                </div>
               )}
             </div>
-
-            <p style={{ fontSize: 11, color: 'var(--faint)', lineHeight: 1.5, padding: '0 4px' }}>
-              Estes são os mesmos gastos da viagem, filtrados pelas categorias de RV. Lance e racha no “+” de sempre — aqui é só a visão de quanto o motorhome está custando.
-            </p>
-          </>
-        )}
-        </>)}
-
-        {aba === 'rvparks' && <ReservasRV />}
-
-        {aba === 'mercado' && (<>
-          {/* progresso do carrinho */}
-          <div className="card" style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 }}>
-              <span style={{ fontSize: 14, fontWeight: 700 }}>{mercFeitos} de {itensMerc.length} no carrinho</span>
-              <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--brand)' }}>{mercPct}%</span>
-            </div>
-            <div style={{ height: 8, borderRadius: 5, background: 'var(--line)', overflow: 'hidden' }}>
-              <div style={{ width: mercPct + '%', height: '100%', borderRadius: 5, background: 'var(--brand)', transition: 'width .3s' }} />
-            </div>
-            {mercFeitos > 0 && (
-              <button className="btn-ghost" style={{ width: '100%', marginTop: 8, fontSize: 12.5 }} onClick={limparComprados}>Remover {mercFeitos} comprado{mercFeitos === 1 ? '' : 's'}</button>
-            )}
-          </div>
+          )}
 
           {/* seções por categoria */}
           {MERCADO_CATS.map(([catId]) => {
             const lista = itensMerc.filter((i) => (i.prazo || 'outros') === catId);
             if (lista.length === 0) return null;
+            const feitos = lista.filter((i) => i.feito).length;
             return (
-              <div key={catId} style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 2px 8px' }}>
-                  <span style={{ fontSize: 15 }}>{MERCADO_EMOJI[catId]}</span>
-                  <span style={{ fontSize: 13.5, fontWeight: 700 }}>{MERCADO_LABEL[catId]}</span>
-                  <span style={{ fontSize: 11.5, color: 'var(--faint)' }}>{lista.filter((i) => i.feito).length}/{lista.length}</span>
+              <div key={catId}>
+                <div className="ui-section" style={{ margin: '20px 4px 8px' }}>
+                  <span>{MERCADO_EMOJI[catId]} {MERCADO_LABEL[catId]}</span>
+                  <span className="ui-num" style={{ fontWeight: 600, color: feitos === lista.length ? 'var(--ui-credit)' : 'var(--ui-faint)', letterSpacing: 0 }}>{feitos}/{lista.length}</span>
                 </div>
-                <div className="card" style={{ padding: '2px 14px' }}>
-                  {lista.map((it, idx) => (
-                    <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 0', borderTop: idx > 0 ? '0.5px solid var(--line)' : 'none' }}>
-                      <button onClick={() => alternarChecklist(it.id, !it.feito)} aria-label="Marcar" style={{ width: 24, height: 24, borderRadius: '50%', flex: '0 0 auto', cursor: 'pointer', border: it.feito ? 'none' : '2px solid var(--line-strong)', background: it.feito ? 'var(--brand)' : 'transparent', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{it.feito ? '✓' : ''}</button>
-                      <span onClick={() => { const t = window.prompt('Editar item', it.texto); if (t && t.trim()) editarChecklist(it.id, t.trim()); }} style={{ flex: 1, minWidth: 0, fontSize: 14, cursor: 'text', textDecoration: it.feito ? 'line-through' : 'none', color: it.feito ? 'var(--faint)' : 'inherit' }}>{it.texto}</span>
-                      <button onClick={() => removerChecklist(it.id)} aria-label="Apagar" style={{ border: 'none', background: 'none', color: 'var(--faint)', fontSize: 14, cursor: 'pointer', flex: '0 0 auto' }}>✕</button>
+                <div className="ui-card ui-list" style={{ padding: '2px 16px' }}>
+                  {lista.map((it) => (
+                    <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 50 }}>
+                      <button onClick={() => alternarChecklist(it.id, !it.feito)} aria-label={it.feito ? 'Desmarcar' : 'Marcar como no carrinho'} className="ui-press" style={{ width: 44, height: 44, marginLeft: -10, flex: '0 0 auto', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ width: 24, height: 24, borderRadius: '50%', border: it.feito ? 'none' : '2px solid var(--ui-line-strong)', background: it.feito ? 'var(--ui-teal)' : 'transparent', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .15s ease' }}>{it.feito ? '✓' : ''}</span>
+                      </button>
+                      <span onClick={() => { const t = window.prompt('Editar item', it.texto); if (t && t.trim()) editarChecklist(it.id, t.trim()); }} className="ui-wrap" style={{ flex: 1, fontSize: 14.5, fontWeight: it.feito ? 500 : 600, cursor: 'text', textDecoration: it.feito ? 'line-through' : 'none', color: it.feito ? 'var(--ui-faint)' : 'inherit' }}>{it.texto}</span>
+                      <button onClick={() => removerChecklist(it.id)} aria-label="Apagar" style={{ width: 40, height: 40, marginRight: -8, border: 'none', background: 'transparent', color: 'var(--ui-faint)', fontSize: 14, flex: '0 0 auto', borderRadius: 10 }}>✕</button>
                     </div>
                   ))}
                 </div>
@@ -369,51 +410,52 @@ export default function Motorhome({ ir }) {
             );
           })}
 
-          {itensMerc.length === 0 && (
-            <div className="card" style={{ textAlign: 'center', color: 'var(--faint)', fontSize: 13, marginBottom: 14 }}>
-              Lista vazia. Toque nas sugestões abaixo ou adicione um item.
-            </div>
-          )}
-
           {/* adicionar item manual */}
-          {novoMerc ? (
-            <div className="card" style={{ marginBottom: 14 }}>
-              <input autoFocus className="input" value={novoMerc.texto} onChange={(e) => setNovoMerc({ ...novoMerc, texto: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && salvarNovoMerc()} placeholder="O que comprar?" style={{ marginBottom: 9 }} />
-              <select className="select" value={novoMerc.cat} onChange={(e) => setNovoMerc({ ...novoMerc, cat: e.target.value })} style={{ width: '100%', marginBottom: 10 }}>
-                {MERCADO_CATS.map(([id, e, l]) => <option key={id} value={id}>{e} {l}</option>)}
-              </select>
-              <button className="btn-primary" onClick={salvarNovoMerc}>Adicionar</button>
-              <button className="btn-ghost" style={{ width: '100%', marginTop: 6 }} onClick={() => setNovoMerc(null)}>Fechar</button>
-            </div>
-          ) : (
-            <button className="btn-outline" style={{ marginBottom: 14 }} onClick={() => setNovoMerc({ texto: '', cat: 'comida' })}>+ Adicionar item</button>
-          )}
-
-          {/* sugestões rápidas */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 11, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600, margin: '0 2px 8px' }}>Sugestões — toque para adicionar</div>
-            {MERCADO_CATS.map(([catId, emoji, label]) => {
-              const naLista = new Set(itensMerc.map((i) => (i.texto || '').toLowerCase()));
-              const chips = (SUGESTOES[catId] || []).filter((s) => !naLista.has(s.toLowerCase()));
-              if (chips.length === 0) return null;
-              return (
-                <div key={catId} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', margin: '0 2px 6px' }}>{emoji} {label}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-                    {chips.map((s) => (
-                      <button key={s} onClick={() => addMercado(s, catId)} style={{ border: '0.5px solid var(--line-strong)', background: 'var(--surface)', borderRadius: 16, padding: '6px 12px', fontSize: 12.5, fontWeight: 600, color: 'var(--muted)', cursor: 'pointer' }}>+ {s}</button>
-                    ))}
+          <div style={{ marginTop: 16 }}>
+            <Expand aberto={!!novoMerc}>
+              {novoMerc && (
+                <div className="ui-card" style={{ padding: 16, marginBottom: 12 }}>
+                  <Field label="O que comprar?"><input autoFocus className="ui-input" value={novoMerc.texto} onChange={(e) => setNovoMerc({ ...novoMerc, texto: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && salvarNovoMerc()} placeholder="Ex.: Leite" /></Field>
+                  <Field label="Categoria">
+                    <select className="ui-input" value={novoMerc.cat} onChange={(e) => setNovoMerc({ ...novoMerc, cat: e.target.value })}>
+                      {MERCADO_CATS.map(([id, e, l]) => <option key={id} value={id}>{e} {l}</option>)}
+                    </select>
+                  </Field>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Button variant="secondary" onClick={() => setNovoMerc(null)} style={{ flex: 1 }}>Fechar</Button>
+                    <Button onClick={salvarNovoMerc} style={{ flex: 2 }}>Adicionar</Button>
                   </div>
                 </div>
-              );
-            })}
+              )}
+            </Expand>
+            {!novoMerc && itensMerc.length > 0 && (
+              <Button variant="soft" full onClick={() => setNovoMerc({ texto: '', cat: 'comida' })}>+ Adicionar item</Button>
+            )}
           </div>
 
-          <p style={{ fontSize: 11, color: 'var(--faint)', lineHeight: 1.5, padding: '0 4px' }}>
+          {/* sugestões rápidas */}
+          <SectionHeader title="Sugestões · toque pra adicionar" />
+          {MERCADO_CATS.map(([catId, emoji, label]) => {
+            const naLista = new Set(itensMerc.map((i) => (i.texto || '').toLowerCase()));
+            const chips = (SUGESTOES[catId] || []).filter((s) => !naLista.has(s.toLowerCase()));
+            if (chips.length === 0) return null;
+            return (
+              <div key={catId} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ui-muted)', margin: '0 2px 6px' }}>{emoji} {label}</div>
+                <div className="chips">
+                  {chips.map((s) => (
+                    <button key={s} className="chip ui-press" onClick={() => addMercado(s, catId)}>+ {s}</button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          <p className="ui-caption" style={{ color: 'var(--ui-faint)', marginTop: 8, padding: '0 4px', lineHeight: 1.5 }}>
             A lista é compartilhada com todo mundo da viagem e sincroniza em tempo real. Marque o item quando colocar no carrinho.
           </p>
-        </>)}
-      </div>
+        </Reveal>
+      )}
     </div>
   );
 }

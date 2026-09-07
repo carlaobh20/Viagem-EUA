@@ -61,7 +61,7 @@ export default function AppShell() {
         {view === 'acerto' && <Acerto ir={irPara} />}
         {view === 'roteiro' && <Roteiro ir={irPara} />}
         {view === 'mapa' && <Mapa ir={irPara} />}
-        {view === 'motorhome' && <Motorhome ir={irPara} />}
+        {view === 'motorhome' && <Motorhome ir={irPara} abaInicial={viewParam} />}
         {view === 'checklist' && <Checklist ir={irPara} />}
         {view === 'compras' && <Checklist ir={irPara} abaInicial="comprar" />}
         {view === 'menu' && <Menu ir={irPara} />}
@@ -74,7 +74,7 @@ export default function AppShell() {
         {view === 'viagens' && <Viagens ir={irPara} />}
         {view === 'conta' && <Conta ir={irPara} />}
       </Suspense>
-      {view !== 'novo' && view !== 'viagens' && view !== 'conta' && <Nav view={view} setView={setView} />}
+      {view !== 'novo' && view !== 'viagens' && view !== 'conta' && <Nav view={view} setView={(v) => irPara(v)} />}
     </div>
   );
 }

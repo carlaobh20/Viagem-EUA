@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
 import { valorEmBRL, fmtBRL } from '../../lib/format';
+import { PageHeader, EmptyState, Reveal } from '../ui';
 
+// Cor por dia: mesma sequência do Roteiro (o pontinho do "Dia 3" lá é o pino do dia 3 aqui).
 const CORES_DIA = ['#0F6E56', '#185FA5', '#534AB7', '#BA7517', '#1D9E75', '#D4537E', '#993C1D'];
 const TIPO_NOME = {
   voo: 'Voo', hospedagem: 'Hospedagem', passeio: 'Passeio', comida: 'Comida',
@@ -21,6 +23,10 @@ function fmtDiaData(d) {
 }
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+// Lê uma cor da paleta (--ui-*) já resolvida — o Leaflet desenha em SVG e não entende var().
+function corPaleta(nome, fallback) {
+  try { return getComputedStyle(document.documentElement).getPropertyValue(nome).trim() || fallback; } catch (e) { return fallback; }
 }
 
 let leafletPromise = null;
@@ -49,6 +55,18 @@ async function geocodar(termo) {
   const j = await r.json();
   return j && j[0] ? { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) } : null;
 }
+
+// Ajustes finos no Leaflet, só dentro desta tela: controles de zoom com alvo de
+// 44px, balão com a tipografia e o raio do app. (globals.css fica intacto.)
+const CSS_MAPA = `
+.mapa-viagem .leaflet-bar { border: none; border-radius: 12px; box-shadow: var(--ui-shadow-raised); overflow: hidden; }
+.mapa-viagem .leaflet-bar a, .mapa-viagem .leaflet-touch .leaflet-bar a { width: 44px; height: 44px; line-height: 44px; font-size: 20px; font-weight: 600; color: var(--ui-ink); background: var(--ui-card); border-bottom: 1px solid var(--ui-line); }
+.mapa-viagem .leaflet-bar a:last-child { border-bottom: none; }
+.mapa-viagem .leaflet-bar a.leaflet-disabled { color: var(--ui-faint); }
+.mapa-viagem .leaflet-popup-content-wrapper { border-radius: 14px; box-shadow: var(--ui-shadow-raised); font-family: var(--font); color: var(--ui-ink); }
+.mapa-viagem .leaflet-popup-content { margin: 12px 14px; line-height: 1.35; }
+.mapa-viagem .leaflet-container { font-family: var(--font); }
+`;
 
 export default function Mapa({ ir }) {
   const { viagem, pontos, gastos, recarregar } = useData();
@@ -131,9 +149,9 @@ export default function Mapa({ ir }) {
         });
         const g = gastoDoPonto(p.id);
         const html =
-          `<div style="min-width:150px;"><div style="font-weight:600;font-size:14px;margin-bottom:2px;">${esc(p.nome)}</div>` +
-          `<div style="font-size:12px;color:#6B7A7E;">${esc(TIPO_NOME[p.tipo] || 'Outro')} · ${esc(fmtDiaData(p.data_inicio))}</div>` +
-          (g > 0 ? `<div style="font-size:12px;color:#0F6E56;margin-top:3px;">Gasto: ${esc(fmtBRL(g))}</div>` : '') + `</div>`;
+          `<div style="min-width:150px;"><div style="font-weight:700;font-size:14.5px;margin-bottom:2px;">${esc(p.nome)}</div>` +
+          `<div style="font-size:12px;color:var(--ui-muted);">${esc(TIPO_NOME[p.tipo] || 'Outro')} · ${esc(fmtDiaData(p.data_inicio))}</div>` +
+          (g > 0 ? `<div style="font-size:12px;color:var(--ui-credit);font-weight:700;margin-top:4px;">Gasto: ${esc(fmtBRL(g))}</div>` : '') + `</div>`;
         const mk = L.marker([p.lat, p.lng], { icon }).addTo(map).bindPopup(html);
         markersRef.current[p.id] = mk;
         pts.push([p.lat, p.lng]);
@@ -144,6 +162,8 @@ export default function Mapa({ ir }) {
       setTimeout(() => { if (!cancelado && mapRef.current) mapRef.current.invalidateSize(); }, 200);
 
       // rota: para cada par seguido, tenta estrada (OSRM); se não houver, traço reto (voo)
+      const corEstrada = corPaleta('--ui-teal-ink', '#0B8F80');
+      const corReta = corPaleta('--ui-blue', '#2F6FE4');
       for (let i = 0; i < localizados.length - 1; i++) {
         const a = localizados[i], b = localizados[i + 1];
         const reta = [[a.lat, a.lng], [b.lat, b.lng]];
@@ -153,12 +173,12 @@ export default function Mapa({ ir }) {
             if (cancelado || !mapRef.current) return;
             if (j.routes && j.routes[0] && j.routes[0].geometry) {
               const linha = j.routes[0].geometry.coordinates.map((c) => [c[1], c[0]]);
-              L.polyline(linha, { color: '#0F6E56', weight: 4, opacity: 0.8, dashArray: '2 9', lineCap: 'round' }).addTo(mapRef.current);
+              L.polyline(linha, { color: corEstrada, weight: 4, opacity: 0.8, dashArray: '2 9', lineCap: 'round' }).addTo(mapRef.current);
             } else {
-              L.polyline(reta, { color: '#185FA5', weight: 2.5, opacity: 0.55, dashArray: '7 7' }).addTo(mapRef.current);
+              L.polyline(reta, { color: corReta, weight: 2.5, opacity: 0.55, dashArray: '7 7' }).addTo(mapRef.current);
             }
           })
-          .catch(() => { if (!cancelado && mapRef.current) L.polyline(reta, { color: '#185FA5', weight: 2.5, opacity: 0.55, dashArray: '7 7' }).addTo(mapRef.current); });
+          .catch(() => { if (!cancelado && mapRef.current) L.polyline(reta, { color: corReta, weight: 2.5, opacity: 0.55, dashArray: '7 7' }).addTo(mapRef.current); });
       }
     }).catch(() => { if (!cancelado) setErro('Não consegui carregar o mapa. Verifique a conexão.'); });
 
@@ -175,69 +195,74 @@ export default function Mapa({ ir }) {
   }
 
   const semLocal = ordenados.length - localizados.length;
+  const subtitulo = localizados.length === 0
+    ? (geoStatus || 'As paradas com local aparecem aqui')
+    : `${localizados.length} ${localizados.length === 1 ? 'parada' : 'paradas'} no mapa${semLocal > 0 ? ` · ${semLocal} sem local` : ''}`;
 
   return (
-    <div className="app">
-      <div className="screen" style={{ paddingTop: 18 }}>
-        <div className="fab-back">
-          <button onClick={() => ir('roteiro')} aria-label="Voltar">←</button>
-          <span className="ttl">Mapa da viagem</span>
-        </div>
+    <div className="ui-screen mapa-viagem">
+      <style>{CSS_MAPA}</style>
+      <PageHeader titulo="Mapa da viagem" subtitulo={subtitulo} onVoltar={() => ir('roteiro')} />
 
-        {localizados.length === 0 ? (
-          <div className="card">
-            <div className="empty">
-              {geoStatus ? geoStatus : <>Nenhuma parada com local salvo ainda.<br />No Roteiro, abra uma parada, escreva o local e toque em <b>Buscar</b> para fixá-la no mapa.</>}
-            </div>
-            {!geoStatus && <button className="btn-outline" onClick={() => ir('roteiro')}>Ir para o Roteiro</button>}
+      {localizados.length === 0 ? (
+        geoStatus ? (
+          <div className="ui-card ui-empty ui-in">
+            <div className="ico" aria-hidden="true">📡</div>
+            <div className="t">{geoStatus}</div>
+            <div className="s">Procurando cada parada pelo nome ou local. Leva uns segundos.</div>
           </div>
-        ) : erro ? (
-          <div className="card"><div className="empty">{erro}</div></div>
         ) : (
-          <>
-            <div style={{ position: 'relative' }}>
-              <div ref={divRef} style={{ height: '58vh', minHeight: 340, borderRadius: 18, overflow: 'hidden', border: '0.5px solid var(--line)', boxShadow: '0 4px 16px rgba(27,42,47,0.08)' }} />
-              {legenda.length > 0 && (
-                <div style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(255,255,255,.95)', borderRadius: 11, padding: '8px 10px', boxShadow: '0 2px 10px rgba(0,0,0,.14)', zIndex: 500, fontSize: 11.5 }}>
-                  <div style={{ fontSize: 9.5, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5, fontWeight: 600 }}>Por dia</div>
-                  {legenda.map((x) => (
-                    <div key={x.data} style={{ display: 'flex', alignItems: 'center', gap: 7, margin: '3px 0' }}>
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: x.cor }} />Dia {x.n} · {fmtDiaData(x.data)}
-                    </div>
-                  ))}
-                </div>
-              )}
+          <EmptyState icone="📍" titulo="Nenhuma parada no mapa ainda." texto="No Roteiro, abra uma parada, preencha a cidade ou ponto de referência e toque em Buscar pra fixar ela aqui." cta="Ir para o Roteiro" onCta={() => ir('roteiro')} />
+        )
+      ) : erro ? (
+        <EmptyState icone="📡" titulo="Não consegui carregar o mapa." texto="Verifique a conexão e abra de novo." cta="Voltar ao Roteiro" onCta={() => ir('roteiro')} />
+      ) : (
+        <Reveal>
+          <div ref={divRef} style={{ height: '56vh', minHeight: 320, borderRadius: 20, overflow: 'hidden', boxShadow: 'var(--ui-shadow)', background: 'var(--ui-sunken)' }} />
+
+          {/* Legenda discreta: cor de cada dia, rolável se a viagem for longa */}
+          {legenda.length > 0 && (
+            <div className="ui-chips-scroll" style={{ marginTop: 10, padding: '2px 4px 4px' }}>
+              {legenda.map((x) => (
+                <span key={x.data} className="ui-caption" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: '0 0 auto', whiteSpace: 'nowrap' }}>
+                  <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: '50%', background: x.cor }} />Dia {x.n} · {fmtDiaData(x.data)}
+                </span>
+              ))}
             </div>
+          )}
 
-            {geoStatus && <div style={{ fontSize: 12, color: 'var(--brand)', marginTop: 10, textAlign: 'center' }}>{geoStatus}</div>}
+          {geoStatus && <div className="ui-success" style={{ marginTop: 10, textAlign: 'center' }}>{geoStatus}</div>}
 
-            <div style={{ background: 'var(--surface)', border: '0.5px solid var(--line)', borderRadius: 18, marginTop: 14, padding: '6px 16px 10px', boxShadow: '0 2px 12px rgba(27,42,47,0.06)' }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', padding: '10px 0 8px' }}>
-                {localizados.length} {localizados.length === 1 ? 'parada no mapa' : 'paradas no mapa'} · toque para focar
-              </div>
+          <div className="ui-section">
+            <span>Paradas no mapa</span>
+            <span style={{ fontWeight: 600, letterSpacing: 0, textTransform: 'none', color: 'var(--ui-faint)' }}>toque pra focar</span>
+          </div>
+          <div className="ui-card" style={{ padding: '2px 16px' }}>
+            <div className="ui-list">
               {localizados.map((p, i) => {
                 const g = gastoDoPonto(p.id);
                 return (
-                  <div key={p.id} onClick={() => focar(p)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 0', borderTop: i > 0 ? '0.5px solid var(--line)' : 'none', cursor: 'pointer' }}>
-                    <div style={{ width: 23, height: 23, borderRadius: '50%', background: corDoPonto(p), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flex: '0 0 auto' }}>{i + 1}</div>
+                  <button key={p.id} onClick={() => focar(p)} className="ui-rowbtn">
+                    <span aria-hidden="true" className="ui-num" style={{ width: 28, height: 28, borderRadius: '50%', background: corDoPonto(p), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, flex: '0 0 auto' }}>{i + 1}</span>
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.2 }}>{p.nome}</div>
-                      <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 1 }}>{TIPO_NOME[p.tipo] || 'Outro'} · {fmtDiaData(p.data_inicio)}</div>
+                      <div className="ui-clamp1" style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.25 }}>{p.nome}</div>
+                      <div className="ui-caption ui-clamp1" style={{ marginTop: 2 }}>{TIPO_NOME[p.tipo] || 'Outro'} · {fmtDiaData(p.data_inicio)}</div>
                     </div>
-                    {g > 0 && <div style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'var(--brand)', whiteSpace: 'nowrap' }}>{fmtBRL(g)}</div>}
-                  </div>
+                    {g > 0 && <span className="ui-num" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ui-teal-ink)', whiteSpace: 'nowrap', flex: '0 0 auto' }}>{fmtBRL(g)}</span>}
+                    <span aria-hidden="true" style={{ color: 'var(--ui-faint)', fontSize: 18, flex: '0 0 auto' }}>›</span>
+                  </button>
                 );
               })}
             </div>
+          </div>
 
-            {semLocal > 0 && (
-              <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 10, textAlign: 'center' }}>
-                {semLocal} parada(s) sem local no mapa (trajetos como "A → B" ou nomes que o mapa não reconhece).
-              </div>
-            )}
-          </>
-        )}
-      </div>
+          {semLocal > 0 && (
+            <div className="ui-caption ui-wrap" style={{ marginTop: 12, padding: '0 4px', textAlign: 'center', color: 'var(--ui-faint)' }}>
+              {semLocal} {semLocal === 1 ? 'parada ainda sem local' : 'paradas ainda sem local'} (trajetos como “A → B” ou nomes que o mapa não reconhece).
+            </div>
+          )}
+        </Reveal>
+      )}
     </div>
   );
 }

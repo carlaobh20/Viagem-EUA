@@ -20,16 +20,15 @@ export default function RecentActivity({ itens, nomePessoa, emojiCategoria, nome
   return (
     <>
       <SectionHeader title="Atividade recente" actionLabel="Ver todos" onAction={onVerTodos} />
-      <GlassCard delay={0.05} style={{ padding: itens.length ? '4px 18px' : 18 }}>
-        {itens.length === 0 && <div style={{ fontSize: 13, color: 'var(--ui-faint)', textAlign: 'center', padding: '18px 0' }}>Nenhum gasto ainda</div>}
+      <GlassCard delay={0.05} style={{ padding: '4px 18px' }}>
         {itens.map((g, i) => (
           <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderTop: i > 0 ? '1px solid var(--ui-line)' : 'none' }}>
-            <span style={{ width: 34, height: 34, borderRadius: 11, background: 'var(--ui-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: '0 0 auto' }}>{emojiCategoria(g.categoria)}</span>
+            <span style={{ width: 34, height: 34, borderRadius: 11, background: 'var(--ui-sunken)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: '0 0 auto' }}>{emojiCategoria(g.categoria)}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.descricao || nomeCategoria(g.categoria)}</div>
-              <div style={{ fontSize: 11, color: 'var(--ui-muted)' }}>{nomePessoa(g.pago_por)} · {fmtDia(g.data)}</div>
+              <div className="ui-clamp1" style={{ fontSize: 13.5, fontWeight: 600 }}>{g.descricao || nomeCategoria(g.categoria)}</div>
+              <div style={{ fontSize: 12, color: 'var(--ui-muted)', marginTop: 1 }}>{nomePessoa(g.pago_por)} · {fmtDia(g.data)}</div>
             </div>
-            <span style={{ fontSize: 13.5, fontWeight: 700, flex: '0 0 auto' }}>{g.moeda === 'USD' ? fmtUSD(g.valor) : fmtBRL(g.valor)}</span>
+            <span className="ui-num" style={{ fontSize: 13.5, fontWeight: 700, flex: '0 0 auto' }}>{g.moeda === 'USD' ? fmtUSD(g.valor) : fmtBRL(g.valor)}</span>
           </div>
         ))}
       </GlassCard>

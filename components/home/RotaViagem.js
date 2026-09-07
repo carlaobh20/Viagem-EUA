@@ -1,6 +1,7 @@
 'use client';
 import GlassCard from '../ui/GlassCard';
 import SectionHeader from '../ui/SectionHeader';
+import EmptyState from '../ui/EmptyState';
 
 const ICON_TIPO = { voo: '✈️', aviao: '✈️', hotel: '🏨', hospedagem: '🏨', passeio: '🎟️', atividade: '🎟️', museu: '🖼️', transporte: '🚗', carro: '🚗', comida: '🍽️', restaurante: '🍽️' };
 const COR_TIPO = { voo: '#185FA5', hospedagem: '#BA7517', hotel: '#BA7517', passeio: '#1D9E75', comida: '#D4537E', restaurante: '#D4537E', museu: '#534AB7', transporte: '#0F6E56', carro: '#0F6E56', outro: '#00877A' };
@@ -11,11 +12,18 @@ const corDe = (t) => COR_TIPO[(t || '').toLowerCase()] || COR_TIPO.outro;
 /**
  * Mini-rota horizontal (formato original): ícones ligados por linha, nomes
  * embaixo, ponto atual destacado com anel colorido.
- * @param {{ rota: Array<{nome:string, tipo:string}>, prox: Object|null, onVerMapa: () => void }} props
+ * @param {{ rota: Array<{nome:string, tipo:string}>, prox: Object|null, onVerMapa: () => void, onMontar?: () => void }} props
  */
-export default function RotaViagem({ rota, prox, onVerMapa }) {
+export default function RotaViagem({ rota, prox, onVerMapa, onMontar }) {
   const rotaShow = rota.slice(0, 5);
-  if (rotaShow.length === 0) return null;
+  if (rotaShow.length === 0) {
+    return (
+      <>
+        <SectionHeader title="Roteiro da viagem" />
+        <EmptyState compacto icone="🗺️" titulo="Seu roteiro ainda está vazio" texto="Adicione os destinos e a rota da viagem aparece aqui, com o próximo evento em destaque." cta={onMontar ? 'Montar roteiro' : undefined} onCta={onMontar} />
+      </>
+    );
+  }
 
   return (
     <>

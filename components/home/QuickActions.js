@@ -21,12 +21,39 @@ import GlassCard from '../ui/GlassCard';
 // 'fundoTint' é a cor sólida que tinge a foto de fundo do tile "A acertar" — aplicada
 // com mix-blend-mode 'color' (não como véu opaco por cima), pra manter o card lendo
 // como laranja/verde sem esconder o que a foto mostra.
+// Só variáveis da paleta (globals.css): atenção = gold, resolvido = teal, neutro = muted.
 const TONS = {
-  alerta: { grad: 'linear-gradient(160deg, rgba(232,135,30,.16) 0%, var(--ui-card) 72%)', ring: '1px solid rgba(232,135,30,.38)', iconBg: 'rgba(232,135,30,.18)', fundoTint: '#C2410C' },
-  ok: { grad: 'linear-gradient(160deg, rgba(0,199,177,.14) 0%, var(--ui-card) 72%)', ring: '1px solid rgba(0,199,177,.32)', iconBg: 'rgba(0,199,177,.16)', fundoTint: '#0E9C8C' },
-  teal: { grad: 'linear-gradient(160deg, rgba(0,199,177,.12) 0%, var(--ui-card) 70%)', ring: '1px solid transparent', iconBg: 'var(--ui-bg)' },
-  neutro: { grad: 'var(--ui-card)', ring: '1px solid transparent', iconBg: 'var(--ui-bg)', fundoTint: '#64748B' },
+  alerta: { grad: 'linear-gradient(160deg, var(--ui-gold-soft) 0%, var(--ui-card) 72%)', ring: '1px solid var(--ui-gold-soft)', iconBg: 'var(--ui-gold-soft)', fundoTint: 'var(--ui-gold)' },
+  ok: { grad: 'linear-gradient(160deg, var(--ui-teal-soft) 0%, var(--ui-card) 72%)', ring: '1px solid var(--ui-teal-soft)', iconBg: 'var(--ui-teal-soft)', fundoTint: 'var(--ui-teal-ink)' },
+  teal: { grad: 'linear-gradient(160deg, var(--ui-teal-soft) 0%, var(--ui-card) 70%)', ring: '1px solid transparent', iconBg: 'var(--ui-sunken)' },
+  neutro: { grad: 'var(--ui-card)', ring: '1px solid transparent', iconBg: 'var(--ui-sunken)', fundoTint: 'var(--ui-muted)' },
 };
+
+// Fora do componente pai: definido dentro, o React remontava o tile a cada render
+// (e a animação de entrada do GlassCard tocava de novo a cada atualização).
+function Tile({ onClick, delay, emoji, label, valor, tom, foto }) {
+  const t = TONS[tom] || TONS.neutro;
+  return (
+    <GlassCard onClick={onClick} delay={delay} style={{ padding: '16px 14px', background: foto ? 'var(--ui-card)' : t.grad, border: t.ring, position: 'relative' }}>
+      {foto && (
+        <>
+          <img src={foto} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+          {/* tinge a foto de laranja/verde preservando o detalhe (mix-blend 'color'), em vez de cobrir com um véu opaco */}
+          <div style={{ position: 'absolute', inset: 0, background: t.fundoTint, opacity: 0.5, mixBlendMode: 'color' }} />
+          {/* leve degradê escuro só embaixo, pra garantir contraste do texto sobre a foto */}
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(0deg, rgba(0,0,0,.62) 0%, rgba(0,0,0,0) 62%)' }} />
+        </>
+      )}
+      <div style={{ position: 'relative' }}>
+        {!foto && (
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: t.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, marginBottom: 8 }}>{emoji}</div>
+        )}
+        <div style={{ fontSize: 12.5, color: foto ? 'rgba(255,255,255,.92)' : 'var(--ui-muted)', fontWeight: 800, marginBottom: 3, marginTop: foto ? 34 : 0, textShadow: foto ? '0 1px 3px rgba(0,0,0,.55)' : 'none' }}>{label}</div>
+        <div style={{ fontSize: 15, fontWeight: 900, color: foto ? '#fff' : 'var(--ui-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: foto ? '0 1px 3px rgba(0,0,0,.55)' : 'none' }}>{valor}</div>
+      </div>
+    </GlassCard>
+  );
+}
 
 /**
  * Acerto de contas e checklist lado a lado, como tiles compactos.
@@ -41,30 +68,6 @@ export default function QuickActions({ sozinho, tudoQuite, resumoAcerto, onAcert
   const checklistPct = checklistTotal > 0 ? Math.round((checklistFeitos / checklistTotal) * 100) : null;
   const checklistCompleto = checklistTotal > 0 && checklistPct === 100;
   const checklistPendente = checklistTotal > 0 && checklistPct < 100;
-
-  const Tile = ({ onClick, delay, emoji, label, valor, tom, foto }) => {
-    const t = TONS[tom] || TONS.neutro;
-    return (
-      <GlassCard onClick={onClick} delay={delay} style={{ padding: '16px 14px', background: foto ? 'var(--ui-card)' : t.grad, border: t.ring, position: 'relative' }}>
-        {foto && (
-          <>
-            <img src={foto} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-            {/* tinge a foto de laranja/verde preservando o detalhe (mix-blend 'color'), em vez de cobrir com um véu opaco */}
-            <div style={{ position: 'absolute', inset: 0, background: t.fundoTint, opacity: 0.5, mixBlendMode: 'color' }} />
-            {/* leve degradê escuro só embaixo, pra garantir contraste do texto sobre a foto */}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(0deg, rgba(0,0,0,.62) 0%, rgba(0,0,0,0) 62%)' }} />
-          </>
-        )}
-        <div style={{ position: 'relative' }}>
-          {!foto && (
-            <div style={{ width: 32, height: 32, borderRadius: 10, background: t.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, marginBottom: 8 }}>{emoji}</div>
-          )}
-          <div style={{ fontSize: 12.5, color: foto ? 'rgba(255,255,255,.92)' : 'var(--ui-muted)', fontWeight: 800, marginBottom: 3, marginTop: foto ? 34 : 0, textShadow: foto ? '0 1px 3px rgba(0,0,0,.55)' : 'none' }}>{label}</div>
-          <div style={{ fontSize: 15, fontWeight: 900, color: foto ? '#fff' : 'var(--ui-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: foto ? '0 1px 3px rgba(0,0,0,.55)' : 'none' }}>{valor}</div>
-        </div>
-      </GlassCard>
-    );
-  };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: sozinho ? '1fr' : '1fr 1fr', gap: 10 }}>

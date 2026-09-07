@@ -17,10 +17,10 @@ export default function ProximoEvento({ prox, onClick }) {
   return (
     <GlassCard onClick={onClick} delay={0.05} radiusPx={18} style={{ padding: 16 }}>
       <motion.div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-        <span style={{ width: 46, height: 46, borderRadius: 14, background: 'rgba(0,199,177,.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flex: '0 0 auto' }}>{iconDe(prox.tipo)}</span>
+        <span style={{ width: 46, height: 46, borderRadius: 14, background: 'var(--ui-teal-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flex: '0 0 auto' }}>{iconDe(prox.tipo)}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11, color: 'var(--ui-muted)', marginBottom: 2 }}>Próximo evento</div>
-          <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prox.nome}</div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ui-muted)', marginBottom: 2 }}>Próximo evento</div>
+          <div className="ui-clamp1" style={{ fontSize: 15, fontWeight: 700 }}>{prox.nome}</div>
           <div style={{ fontSize: 12, color: 'var(--ui-muted)', marginTop: 2 }}>{fmtDia(prox.data_inicio)}{prox.hora ? ` · ${prox.hora}` : ''}</div>
         </div>
         <span style={{ color: 'var(--ui-faint)', fontSize: 20, flex: '0 0 auto' }}>›</span>

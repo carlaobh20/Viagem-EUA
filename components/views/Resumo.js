@@ -5,7 +5,7 @@ import { useData } from '../DataProvider';
 import { calcularSaldos, quemDeveParaQuem } from '../../lib/settle';
 import { valorEmBRL, fmtBRL, emojiCategoria, nomeCategoria, CATEGORIAS_MOTORHOME, hojeLocal, usaDolar } from '../../lib/format';
 import { statusViagem, pulsoFinanceiro, ordenarRoteiro } from '../../lib/trip-metrics';
-import { motion as motionTokens } from '../../lib/design-tokens';
+import { motion as motionTokens, layout } from '../../lib/design-tokens';
 
 import HeroTravelCard from '../home/HeroTravelCard';
 import ProximoEvento from '../home/ProximoEvento';
@@ -21,11 +21,13 @@ import DiarioLembrete from '../home/DiarioLembrete';
 // import WeatherSlot from '../home/futuro/WeatherSlot';
 
 /**
- * Home v3 — identidade da viagem, timeline da jornada, pulso financeiro e
- * ações contextuais. Composta a partir de components/ui (design system) e
- * components/home (peças específicas da Home). Toda métrica é derivada dos
- * dados que já existem hoje (ver lib/trip-metrics.js) — nada de dado
- * fabricado ou dependência de API externa ainda inexistente.
+ * Home — centro de comando da viagem. Ordem fixa de leitura:
+ *   1. Onde estou (nome da viagem, câmbio, conta)
+ *   2. O que importa agora (lembrete do diário quando cabe, cartão da viagem
+ *      com dias + situação financeira, próximo evento)
+ *   3. Rota, pulso dos gastos, pendências (acerto / checklist), motorhome
+ *   4. Atividade recente (menor prioridade, no rodapé)
+ * Toda métrica vem dos dados que já existem (lib/trip-metrics.js).
  */
 export default function Resumo({ ir }) {
   const { viagem, gastos, perfis, divisoes, acertos, pontos, checklist, atualizarOrcamento, diario, perfil } = useData();
@@ -72,32 +74,35 @@ export default function Resumo({ ir }) {
     if (v != null) { const n = parseFloat(v.replace(',', '.')); if (!isNaN(n) && n >= 0) atualizarOrcamento(n); }
   }
 
-  return (
-    <div style={{ background: 'var(--ui-bg)', minHeight: '100%', padding: '10px 18px 28px', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif', color: 'var(--ui-ink)' }}>
+  const sec = { marginTop: layout.section };
 
-      {/* header */}
+  return (
+    <div className="ui-screen" style={{ paddingTop: 10 }}>
+
+      {/* 1. Onde estou — nome da viagem (toca pra trocar), câmbio e conta */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: motionTokens.base, ease: motionTokens.easing }}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 2px 16px' }}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '6px 2px 16px' }}
       >
-        <div onClick={() => ir('viagens')} style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-          {viagem?.nome || 'Minha viagem'}
-          <span style={{ fontSize: 13, color: 'var(--ui-faint)', fontWeight: 600 }}>⌄</span>
-        </div>
+        <button onClick={() => ir('viagens')} aria-label="Trocar de viagem" className="ui-press" style={{ border: 'none', background: 'none', padding: '4px 0', minHeight: 40, fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px', color: 'var(--ui-ink)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', minWidth: 0, textAlign: 'left' }}>
+          <span className="ui-clamp1">{viagem?.nome || 'Minha viagem'}</span>
+          <span style={{ fontSize: 13, color: 'var(--ui-faint)', fontWeight: 600, flex: '0 0 auto' }}>⌄</span>
+        </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
           {comDolar && (
-            <button onClick={() => ir('acerto')} className="v3-press" style={{ fontSize: 12, fontWeight: 600, color: 'var(--ui-teal)', background: 'rgba(0,199,177,.12)', padding: '7px 12px', borderRadius: 20, border: 'none' }}>
-              {cambio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace('R$', 'R$ ')}
+            <button onClick={() => ir('acerto')} aria-label="Câmbio usado na viagem" className="ui-pill ui-pill-info ui-press ui-num" style={{ border: 'none', cursor: 'pointer', minHeight: 32, padding: '0 12px', fontSize: 12 }}>
+              US$ 1 = {cambio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace('R$', 'R$ ')}
             </button>
           )}
-          <button onClick={() => ir('conta')} aria-label="Minha conta" className="v3-press" style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--ui-card)', border: '1px solid var(--ui-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--ui-shadow)' }}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--ui-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+          <button onClick={() => ir('conta')} aria-label="Minha conta" className="ui-iconbtn raised ui-press" style={{ width: 40, height: 40, borderRadius: '50%', color: 'var(--ui-muted)' }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
           </button>
         </div>
       </motion.div>
 
+      {/* 2. O que importa agora */}
       {mostrarLembreteDiario && (
         <DiarioLembrete onEscrever={() => ir('diario')} onDispensar={dispensarLembreteDiario} />
       )}
@@ -110,13 +115,18 @@ export default function Resumo({ ir }) {
         onEditarOrcamento={editarOrcamento}
       />
 
-      <div style={{ marginTop: 14 }}>
-        <ProximoEvento prox={prox} onClick={() => ir('roteiro')} />
+      {prox && (
+        <div style={{ marginTop: layout.gap }}>
+          <ProximoEvento prox={prox} onClick={() => ir('roteiro')} />
+        </div>
+      )}
+
+      {/* 3. Rota, gastos, pendências */}
+      <div style={sec}>
+        <RotaViagem rota={rota} prox={prox} onVerMapa={() => ir('mapa')} onMontar={() => ir('roteiro')} />
       </div>
 
-      <RotaViagem rota={rota} prox={prox} onVerMapa={() => ir('mapa')} />
-
-      <div style={{ marginTop: 8 }}>
+      <div style={sec}>
         <FinancePulse
           gastoHoje={financeiro.gastoHoje}
           gastoOntem={financeiro.gastoOntem}
@@ -124,10 +134,11 @@ export default function Resumo({ ir }) {
           nomeCategoria={nomeCategoria}
           emojiCategoria={emojiCategoria}
           onVerTodos={() => ir('gastos')}
+          onNovo={() => ir('novo')}
         />
       </div>
 
-      <div style={{ marginTop: 24 }}>
+      <div style={sec}>
         <QuickActions
           sozinho={(perfis || []).length <= 1}
           tudoQuite={transf.length === 0}
@@ -140,14 +151,18 @@ export default function Resumo({ ir }) {
       </div>
 
       {totalMH > 0 && (
-        <div style={{ marginTop: 14 }}>
+        <div style={{ marginTop: layout.gap }}>
           <MotorhomeBanner totalMH={totalMH} onClick={() => ir('motorhome')} />
         </div>
       )}
 
-      <div style={{ marginTop: 8 }}>
-        <RecentActivity itens={ultimos} nomePessoa={nomeP} emojiCategoria={emojiCategoria} nomeCategoria={nomeCategoria} onVerTodos={() => ir('gastos')} />
-      </div>
+      {/* 4. Atividade recente — só aparece quando existe algo; sem gasto, o
+          bloco de gastos acima já convida a lançar o primeiro. */}
+      {ultimos.length > 0 && (
+        <div style={sec}>
+          <RecentActivity itens={ultimos} nomePessoa={nomeP} emojiCategoria={emojiCategoria} nomeCategoria={nomeCategoria} onVerTodos={() => ir('gastos')} />
+        </div>
+      )}
 
     </div>
   );
