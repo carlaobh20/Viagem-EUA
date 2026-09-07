@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import { useData } from '../DataProvider';
-import { fmtBRL } from '../../lib/format';
+import { fmtBRL, fmtUSD, usaDolar } from '../../lib/format';
 
 // "Antes de embarcar" (🛫) só faz sentido pra quem vai de avião — viagem sem
 // avião no transporte usa "Antes de sair" (🎒) no lugar, sem nada de avião.
@@ -104,7 +104,10 @@ function sugestoesComprar(viagem) {
 export default function Checklist({ ir, abaInicial }) {
   const { viagem, perfil, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorItem } = useData();
   const meu = perfil?.user_id;
-  const souDono = (i) => i.user_id === meu || i.user_id == null; // meus itens + itens antigos (compartilhados)
+  // Individual de verdade: só o que ESTA pessoa criou (o banco também bloqueia o
+  // resto — ver supabase/migracao-checklist-individual.sql). Itens antigos sem dono
+  // foram atribuídos ao criador da viagem na migração.
+  const souDono = (i) => i.user_id === meu;
   // Viagem de carro (sem avião) não usa o tema "Antes de embarcar" (nem em
   // seção nem no seletor de novo item); viagem de avião não usa "Antes de sair".
   const temaAusente = deAviaoDaViagem(viagem) ? 'Antes de sair' : 'Antes de embarcar';
@@ -114,6 +117,27 @@ export default function Checklist({ ir, abaInicial }) {
   const [aba, setAba] = useState(abaInicial === 'comprar' ? 'comprar' : 'tarefas'); // 'tarefas' | 'comprar'
   const [compForm, setCompForm] = useState(null); // { texto, cat }
   const [valorEdit, setValorEdit] = useState({}); // { [itemId]: texto sendo digitado no campo de valor }
+  // Moeda padrão dos itens novos da lista de Compras (R$ ou US$) — guardada no aparelho
+  const comDolar = usaDolar(viagem);
+  const chaveMoeda = viagem ? `compras-moeda-${viagem.id}` : null;
+  const [moedaPadrao, setMoedaPadraoState] = useState('BRL');
+  useEffect(() => {
+    if (!chaveMoeda || typeof window === 'undefined') return;
+    const m = window.localStorage.getItem(chaveMoeda);
+    if (m === 'USD' || m === 'BRL') setMoedaPadraoState(m);
+  }, [chaveMoeda]);
+  const setMoedaPadrao = (m) => { setMoedaPadraoState(m); try { window.localStorage.setItem(chaveMoeda, m); } catch (e) {} };
+  const cambio = Number(viagem?.cotacao_usd) || 0;
+  const moedaDe = (it) => (it.moeda === 'USD' ? 'USD' : 'BRL');
+  // soma separada por moeda + estimativa em reais (se tiver câmbio)
+  const somar = (lista) => lista.reduce((acc, i) => { if (i.valor != null) acc[moedaDe(i)] += Number(i.valor); return acc; }, { BRL: 0, USD: 0 });
+  const fmtSoma = (t) => {
+    const partes = [];
+    if (t.BRL > 0) partes.push(fmtBRL(t.BRL));
+    if (t.USD > 0) partes.push(fmtUSD(t.USD));
+    return partes.join(' + ');
+  };
+  const emReais = (t) => t.BRL + (cambio > 0 ? t.USD * cambio : 0);
 
   // Escolha "sugestões prontas" x "montar do zero" — guardada no aparelho, por
   // viagem+pessoa, pra não perguntar de novo depois de decidido uma vez.
@@ -162,7 +186,7 @@ export default function Checklist({ ir, abaInicial }) {
     const t = (texto || '').trim();
     if (!t) return;
     if (compras.some((i) => (i.texto || '').toLowerCase() === t.toLowerCase())) return;
-    adicionarChecklist({ texto: t, tema: 'Comprar', prazo: cat || 'outros', ordem: compras.length });
+    adicionarChecklist({ texto: t, tema: 'Comprar', prazo: cat || 'outros', ordem: compras.length, moeda: moedaPadrao });
   }
   function salvarCompForm() {
     if (!compForm || !compForm.texto.trim()) { setCompForm(null); return; }
@@ -186,7 +210,10 @@ export default function Checklist({ ir, abaInicial }) {
     definirValorItem(id, parseBRL(valorEdit[id]));
     setValorEdit((v) => { const n = { ...v }; delete n[id]; return n; });
   }
-  const totalGeral = compras.reduce((s, i) => s + (i.valor != null ? Number(i.valor) : 0), 0);
+  // toque no "R$"/"US$" do item troca a moeda daquele item (o número fica igual)
+  function alternarMoedaItem(it) { definirValorItem(it.id, it.valor, moedaDe(it) === 'USD' ? 'BRL' : 'USD'); }
+  const totalGeral = somar(compras);
+  const temTotal = totalGeral.BRL > 0 || totalGeral.USD > 0;
 
   function novoItem() {
     if (!add || !add.texto.trim()) { setAdd(null); return; }
@@ -295,7 +322,22 @@ export default function Checklist({ ir, abaInicial }) {
             <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--ui-teal)' }}>{compPct}%</span>
           </div>
           <div style={{ height: 8, borderRadius: 5, background: 'var(--ui-line)', overflow: 'hidden' }}><div style={{ width: compPct + '%', height: '100%', borderRadius: 5, background: 'var(--ui-teal)', transition: 'width .3s' }} /></div>
-          {totalGeral > 0 && <div style={{ fontSize: 12.5, color: 'var(--ui-muted)', marginTop: 10 }}>Total da lista: <b style={{ color: 'var(--ui-ink)' }}>{fmtBRL(totalGeral)}</b></div>}
+          {temTotal && (
+            <div style={{ fontSize: 12.5, color: 'var(--ui-muted)', marginTop: 10 }}>
+              Total da lista: <b style={{ color: 'var(--ui-ink)' }}>{fmtSoma(totalGeral)}</b>
+              {totalGeral.USD > 0 && totalGeral.BRL > 0 && cambio > 0 && <span> · ≈ {fmtBRL(emReais(totalGeral))}</span>}
+              {totalGeral.USD > 0 && cambio <= 0 && <span style={{ color: 'var(--ui-faint)' }}> · defina o câmbio no Resumo pra somar tudo em reais</span>}
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+            <span style={{ fontSize: 12, color: 'var(--ui-muted)' }}>Itens novos em:</span>
+            <div style={{ display: 'flex', border: '1px solid var(--ui-line)', borderRadius: 999, overflow: 'hidden' }}>
+              {[['BRL', 'R$ real'], ['USD', 'US$ dólar']].map(([id, lbl]) => (
+                <button key={id} onClick={() => setMoedaPadrao(id)} style={{ border: 'none', padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: moedaPadrao === id ? 'var(--ui-teal)' : 'transparent', color: moedaPadrao === id ? '#fff' : 'var(--ui-muted)' }}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--ui-faint)', marginTop: 6 }}>Pra trocar a moeda de um item, toque no R$ / US$ ao lado do valor.{comDolar ? ' Compra feita lá nos EUA? Deixa em US$.' : ''}</div>
           {compFeitos > 0 && <button onClick={limparCompradas} style={{ width: '100%', marginTop: 10, border: 'none', background: 'none', color: 'var(--ui-muted)', fontSize: 12.5, cursor: 'pointer' }}>Remover {compFeitos} comprado{compFeitos === 1 ? '' : 's'}</button>}
         </div>
 
@@ -303,14 +345,14 @@ export default function Checklist({ ir, abaInicial }) {
         {COMPRAR_CATS.map(([catId]) => {
           const lista = compras.filter((i) => (i.prazo || 'outros') === catId);
           if (lista.length === 0) return null;
-          const subtotalCat = lista.reduce((s, i) => s + (i.valor != null ? Number(i.valor) : 0), 0);
+          const subtotalCat = somar(lista);
           return (
             <div key={catId} style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 2px 9px' }}>
                 <span style={{ fontSize: 16 }}>{COMPRAR_EMOJI[catId]}</span>
                 <span style={{ fontSize: 14.5, fontWeight: 700 }}>{COMPRAR_LABEL[catId]}</span>
                 <span style={{ fontSize: 12, color: 'var(--ui-faint)' }}>{lista.filter((i) => i.feito).length}/{lista.length}</span>
-                {subtotalCat > 0 && <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 800, color: 'var(--ui-teal)' }}>{fmtBRL(subtotalCat)}</span>}
+                {(subtotalCat.BRL > 0 || subtotalCat.USD > 0) && <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 800, color: 'var(--ui-teal)', whiteSpace: 'nowrap' }}>{fmtSoma(subtotalCat)}</span>}
               </div>
               <div style={{ ...card, padding: '4px 14px' }}>
                 {lista.map((it, idx) => (
@@ -318,7 +360,7 @@ export default function Checklist({ ir, abaInicial }) {
                     <button onClick={() => alternarChecklist(it.id, !it.feito)} aria-label="Marcar" style={{ width: 24, height: 24, borderRadius: '50%', flex: '0 0 auto', cursor: 'pointer', border: it.feito ? 'none' : '2px solid var(--ui-line)', background: it.feito ? 'var(--ui-teal)' : 'transparent', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{it.feito ? '✓' : ''}</button>
                     <span onClick={() => { const t = window.prompt('Editar item', it.texto); if (t && t.trim()) editarChecklist(it.id, t.trim()); }} style={{ flex: 1, minWidth: 0, fontSize: 14, cursor: 'text', textDecoration: it.feito ? 'line-through' : 'none', color: it.feito ? 'var(--ui-faint)' : 'var(--ui-ink)' }}>{it.texto}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 3, border: '1px solid var(--ui-line)', borderRadius: 9, background: 'var(--ui-bg)', padding: '0 8px', flex: '0 0 auto' }}>
-                      <span style={{ fontSize: 11, color: 'var(--ui-faint)', fontWeight: 700 }}>R$</span>
+                      <button onClick={() => alternarMoedaItem(it)} title="Trocar R$ / US$" aria-label="Trocar moeda" style={{ border: 'none', background: moedaDe(it) === 'USD' ? 'rgba(14,156,140,.14)' : 'transparent', borderRadius: 6, padding: '2px 4px', fontSize: 11, color: moedaDe(it) === 'USD' ? 'var(--ui-teal)' : 'var(--ui-faint)', fontWeight: 800, cursor: 'pointer' }}>{moedaDe(it) === 'USD' ? 'US$' : 'R$'}</button>
                       <input
                         inputMode="decimal"
                         value={it.id in valorEdit ? valorEdit[it.id] : (it.valor != null ? Number(it.valor).toFixed(2).replace('.', ',') : '')}
@@ -373,7 +415,7 @@ export default function Checklist({ ir, abaInicial }) {
         })}
 
         <p style={{ fontSize: 11, color: 'var(--ui-faint)', lineHeight: 1.5, padding: '10px 4px 0' }}>
-          Lista do que comprar antes de viajar — equipamento, bagagem, eletrônicos. É compartilhada com o grupo. (Os mantimentos do supermercado ficam na aba Mercado, dentro do Motorhome.)
+          Lista do que comprar antes de viajar — equipamento, bagagem, eletrônicos. 🔒 É só sua: cada pessoa da viagem tem a própria lista. (Os mantimentos do supermercado ficam na aba Mercado, dentro do Motorhome, e essa sim é do grupo.)
         </p>
       </>)}
 

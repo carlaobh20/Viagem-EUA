@@ -218,7 +218,7 @@ export function DataProvider({ session, children }) {
   async function removerGasto(id) { await supabase.from('gastos').delete().eq('id', id); await carregar(); }
   async function adicionarKm({ km, valorOrigem, unidade, data, origem, destino, nota }) { await supabase.from('registros_km').insert({ viagem_id: viagem.id, km, valor_origem: valorOrigem, unidade, data: data || null, origem: origem || null, destino: destino || null, nota: nota || null }); await carregar(); }
   async function removerKm(id) { await supabase.from('registros_km').delete().eq('id', id); await carregar(); }
-  async function adicionarChecklist({ texto, tema, prazo, ordem }) { await supabase.from('checklist_itens').insert({ viagem_id: viagem.id, user_id: session.user.id, texto, tema: tema || 'Geral', prazo: prazo || null, ordem: ordem || 0 }); await carregar(); }
+  async function adicionarChecklist({ texto, tema, prazo, ordem, moeda }) { await supabase.from('checklist_itens').insert({ viagem_id: viagem.id, user_id: session.user.id, texto, tema: tema || 'Geral', prazo: prazo || null, ordem: ordem || 0, moeda: moeda === 'USD' ? 'USD' : 'BRL' }); await carregar(); }
   async function alternarChecklist(id, feito) { await supabase.from('checklist_itens').update({ feito }).eq('id', id); await carregar(); }
   async function definirValorCompra(id, feito, valor) {
     const v = (valor === '' || valor == null || isNaN(valor)) ? null : Number(valor);
@@ -227,9 +227,11 @@ export function DataProvider({ session, children }) {
     await carregar();
   }
   // Preço do item na lista de Compras — independente de já ter sido comprado ou não.
-  async function definirValorItem(id, valor) {
+  async function definirValorItem(id, valor, moeda) {
     const v = (valor === '' || valor == null || isNaN(valor)) ? null : Number(valor);
-    const { error } = await supabase.from('checklist_itens').update({ valor: v }).eq('id', id);
+    const patch = { valor: v };
+    if (moeda === 'USD' || moeda === 'BRL') patch.moeda = moeda;
+    const { error } = await supabase.from('checklist_itens').update(patch).eq('id', id);
     if (error) { console.warn('Não foi possível salvar o valor (coluna "valor" pode não existir ainda em checklist_itens).', error); }
     await carregar();
   }
