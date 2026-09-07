@@ -156,7 +156,7 @@ export default function Passagens({ ir }) {
   const [copiado, setCopiado] = useState('');
 
   const card = { background: 'var(--ui-card)', borderRadius: 18, boxShadow: 'var(--ui-shadow)' };
-  const inp = { width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 15, background: 'var(--ui-bg)', color: 'var(--ui-ink)' };
+  const inp = { width: '100%', border: '1px solid var(--ui-line)', borderRadius: 12, padding: '11px 13px', fontSize: 15, background: 'var(--ui-bg)', color: 'var(--ui-ink)', fontFamily: 'inherit' };
 
   const lista = passagens || [];
   const ida = lista.filter((p) => p.sentido === 'ida');

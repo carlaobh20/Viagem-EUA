@@ -43,6 +43,7 @@ export function DataProvider({ session, children }) {
   const [guardados, setGuardados] = useState([]);
   const [lugares, setLugares] = useState([]);
   const [passagens, setPassagens] = useState([]);
+  const [documentos, setDocumentos] = useState([]);
   const [appsInstalar, setAppsInstalar] = useState([]);
   const [perguntasImigracao, setPerguntasImigracao] = useState([]);
   const [appsMarcados, setAppsMarcados] = useState([]);
@@ -103,7 +104,7 @@ export function DataProvider({ session, children }) {
     // consultas em fila, o que deixava a tela "Carregando a viagem…" travada).
     const [
       { data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }, { data: ck },
-      { data: gd }, { data: lg }, { data: ai }, { data: pi }, { data: am }, { data: dr }, { data: pg },
+      { data: gd }, { data: lg }, { data: ai }, { data: pi }, { data: am }, { data: dr }, { data: pg }, { data: dc },
     ] = await Promise.all([
       supabase.from('perfis').select('*').eq('viagem_id', v.id).order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
@@ -118,10 +119,11 @@ export function DataProvider({ session, children }) {
       supabase.from('apps_marcados').select('*').eq('viagem_id', v.id).eq('user_id', uid),
       supabase.from('diario_entradas').select('*').eq('viagem_id', v.id).order('data').order('criado_em'),
       supabase.from('passagens').select('*').eq('viagem_id', v.id).order('data').order('hora').order('criado_em'),
+      supabase.from('documentos').select('*').eq('viagem_id', v.id).order('categoria').order('criado_em'),
     ]);
     setPerfis(ps || []); setPontos(pts || []); setGastos(gs || []); setAcertos(acs || []); setRegistrosKm(rk || []); setChecklist(ck || []);
     setGuardados(gd || []); setLugares(lg || []); setAppsInstalar(ai || []); setPerguntasImigracao(pi || []); setAppsMarcados(am || []);
-    setDiario(dr || []); setPassagens(pg || []);
+    setDiario(dr || []); setPassagens(pg || []); setDocumentos(dc || []);
     // divisões e "visto por" dependem dos ids dos gastos, então vão numa segunda leva (também paralela)
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) {
@@ -151,6 +153,7 @@ export function DataProvider({ session, children }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'dicas' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'diario_entradas' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'passagens' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'documentos' }, deb)
       .subscribe();
     return () => { clearTimeout(t); supabase.removeChannel(canal); };
   }, [carregar]);
@@ -302,6 +305,43 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
   async function removerPassagem(id) { await supabase.from('passagens').delete().eq('id', id); await carregar(); }
+
+  // ----- Documentos da viagem (PDF / foto no bucket privado "documentos") -----
+  async function adicionarDocumento({ titulo, categoria, obs, privado, file, mime }) {
+    const t = (titulo || '').trim();
+    if (!t || !file) return { erro: 'Dá um nome e escolhe o arquivo.' };
+    const ext = (mime === 'application/pdf') ? 'pdf' : (mime === 'image/png' ? 'png' : 'jpg');
+    const path = `${viagem.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error: e1 } = await supabase.storage.from('documentos').upload(path, file, { contentType: mime || 'application/octet-stream', upsert: false });
+    if (e1) return { erro: 'Não consegui enviar o arquivo (' + (e1.message || 'erro') + '). Arquivo até 20 MB.' };
+    const { error: e2 } = await supabase.from('documentos').insert({ viagem_id: viagem.id, user_id: session.user.id, titulo: t, categoria: categoria || 'outros', arquivo: path, mime: mime || null, tamanho: file.size || null, obs: (obs || '').trim() || null, privado: !!privado });
+    if (e2) { await supabase.storage.from('documentos').remove([path]); return { erro: 'Não consegui salvar o documento.' }; }
+    await carregar();
+    return { ok: true };
+  }
+  async function editarDocumento(id, campos) {
+    const patch = {};
+    if ('titulo' in campos) patch.titulo = (campos.titulo || '').trim();
+    if ('categoria' in campos) patch.categoria = campos.categoria || 'outros';
+    if ('obs' in campos) patch.obs = (campos.obs || '').trim() || null;
+    if ('privado' in campos) patch.privado = !!campos.privado;
+    const { error } = await supabase.from('documentos').update(patch).eq('id', id);
+    if (error) return { erro: 'Não consegui salvar.' };
+    await carregar();
+    return { ok: true };
+  }
+  async function removerDocumento(doc) {
+    await supabase.from('documentos').delete().eq('id', doc.id);
+    if (doc.arquivo) await supabase.storage.from('documentos').remove([doc.arquivo]);
+    await carregar();
+  }
+  // link assinado (1 h) pra abrir/baixar — o bucket é privado
+  async function urlDocumento(doc, baixar) {
+    if (!doc || !doc.arquivo) return null;
+    const opts = baixar ? { download: doc.titulo ? doc.titulo.replace(/[\\/:*?"<>|]+/g, '-') : true } : undefined;
+    const { data } = await supabase.storage.from('documentos').createSignedUrl(doc.arquivo, 3600, opts);
+    return (data && data.signedUrl) || null;
+  }
   async function lugarParaRoteiro(lugar, data, hora) {
     if (!viagem || !lugar) return;
     await supabase.from('pontos_roteiro').insert({ viagem_id: viagem.id, nome: lugar.nome, endereco: lugar.endereco || null, local: lugar.endereco || null, nota: lugar.comentario || null, data_inicio: data || null, hora: hora || null, tipo: 'passeio', ordem: 999 });
@@ -458,7 +498,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, passagens, adicionarPassagem, editarPassagem, removerPassagem, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, ocultarAppSugestao, reexibirAppSugestao, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome, diario, adicionarEntradaDiario, removerEntradaDiario, urlDiario };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, passagens, adicionarPassagem, editarPassagem, removerPassagem, documentos, adicionarDocumento, editarDocumento, removerDocumento, urlDocumento, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, ocultarAppSugestao, reexibirAppSugestao, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome, diario, adicionarEntradaDiario, removerEntradaDiario, urlDiario };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }
