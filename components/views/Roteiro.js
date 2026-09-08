@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useData } from '../DataProvider';
 import { supabase } from '../../lib/supabaseClient';
 import { valorEmBRL, fmtBRL, dataLocal, hojeLocal } from '../../lib/format';
-import { PageHeader, Button, Field, EmptyState, Reveal, Expand, ProgressBar } from '../ui';
+import { PageHeader, Button, Field, EmptyState, Reveal, Expand } from '../ui';
 import { motion as motionTokens } from '../../lib/design-tokens';
 
 function iconeClima(code) {
@@ -160,7 +160,7 @@ function ChipDia({ g, dn, selecionado, ehHoje, temParada, novoMes, onClick, refE
 }
 
 export default function Roteiro({ ir }) {
-  const { viagem, pontos, gastos, perfis, checklist, recarregar } = useData();
+  const { viagem, pontos, gastos, recarregar } = useData();
   const cambio = Number(viagem.cotacao_usd);
   const [form, setForm] = useState(null);
   const [formErro, setFormErro] = useState('');
@@ -379,23 +379,17 @@ export default function Roteiro({ ir }) {
     else { const n = diffDias(ida, hojeS) + 1; prog = { estado: 'durante', n, total, faltam: diffDias(hojeS, volta), pct: Math.max(2, Math.min(100, Math.round((n / total) * 100))) }; }
   }
 
-  // ----- Totais -----
-  const totaisRota = Object.values(rotas).reduce((acc, r) => {
-    if (r && r !== 'erro' && typeof r === 'object') { acc.km += r.km || 0; acc.min += r.min || 0; }
-    return acc;
-  }, { km: 0, min: 0 });
   const nParadas = pontos.length;
-  const tarefasPend = (checklist || []).filter((i) => i.tema !== 'Mercado' && !i.feito).length;
-  const nPessoas = (perfis || []).length;
 
   // Subtítulo do cabeçalho: período + onde a viagem está ("Dia 3 de 12" / "faltam 40 dias").
   let subtitulo;
   if (!prog) subtitulo = nParadas > 0 ? `${nParadas} ${nParadas === 1 ? 'parada' : 'paradas'} · defina as datas da viagem` : 'Defina as datas e monte o dia a dia';
   else {
     const periodo = `${fmtCurta(ida)} → ${fmtCurta(volta)}`;
-    if (prog.estado === 'antes') subtitulo = `${periodo} · ${prog.faltam === 0 ? 'começa hoje!' : prog.faltam === 1 ? 'falta 1 dia' : `faltam ${prog.faltam} dias`}`;
-    else if (prog.estado === 'durante') subtitulo = `${periodo} · Dia ${prog.n} de ${prog.total}`;
-    else subtitulo = `${periodo} · viagem concluída`;
+    // A contagem regressiva vive na Home; aqui o subtítulo só situa o período.
+    if (prog.estado === 'durante') subtitulo = `${periodo} · Dia ${prog.n} de ${prog.total}`;
+    else if (prog.estado === 'fim') subtitulo = `${periodo} · viagem concluída`;
+    else subtitulo = `${periodo} · ${prog.total} dias`;
   }
 
   // ----- Dia em foco -----
@@ -517,37 +511,7 @@ export default function Roteiro({ ir }) {
               <div className="ui-wrap" style={{ flex: 1, fontSize: 13.5, color: 'var(--ui-muted)', lineHeight: 1.4 }}>Com ida e volta, o roteiro mostra um dia de cada vez.</div>
               <Button variant="soft" size="sm" onClick={abrirDatas} style={{ minHeight: 40 }}>Definir datas</Button>
             </div>
-          ) : (
-            // Progresso da viagem: uma frase e uma linha. Sem cara de painel.
-            <div className="ui-card-tight" style={{ padding: '14px 16px', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-                  {prog.estado === 'durante' ? (
-                    <>
-                      <span className="ui-num" style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.8px' }}>Dia {prog.n}</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ui-muted)' }}>de {prog.total}</span>
-                    </>
-                  ) : prog.estado === 'antes' ? (
-                    <>
-                      <span className="ui-num" style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.8px' }}>{prog.faltam === 0 ? 'É hoje!' : prog.faltam}</span>
-                      {prog.faltam > 0 && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ui-muted)' }}>{prog.faltam === 1 ? 'dia pra viagem' : 'dias pra viagem'}</span>}
-                    </>
-                  ) : (
-                    <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>Viagem concluída ✓</span>
-                  )}
-                </div>
-                {prog.estado === 'durante' && <span className="ui-caption" style={{ flex: '0 0 auto' }}>{prog.faltam === 0 ? 'último dia' : `faltam ${prog.faltam}`}</span>}
-              </div>
-              <ProgressBar pct={prog.estado === 'durante' ? prog.pct : prog.estado === 'fim' ? 100 : 0} height={6} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                <span className="ui-caption ui-wrap">
-                  {fmtCurta(ida)} → {fmtCurta(volta)} · {nParadas} {nParadas === 1 ? 'parada' : 'paradas'}
-                  {totaisRota.km > 0 ? ` · ${Math.round(totaisRota.km).toLocaleString('pt-BR')} km` : ''}
-                </span>
-                <button onClick={abrirDatas} style={{ ...acaoTxt, fontSize: 12.5, minHeight: 40, padding: '0 4px', flex: '0 0 auto' }}>editar datas</button>
-              </div>
-            </div>
-          )}
+          ) : null}
 
           {grupos.length === 0 && (
             <EmptyState icone="🗺️" titulo="Seu roteiro ainda está vazio." texto="Comece adicionando o primeiro destino." cta="Adicionar parada" onCta={() => abrirNovo(ultimaData(), null)} />
@@ -784,20 +748,6 @@ export default function Roteiro({ ir }) {
             </>
           )}
 
-          {/* Atalhos pro resto do app: uma linha só, três colunas tocáveis */}
-          <div className="ui-card-tight" style={{ marginTop: 18, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
-            {[
-              { rotulo: 'Orçamento', valor: fmtBRL(Number(viagem.orcamento_brl) || 0), acao: 'ver resumo', tela: 'resumo' },
-              { rotulo: 'Tarefas', valor: String(tarefasPend), acao: tarefasPend === 1 ? 'pendente' : 'pendentes', tela: 'checklist' },
-              { rotulo: 'Pessoas', valor: String(nPessoas), acao: 'ver detalhes', tela: 'pessoas' },
-            ].map((c, i) => (
-              <button key={c.tela} onClick={() => ir(c.tela)} className="ui-press" style={{ flex: 1, minWidth: 0, minHeight: 64, padding: '12px 6px', border: 'none', borderLeft: i > 0 ? '1px solid var(--ui-line)' : 'none', background: 'transparent', textAlign: 'center' }}>
-                <div className="ui-label" style={{ margin: '0 0 2px' }}>{c.rotulo}</div>
-                <div className="ui-num ui-clamp1" style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.3px' }}>{c.valor}</div>
-                <div style={{ fontSize: 11, color: 'var(--ui-teal-ink)', fontWeight: 600, marginTop: 1 }}>{c.acao}</div>
-              </button>
-            ))}
-          </div>
         </>
       )}
     </div>
