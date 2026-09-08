@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useData } from '../DataProvider';
 import { calcularSaldos, quemDeveParaQuem } from '../../lib/settle';
 import { fmtBRL, fmtUSD, usaDolar } from '../../lib/format';
-import { PageHeader, EmptyState, Button, Reveal, SectionHeader } from '../ui';
+import { PageHeader, EmptyState, Button, Reveal, SectionHeader, Expand } from '../ui';
 
 // Acerto de contas. O que importa: "quem paga quanto pra quem" (1 bloco de destaque).
 // Depois, o saldo de cada pessoa em lista; o câmbio fica discreto no fim.
@@ -45,13 +45,47 @@ export default function Acerto({ ir }) {
   const mostra = (valorBRL) => (emUSD ? fmtUSD(valorBRL / cambio) : fmtBRL(valorBRL));
   const totalPendente = transferencias.reduce((s, t) => s + t.valor, 0);
   function aplicar() { const n = parseFloat((cambioStr || '').replace(',', '.')); if (n > 0 && n !== cambio) atualizarCotacao(n); }
-  function quitar(t) {
-    const valor = emUSD ? Math.round((t.valor / cambio) * 100) / 100 : Math.round(t.valor * 100) / 100;
-    const moeda = emUSD ? 'USD' : 'BRL';
-    const txt = emUSD ? fmtUSD(valor) : fmtBRL(valor);
-    if (window.confirm(`Confirmar que ${nome(t.de)} pagou ${txt} para ${nome(t.para)}?`)) registrarAcerto({ de: t.de, para: t.para, valor, moeda });
+
+  // ----- Pagamento (inteiro ou parcial) -----
+  // Quem deve pode ir pagando aos poucos: cada pagamento entra no histórico e
+  // abate da dívida na hora (o saldo já considera os acertos, ver lib/settle.js).
+  const [pagando, setPagando] = useState(null);   // `${de}_${para}` da linha aberta
+  const [valorPg, setValorPg] = useState('');
+  const [moedaPg, setMoedaPg] = useState('BRL');
+  const [erroPg, setErroPg] = useState('');
+  const [salvo, setSalvo] = useState('');
+  const chaveT = (t) => `${t.de}_${t.para}`;
+  const numeroBR = (n) => n.toFixed(2).replace('.', ',');
+
+  function abrirPagamento(t) {
+    const m = emUSD ? 'USD' : 'BRL';
+    setPagando(chaveT(t)); setMoedaPg(m); setErroPg(''); setSalvo('');
+    setValorPg(numeroBR(m === 'USD' ? t.valor / cambio : t.valor));
   }
-  function desfazer(a) { if (window.confirm('Desfazer este acerto? A dívida volta a aparecer.')) removerAcerto(a.id); }
+  function preencherTudo(t, m) {
+    setValorPg(numeroBR(m === 'USD' && cambioOk ? t.valor / cambio : t.valor));
+  }
+  const valorPgNum = () => { const n = parseFloat((valorPg || '').replace(',', '.')); return isNaN(n) ? 0 : n; };
+  // quanto o valor digitado representa em real (pra comparar com a dívida)
+  const valorPgEmBRL = () => (moedaPg === 'USD' && cambioOk ? valorPgNum() * cambio : valorPgNum());
+
+  async function salvarPagamento(t) {
+    const v = Math.round(valorPgNum() * 100) / 100;
+    if (!(v > 0)) { setErroPg('Digite quanto foi pago.'); return; }
+    if (moedaPg === 'USD' && !cambioOk) { setErroPg('Defina o câmbio antes de registrar em dólar.'); return; }
+    setErroPg('');
+    await registrarAcerto({ de: t.de, para: t.para, valor: v, moeda: moedaPg });
+    setPagando(null);
+    setSalvo(`✓ ${moedaPg === 'USD' ? fmtUSD(v) : fmtBRL(v)} de ${nome(t.de)} para ${nome(t.para)} registrado.`);
+  }
+  function desfazer(a) { if (window.confirm('Desfazer este pagamento? O valor volta pra dívida.')) removerAcerto(a.id); }
+
+  // Quanto essa dupla já pagou (só no sentido devedor → credor).
+  const jaPagoEntre = (de, para) => (acertos || [])
+    .filter((a) => a.de === de && a.para === para)
+    .reduce((soma, a) => soma + (a.moeda === 'USD' ? Number(a.valor) * cambio : Number(a.valor)), 0);
+  const qtdPagamentos = (de, para) => (acertos || []).filter((a) => a.de === de && a.para === para).length;
+  const fmtData = (d) => { if (!d) return ''; const [a, m, dia] = String(d).split('-'); return `${dia}/${m}`; };
 
   // saldo de cada pessoa (positivo = tem a receber, negativo = deve)
   const linhasSaldo = perfis.map((p) => ({ ...p, saldo: Math.round((saldos[p.id] || 0) * 100) / 100 })).sort((a, b) => b.saldo - a.saldo);
@@ -78,7 +112,8 @@ export default function Acerto({ ir }) {
         <Reveal>
           <div className="ui-card" style={{ padding: '14px 16px 6px' }}>
             <div className="ui-h2" style={{ marginBottom: 4 }}>Quem paga quem</div>
-            <div className="ui-caption" style={{ marginBottom: 6 }}>As dívidas já vêm com tudo abatido — uma compra compensa a outra.</div>
+            <div className="ui-caption" style={{ marginBottom: 6 }}>Já com tudo abatido: uma compra compensa a outra e os pagamentos registrados descontam da dívida.</div>
+            {salvo && <div className="ui-success">{salvo}</div>}
             <div className="ui-list">
               {transferencias.map((t, i) => (
                 <div key={i} style={{ padding: '12px 0' }}>
@@ -91,11 +126,56 @@ export default function Acerto({ ir }) {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 10 }}>
                     <div style={{ minWidth: 0 }}>
+                      <div className="ui-label" style={{ margin: 0 }}>ainda falta</div>
                       <div className="ui-num" style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px', color: 'var(--ui-debit)', whiteSpace: 'nowrap' }}>{mostra(t.valor)}</div>
                       {emUSD && <div className="ui-caption ui-faint ui-num" style={{ whiteSpace: 'nowrap' }}>{fmtBRL(t.valor)} no câmbio atual</div>}
+                      {jaPagoEntre(t.de, t.para) > 0.01 && (
+                        <div className="ui-caption ui-num" style={{ color: 'var(--ui-credit)', marginTop: 2 }}>
+                          já pagou {mostra(jaPagoEntre(t.de, t.para))} em {qtdPagamentos(t.de, t.para)} {qtdPagamentos(t.de, t.para) === 1 ? 'pagamento' : 'pagamentos'}
+                        </div>
+                      )}
                     </div>
-                    <Button variant="soft" onClick={() => quitar(t)} style={{ flex: '0 0 auto' }}>Marcar como pago</Button>
+                    <Button variant={pagando === chaveT(t) ? 'secondary' : 'soft'} onClick={() => (pagando === chaveT(t) ? setPagando(null) : abrirPagamento(t))} style={{ flex: '0 0 auto' }}>
+                      {pagando === chaveT(t) ? 'Cancelar' : 'Registrar pagamento'}
+                    </Button>
                   </div>
+
+                  <Expand aberto={pagando === chaveT(t)}>
+                    <div className="ui-sunken" style={{ padding: 12, marginTop: 10 }}>
+                      <label className="ui-label" htmlFor={`pg-${chaveT(t)}`}>Quanto {nome(t.de)} pagou agora</label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {comDolar && (
+                          <div className="ui-seg" style={{ flex: '0 0 auto', width: 108 }}>
+                            <button type="button" className={moedaPg === 'BRL' ? 'on' : ''} onClick={() => { setMoedaPg('BRL'); preencherTudo(t, 'BRL'); }}>R$</button>
+                            <button type="button" className={moedaPg === 'USD' ? 'on' : ''} onClick={() => { setMoedaPg('USD'); preencherTudo(t, 'USD'); }} disabled={!cambioOk}>US$</button>
+                          </div>
+                        )}
+                        <input
+                          id={`pg-${chaveT(t)}`}
+                          className="ui-input ui-num"
+                          inputMode="decimal"
+                          autoFocus
+                          value={valorPg}
+                          onChange={(e) => { setValorPg(e.target.value); setErroPg(''); }}
+                          placeholder="100,00"
+                          style={{ flex: 1, minWidth: 0 }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
+                        <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" style={{ padding: '0 4px' }} onClick={() => preencherTudo(t, moedaPg)}>pagou tudo</button>
+                        {moedaPg === 'USD' && cambioOk && valorPgNum() > 0 && (
+                          <span className="ui-caption ui-num">= {fmtBRL(valorPgEmBRL())} no câmbio atual</span>
+                        )}
+                      </div>
+                      {valorPgEmBRL() - t.valor > 0.01 && (
+                        <div className="ui-caption" style={{ color: 'var(--ui-gold)', marginTop: 6 }}>
+                          Esse valor passa da dívida em {fmtBRL(valorPgEmBRL() - t.valor)} — o saldo vira a favor de {nome(t.de)}.
+                        </div>
+                      )}
+                      {erroPg && <div className="ui-error" style={{ marginTop: 8, marginBottom: 0 }}>{erroPg}</div>}
+                      <Button full style={{ marginTop: 10 }} onClick={() => salvarPagamento(t)}>Registrar pagamento</Button>
+                    </div>
+                  </Expand>
                 </div>
               ))}
             </div>
@@ -150,13 +230,19 @@ export default function Acerto({ ir }) {
       {/* Histórico */}
       {!sozinho && acertos && acertos.length > 0 && (
         <>
-          <SectionHeader title="Histórico de acertos" />
+          <SectionHeader title="Pagamentos registrados" />
           <div className="ui-card" style={{ padding: '2px 16px' }}>
             <div className="ui-list">
               {acertos.map((a) => (
-                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 52, padding: '4px 0' }}>
-                  <span className="ui-clamp1" style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600 }}>{nome(a.de)} → {nome(a.para)}</span>
-                  <span className="ui-num" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{a.moeda === 'USD' ? fmtUSD(a.valor) : fmtBRL(a.valor)}</span>
+                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 56, padding: '6px 0' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="ui-clamp1" style={{ fontSize: 13.5, fontWeight: 700 }}>{nome(a.de)} → {nome(a.para)}</div>
+                    <div className="ui-caption ui-num">
+                      {fmtData(a.data)}
+                      {a.moeda === 'USD' && cambioOk ? ` · ${fmtBRL(Number(a.valor) * cambio)} no câmbio atual` : ''}
+                    </div>
+                  </div>
+                  <span className="ui-num" style={{ fontWeight: 800, whiteSpace: 'nowrap', color: 'var(--ui-credit)' }}>{a.moeda === 'USD' ? fmtUSD(a.valor) : fmtBRL(a.valor)}</span>
                   <button className="ui-btn ui-btn-ghost ui-btn-sm" style={{ color: 'var(--ui-debit)', minHeight: 44, padding: '0 6px' }} onClick={() => desfazer(a)}>desfazer</button>
                 </div>
               ))}
