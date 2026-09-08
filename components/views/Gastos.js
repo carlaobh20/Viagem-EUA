@@ -39,6 +39,15 @@ export default function Gastos({ ir }) {
   const nenhumGasto = gastos.length === 0;
 
   function nomePagador(id) { const p = perfis.find((x) => x.id === id); return p ? p.nome : '—'; }
+  // Quem LANÇOU o gasto no app (o login usado), que pode ser diferente de quem pagou:
+  // a Elza pode registrar uma compra do Wilson. Só mostramos quando são pessoas
+  // diferentes — no caso normal (cada um lança o próprio) não polui a linha.
+  function nomeQuemLancou(g) {
+    if (!g.user_id) return '';
+    const dono = perfis.find((x) => x.user_id === g.user_id);
+    if (!dono || dono.id === g.pago_por) return '';
+    return dono.nome;
+  }
   function qtd(gid) { return divisoes.filter((d) => d.gasto_id === gid).length; }
   function apagar(g) { if (window.confirm(`Apagar o gasto "${g.descricao || nomeCategoria(g.categoria)}"?`)) removerGasto(g.id); }
   function editar(g) { setGastoEditando(g); ir('novo'); }
@@ -139,6 +148,9 @@ export default function Gastos({ ir }) {
                             <span className="ui-caption ui-clamp1" style={{ display: 'block', marginTop: 2 }}>
                               {nomePagador(g.pago_por)} · {formataData(g.data)}{entre > 1 ? ` · entre ${entre}` : ''}
                             </span>
+                            {nomeQuemLancou(g) ? (
+                              <span className="ui-caption ui-clamp1" style={{ display: 'block', color: 'var(--ui-faint)', marginTop: 1 }}>✎ lançado por {nomeQuemLancou(g)}</span>
+                            ) : null}
                           </span>
                           <span style={{ textAlign: 'right', flex: '0 0 auto', paddingLeft: 6 }}>
                             <span className="ui-num" style={{ display: 'block', fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap' }}>{g.moeda === 'USD' ? fmtUSD(g.valor) : fmtBRL(g.valor)}</span>

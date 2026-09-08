@@ -29,6 +29,14 @@ const BARRA_FIXA = { position: 'sticky', bottom: 0, margin: '16px -18px 0', padd
 export default function Novo({ ir }) {
   const { viagem, perfis, pontos, perfil, divisoes, gastoVistoPor, salvarGasto, atualizarGasto, gastoEditando, setGastoEditando, urlRecibo } = useData();
   const ed = gastoEditando;
+  const nomeDoPerfil = (id) => { const p = perfis.find((x) => x.id === id); return p ? p.nome : 'essa pessoa'; };
+  // Ao editar: quem LANÇOU o gasto, quando não é quem pagou (Elza lança a compra do Wilson).
+  const quemLancou = (() => {
+    if (!ed || !ed.user_id) return '';
+    const dono = perfis.find((x) => x.user_id === ed.user_id);
+    if (!dono || dono.id === ed.pago_por) return '';
+    return dono.nome;
+  })();
   const inputCamera = useRef(null);
   const inputGaleria = useRef(null);
   const comDolar = usaDolar(viagem);
@@ -219,7 +227,8 @@ export default function Novo({ ir }) {
         </select>
       </Field>
 
-      {/* 4. Quem pagou (default: eu) */}
+      {/* 4. Quem pagou (default: eu) — pode ser outra pessoa: quem lança não é
+           necessariamente quem pagou (a Elza registra a compra do Wilson). */}
       <div className="ui-field">
         <label className="ui-label">Quem pagou</label>
         <div className="ui-chips-scroll" role="radiogroup" aria-label="Quem pagou" style={{ paddingBottom: 2 }}>
@@ -229,6 +238,22 @@ export default function Novo({ ir }) {
             </button>
           ))}
         </div>
+        {perfil && pagoPor && pagoPor !== perfil.id && (
+          <div className="ui-caption ui-wrap" style={{ marginTop: 6, color: 'var(--ui-teal-ink)' }}>
+            O gasto entra como pago por <b>{nomeDoPerfil(pagoPor)}</b> — quem tem a receber é {nomeDoPerfil(pagoPor)}, não você. Fica registrado que quem lançou foi você.
+          </div>
+        )}
+        {/* Quem pagou quase sempre também participa da divisão. Se ficou de fora
+            (a divisão começa marcando só quem está lançando), oferecemos o atalho
+            em vez de decidir sozinho. */}
+        {pagoPor && !(partes[pagoPor] > 0) && (
+          <button type="button" onClick={() => setPartes((prev) => ({ ...prev, [pagoPor]: 1 }))} className="ui-btn ui-btn-soft ui-btn-sm" style={{ marginTop: 8 }}>
+            + incluir {nomeDoPerfil(pagoPor)} na divisão
+          </button>
+        )}
+        {ed && quemLancou && (
+          <div className="ui-caption ui-wrap" style={{ marginTop: 6, color: 'var(--ui-faint)' }}>✎ lançado por {quemLancou}</div>
+        )}
       </div>
 
       {/* 5. Dividir entre (default: eu) */}
