@@ -79,27 +79,30 @@ function Doc({ d, meu, aberto, onAbrirFechar, onEditar, onApagar, abrindo, onAbr
   const dono = d.user_id === meu;
   const podeMexer = dono || !d.privado;
   const n = d.arquivos.length;
-  const exp = aberto || n <= 1;
+  // Todo documento começa fechado — inclusive os de um arquivo só. Antes eles
+  // abriam sozinhos e a lista virava uma repetição ("RESERVA MOTORHOME" duas
+  // vezes seguidas, título e arquivo). Fechado, cada documento é uma linha só.
+  const exp = aberto;
   const icone = n > 1 ? '📂' : (n === 1 && ehPdf(d.arquivos[0].mime) ? '📕' : n === 1 ? '🖼️' : '📄');
   return (
     <div style={{ padding: '0 4px' }}>
-      <div onClick={() => n > 1 && onAbrirFechar(d.id)} role={n > 1 ? 'button' : undefined} aria-expanded={n > 1 ? exp : undefined}
-        style={{ display: 'grid', gridTemplateColumns: '40px minmax(0, 1fr) auto', columnGap: 10, alignItems: 'center', cursor: n > 1 ? 'pointer' : 'default', minHeight: 56, padding: '6px 0' }}>
+      <div onClick={() => onAbrirFechar(d.id)} role="button" aria-expanded={exp}
+        style={{ display: 'grid', gridTemplateColumns: '40px minmax(0, 1fr) auto', columnGap: 10, alignItems: 'center', cursor: 'pointer', minHeight: 56, padding: '6px 0' }}>
         <span className="ui-sunken" style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19 }} aria-hidden="true">{icone}</span>
         <div style={{ minWidth: 0 }}>
           <div className="ui-wrap" style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.25 }}>{d.privado ? '🔒 ' : ''}{d.titulo}</div>
           <div className="ui-caption" style={{ marginTop: 2 }}>{c.emoji} {c.nome} · {n} arquivo{n === 1 ? '' : 's'}</div>
-          {d.obs && <div className="ui-caption ui-wrap" style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{d.obs}</div>}
+          {d.obs && exp && <div className="ui-caption ui-wrap" style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{d.obs}</div>}
         </div>
         <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
           <button onClick={(e) => { e.stopPropagation(); onEditar(d); }} aria-label="Editar" title="Editar" style={{ ...btnIcone, fontSize: 15 }}>✏️</button>
-          {n > 1 && <span aria-hidden="true" style={{ color: 'var(--ui-faint)', fontSize: 14, width: 20, textAlign: 'center', transform: exp ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }}>▾</span>}
+          <span aria-hidden="true" style={{ color: 'var(--ui-faint)', fontSize: 14, width: 20, textAlign: 'center', transform: exp ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }}>▾</span>
         </div>
       </div>
       <Expand aberto={exp}>
         <div style={{ paddingBottom: 8 }}>
           <div className="ui-list" style={{ borderTop: '1px solid var(--ui-line)' }}>
-            {d.arquivos.map((a) => <LinhaArquivo key={a.id} a={a} podeRemover={podeMexer && n > 1} abrindo={abrindo} onAbrir={onAbrirArquivo} onApagar={onApagarArquivo} />)}
+            {d.arquivos.map((a) => <LinhaArquivo key={a.id} a={a} podeRemover={podeMexer} abrindo={abrindo} onAbrir={onAbrirArquivo} onApagar={onApagarArquivo} />)}
           </div>
           {n === 0 && <div className="ui-caption ui-faint" style={{ padding: '6px 0' }}>Sem arquivo. Toque em ✏️ pra adicionar.</div>}
           {podeMexer && (
