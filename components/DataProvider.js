@@ -38,6 +38,7 @@ export function DataProvider({ session, children }) {
   const [divisoes, setDivisoes] = useState([]);
   const [gastoVistoPor, setGastoVistoPor] = useState([]);
   const [acertos, setAcertos] = useState([]);
+  const [loginsApp, setLoginsApp] = useState([]);
   const [registrosKm, setRegistrosKm] = useState([]);
   const [checklist, setChecklist] = useState([]);
   const [guardados, setGuardados] = useState([]);
@@ -105,7 +106,7 @@ export function DataProvider({ session, children }) {
     // consultas em fila, o que deixava a tela "Carregando a viagem…" travada).
     const [
       { data: ps }, { data: pts }, { data: gs }, { data: acs }, { data: rk }, { data: ck },
-      { data: gd }, { data: lg }, { data: ai }, { data: pi }, { data: am }, { data: dr }, { data: pg }, { data: dc }, { data: da }, { data: rv },
+      { data: gd }, { data: lg }, { data: ai }, { data: pi }, { data: am }, { data: dr }, { data: pg }, { data: dc }, { data: da }, { data: rv }, { data: lap },
     ] = await Promise.all([
       supabase.from('perfis').select('*').eq('viagem_id', v.id).order('criado_em'),
       supabase.from('pontos_roteiro').select('*').eq('viagem_id', v.id).order('ordem'),
@@ -123,11 +124,13 @@ export function DataProvider({ session, children }) {
       supabase.from('documentos').select('*').eq('viagem_id', v.id).order('categoria').order('criado_em'),
       supabase.from('documento_arquivos').select('*').eq('viagem_id', v.id).order('ordem'),
       supabase.from('reservas_rv').select('*').eq('viagem_id', v.id).order('checkin').order('criado_em'),
+      supabase.from('logins_app').select('*').eq('viagem_id', v.id).order('app'),
     ]);
     setPerfis(ps || []); setPontos(pts || []); setGastos(gs || []); setAcertos(acs || []); setRegistrosKm(rk || []); setChecklist(ck || []);
     setGuardados(gd || []); setLugares(lg || []); setAppsInstalar(ai || []); setPerguntasImigracao(pi || []); setAppsMarcados(am || []);
     setDiario(dr || []); setPassagens(pg || []); setDocumentos((dc || []).map((d) => ({ ...d, arquivos: (da || []).filter((x) => x.documento_id === d.id) })));
     setReservasRv(rv || []);
+    setLoginsApp(lap || []);
     // divisões e "visto por" dependem dos ids dos gastos, então vão numa segunda leva (também paralela)
     const ids = (gs || []).map((g) => g.id);
     if (ids.length) {
@@ -158,6 +161,7 @@ export function DataProvider({ session, children }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'diario_entradas' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'passagens' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'documentos' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'logins_app' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'documento_arquivos' }, deb)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservas_rv' }, deb)
       .subscribe();
@@ -428,6 +432,26 @@ export function DataProvider({ session, children }) {
     await carregar();
   }
 
+  // ----- Logins dos apps da viagem -----
+  // A senha vai em texto no banco; o que protege é o RLS (só membros da viagem,
+  // e item privado só o dono) — ver supabase/migracao-logins.sql. Por isso a tela
+  // avisa pra não usar isso com banco, cartão e e-mail principal.
+  async function adicionarLoginApp({ app, usuario, senha, url, obs, privado }) {
+    const { error } = await supabase.from('logins_app').insert({
+      viagem_id: viagem.id, app: (app || '').trim(), usuario: (usuario || '').trim() || null,
+      senha: senha || null, url: (url || '').trim() || null, obs: (obs || '').trim() || null,
+      privado: privado !== false, user_id: session.user.id,
+    });
+    if (error) throw error;
+    await carregar();
+  }
+  async function editarLoginApp(id, campos) {
+    const { error } = await supabase.from('logins_app').update(campos).eq('id', id);
+    if (error) throw error;
+    await carregar();
+  }
+  async function removerLoginApp(id) { await supabase.from('logins_app').delete().eq('id', id); await carregar(); }
+
   // link assinado (1 h) pra abrir/baixar um arquivo — o bucket é privado
   async function urlArquivoDocumento(arq, baixar) {
     if (!arq || !arq.arquivo) return null;
@@ -593,7 +617,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, passagens, adicionarPassagem, editarPassagem, removerPassagem, documentos, adicionarDocumento, adicionarArquivosDocumento, editarDocumento, removerDocumento, removerArquivoDocumento, urlArquivoDocumento, reservasRv, adicionarReservaRv, editarReservaRv, removerReservaRv, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, ocultarAppSugestao, reexibirAppSugestao, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome, diario, adicionarEntradaDiario, removerEntradaDiario, urlDiario };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, passagens, adicionarPassagem, editarPassagem, removerPassagem, documentos, adicionarDocumento, adicionarArquivosDocumento, editarDocumento, removerDocumento, removerArquivoDocumento, urlArquivoDocumento, reservasRv, adicionarReservaRv, editarReservaRv, removerReservaRv, loginsApp, adicionarLoginApp, editarLoginApp, removerLoginApp, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, ocultarAppSugestao, reexibirAppSugestao, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome, diario, adicionarEntradaDiario, removerEntradaDiario, urlDiario };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }

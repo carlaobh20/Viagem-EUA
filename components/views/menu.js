@@ -19,11 +19,12 @@ const IT = {
   appsinstalar: { id: 'appsinstalar', label: 'Apps pra instalar', sub: 'Nome, função e o benefício de cada um', cor: '#2563EB', bg: 'rgba(37,99,235,.12)', icon: <><rect x="5" y="2" width="14" height="20" rx="2.5" /><path d="M9 18h6" /></> },
   passagens: { id: 'passagens', label: 'Passagem aérea', sub: 'Ida e volta: voo, localizador, pedido e 0800', cor: '#7C3AED', bg: 'rgba(124,58,237,.13)', icon: <><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" /></> },
   documentos: { id: 'documentos', label: 'Documentos', sub: 'Passagens, reservas, ESTA, seguro — em PDF ou foto', cor: '#B45309', bg: 'rgba(180,83,9,.13)', icon: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h6" /></> },
+  logins: { id: 'logins', label: 'Logins dos apps', sub: 'Usuário e senha dos apps da viagem', cor: '#475569', bg: 'rgba(71,85,105,.13)', icon: <><rect x="3" y="11" width="18" height="11" rx="2.5" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><circle cx="12" cy="16.5" r="1.4" /></> },
   diario: { id: 'diario', label: 'Diário da viagem', sub: 'Texto, áudio e fotos de cada dia', cor: '#C2410C', bg: 'rgba(234,88,12,.14)', icon: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></> },
 };
 
 const INDIVIDUAL = [IT.checklist, IT.compras];
-const COMPARTILHADO = [IT.diario, IT.documentos, IT.passagens, IT.gastos, IT.acerto, IT.lugares, IT.frases, IT.appsinstalar, IT.pessoas];
+const COMPARTILHADO = [IT.diario, IT.documentos, IT.logins, IT.passagens, IT.gastos, IT.acerto, IT.lugares, IT.frases, IT.appsinstalar, IT.pessoas];
 
 export default function Menu({ ir }) {
   const { viagem, perfis } = useData();
