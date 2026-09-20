@@ -14,18 +14,19 @@ function formataData(d) { if (!d) return ''; const [, m, dia] = String(d).split(
 // filtro por moeda do LANÇAMENTO (não confundir com a moeda em que a tela mostra)
 const MOEDAS = [{ id: 'todos', label: 'Todas' }, { id: 'USD', label: 'Pagas em US$' }, { id: 'BRL', label: 'Pagas em R$' }];
 
-// Nome da pessoa num cartãozinho pintado com a cor dela: "pago" é sólido (quem
-// bancou), "racha" é claro com a bolinha da cor (quem divide). Bate com a cor
-// que a pessoa tem em Pessoas e no Acerto.
+// Roxo fixo dos nomes de quem racha — cartão cheio, igual pro grupo todo, pra
+// bater o olho e ver na hora que a compra foi dividida (e com quem).
+const ROXO_RACHA = '#534AB7';
+
+// Nome da pessoa num cartãozinho pintado: "pago" usa a cor da pessoa (a mesma de
+// Pessoas e do Acerto); "racha" usa o roxo do grupo.
 function PessoaPill({ nome, cor, solido }) {
   const c = cor || 'var(--ui-faint)';
   if (solido) {
     return <span className="ui-clamp1" style={{ display: 'inline-block', maxWidth: 120, background: c, color: '#fff', fontSize: 11.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999, verticalAlign: 'middle' }}>{nome}</span>;
   }
   return (
-    <span className="ui-clamp1" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: 120, background: 'var(--ui-sunken)', color: 'var(--ui-ink)', fontSize: 11.5, fontWeight: 700, padding: '2px 8px 2px 6px', borderRadius: 999, verticalAlign: 'middle' }}>
-      <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: c, flex: '0 0 auto' }} />{nome}
-    </span>
+    <span className="ui-clamp1" style={{ display: 'inline-block', maxWidth: 120, background: ROXO_RACHA, color: '#fff', fontSize: 11.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999, verticalAlign: 'middle' }}>{nome}</span>
   );
 }
 
@@ -77,8 +78,8 @@ export default function Gastos({ ir }) {
     { id: 'durante', titulo: 'Durante a viagem', dica: 'na estrada' },
     { id: 'depois', titulo: 'Depois da viagem', dica: 'ficou pra trás' },
   ];
-  // ordem: o bloco do momento primeiro
-  const ordem = emViagem ? ['durante', 'antes', 'depois'] : ['antes', 'durante', 'depois'];
+  // ordem fixa: o dinheiro da estrada em cima, a preparação embaixo
+  const ordem = ['durante', 'antes', 'depois'];
   const grupos = ordem
     .map((id) => {
       const def = DEFS.find((d) => d.id === id);
@@ -87,11 +88,14 @@ export default function Gastos({ ir }) {
     })
     .filter((gr) => gr.itens.length > 0);
   const agrupar = temDatas && grupos.length > 1;
-  // padrão: só o primeiro bloco (o do momento) começa aberto
-  const fechadoPadrao = (id, i) => i > 0;
+  // padrão: começa aberto o bloco do momento (durante, se a viagem já começou;
+  // antes, se ainda não) — e se esse bloco não existir, o primeiro da lista.
+  const doMomento = emViagem ? 'durante' : 'antes';
+  const abreSozinho = grupos.some((gr) => gr.id === doMomento) ? doMomento : (grupos[0] ? grupos[0].id : null);
+  const fechadoPadrao = (id) => id !== abreSozinho;
   const estaFechado = (id, i) => (fechados ? fechados.has(id) : fechadoPadrao(id, i));
   const alternarGrupo = (id, i) => setFechados((prev) => {
-    const base = prev || new Set(grupos.filter((gr, idx) => fechadoPadrao(gr.id, idx)).map((gr) => gr.id));
+    const base = prev || new Set(grupos.filter((gr) => fechadoPadrao(gr.id)).map((gr) => gr.id));
     const n = new Set(base);
     if (n.has(id)) n.delete(id); else n.add(id);
     return n;
