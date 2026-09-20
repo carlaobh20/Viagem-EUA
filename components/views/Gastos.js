@@ -11,7 +11,23 @@ import { PageHeader, EmptyState, Segmented, Reveal } from '../ui';
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 function formataData(d) { if (!d) return ''; const [, m, dia] = String(d).split('-'); return `${dia} ${MESES[Number(m) - 1]}`; }
 
-const MOEDAS = [{ id: 'todos', label: 'Todas' }, { id: 'USD', label: 'Dólar' }, { id: 'BRL', label: 'Real' }];
+// filtro por moeda do LANÇAMENTO (não confundir com a moeda em que a tela mostra)
+const MOEDAS = [{ id: 'todos', label: 'Todas' }, { id: 'USD', label: 'Pagas em US$' }, { id: 'BRL', label: 'Pagas em R$' }];
+
+// Nome da pessoa num cartãozinho pintado com a cor dela: "pago" é sólido (quem
+// bancou), "racha" é claro com a bolinha da cor (quem divide). Bate com a cor
+// que a pessoa tem em Pessoas e no Acerto.
+function PessoaPill({ nome, cor, solido }) {
+  const c = cor || 'var(--ui-faint)';
+  if (solido) {
+    return <span className="ui-clamp1" style={{ display: 'inline-block', maxWidth: 120, background: c, color: '#fff', fontSize: 11.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999, verticalAlign: 'middle' }}>{nome}</span>;
+  }
+  return (
+    <span className="ui-clamp1" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: 120, background: 'var(--ui-sunken)', color: 'var(--ui-ink)', fontSize: 11.5, fontWeight: 700, padding: '2px 8px 2px 6px', borderRadius: 999, verticalAlign: 'middle' }}>
+      <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: c, flex: '0 0 auto' }} />{nome}
+    </span>
+  );
+}
 
 // Bloco de destaque (fica fora do componente pra não remontar a cada render)
 const HERO = {
@@ -25,6 +41,12 @@ export default function Gastos({ ir }) {
   const cambio = Number(viagem.cotacao_usd);
   const comDolar = usaDolar(viagem);
   const [moeda, setMoeda] = useState('todos');
+  // Moeda em que os valores aparecem. Viagem em dólar abre SEMPRE em dólar — é a
+  // moeda do bolso na estrada; quem quiser ver em real troca no botão do topo.
+  const podeUSD = comDolar && cambio > 0;
+  const [ver, setVer] = useState('USD');
+  const verUSD = ver === 'USD' && podeUSD;
+  const mostra = (vBRL) => (verUSD ? fmtUSD(vBRL / cambio) : fmtBRL(vBRL));
   const [categoria, setCategoria] = useState('todas');
   const [pessoa, setPessoa] = useState('todas');
   const [aviso, setAviso] = useState('');   // mensagem inline (ex.: comprovante que não abriu)
@@ -49,6 +71,12 @@ export default function Gastos({ ir }) {
     return dono.nome;
   }
   function qtd(gid) { return divisoes.filter((d) => d.gasto_id === gid).length; }
+  function corPessoa(id) { const p = perfis.find((x) => x.id === id); return p ? p.cor : null; }
+  // quem racha o gasto, na ordem em que as pessoas aparecem na viagem
+  function quemRacha(gid) {
+    const ids = divisoes.filter((d) => d.gasto_id === gid).map((d) => d.perfil_id);
+    return perfis.filter((p) => ids.includes(p.id));
+  }
   function apagar(g) { if (window.confirm(`Apagar o gasto "${g.descricao || nomeCategoria(g.categoria)}"?`)) removerGasto(g.id); }
   function editar(g) { setGastoEditando(g); ir('novo'); }
   function limparFiltros() { setMoeda('todos'); setCategoria('todas'); setPessoa('todas'); }
@@ -90,15 +118,26 @@ export default function Gastos({ ir }) {
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.8px', textTransform: 'uppercase', color: 'rgba(255,255,255,.62)' }}>
                 {temFiltro ? 'Total do filtro' : 'Total da viagem'}
               </div>
-              <div className="ui-num ui-wrap" style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-1px', lineHeight: 1.1, margin: '4px 0 6px' }}>{fmtBRL(totalBRL)}</div>
+              <div className="ui-num ui-wrap" style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-1px', lineHeight: 1.1, margin: '4px 0 6px' }}>{mostra(totalBRL)}</div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,.66)' }}>
-                  {nLanc}{comDolar && cambio > 0 ? ` · ≈ ${fmtUSD(totalBRL / cambio)}` : ''}
+                  {nLanc}{podeUSD ? ` · ≈ ${verUSD ? fmtBRL(totalBRL) : fmtUSD(totalBRL / cambio)}` : ''}
                 </span>
-                {comDolar && (
-                  <button onClick={() => ir('acerto')} className="ui-press" style={{ border: '1px solid rgba(255,255,255,.22)', background: 'rgba(255,255,255,.12)', color: '#fff', borderRadius: 999, minHeight: 32, padding: '0 11px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    Câmbio R$ {cambio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </button>
+                {podeUSD && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '0 0 auto' }}>
+                    {/* moeda em que a tela mostra os valores — começa em US$ */}
+                    <div role="group" aria-label="Moeda mostrada" style={{ display: 'flex', background: 'rgba(255,255,255,.14)', borderRadius: 999, padding: 2 }}>
+                      {[{ id: 'USD', t: 'US$' }, { id: 'BRL', t: 'R$' }].map((m) => (
+                        <button key={m.id} onClick={() => setVer(m.id)} aria-pressed={ver === m.id} className="ui-press" style={{
+                          border: 'none', borderRadius: 999, minHeight: 28, padding: '0 11px', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
+                          background: ver === m.id ? '#fff' : 'transparent', color: ver === m.id ? 'var(--ui-dark)' : 'rgba(255,255,255,.8)',
+                        }}>{m.t}</button>
+                      ))}
+                    </div>
+                    <button onClick={() => ir('acerto')} className="ui-press" style={{ border: '1px solid rgba(255,255,255,.22)', background: 'rgba(255,255,255,.12)', color: '#fff', borderRadius: 999, minHeight: 32, padding: '0 11px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      Câmbio {cambio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -139,22 +178,39 @@ export default function Gastos({ ir }) {
                 <div className="ui-list">
                   {lista.map((g) => {
                     const entre = qtd(g.id);
+                    const racha = quemRacha(g.id);
+                    const vBRL = valorEmBRL(g, cambio);
+                    const moedaIgual = (verUSD && g.moeda === 'USD') || (!verUSD && g.moeda !== 'USD');
+                    const original = g.moeda === 'USD' ? fmtUSD(g.valor) : fmtBRL(g.valor);
                     return (
                       <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <button onClick={() => editar(g)} className="ui-rowbtn" style={{ flex: 1, minWidth: 0, gap: 11 }} aria-label={`Editar ${g.descricao || nomeCategoria(g.categoria)}`}>
                           <span className="ui-sunken" aria-hidden="true" style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flex: '0 0 auto' }}>{emojiCategoria(g.categoria)}</span>
                           <span style={{ minWidth: 0, flex: 1 }}>
                             <span className="ui-clamp1" style={{ display: 'block', fontSize: 14.5, fontWeight: 700 }}>{g.privado ? '🔒 ' : ''}{g.descricao || nomeCategoria(g.categoria)}</span>
-                            <span className="ui-caption ui-clamp1" style={{ display: 'block', marginTop: 2 }}>
-                              {nomePagador(g.pago_por)} · {formataData(g.data)}{entre > 1 ? ` · entre ${entre}` : ''}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                              <PessoaPill nome={nomePagador(g.pago_por)} cor={corPessoa(g.pago_por)} solido />
+                              <span className="ui-caption" style={{ whiteSpace: 'nowrap' }}>pagou · {formataData(g.data)}</span>
                             </span>
+                            {entre > 1 ? (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 4 }}>
+                                <span className="ui-caption" style={{ whiteSpace: 'nowrap' }}>racha:</span>
+                                {racha.map((p) => <PessoaPill key={p.id} nome={p.nome} cor={p.cor} />)}
+                              </span>
+                            ) : (
+                              <span className="ui-caption ui-faint" style={{ display: 'block', marginTop: 3 }}>sem divisão</span>
+                            )}
                             {nomeQuemLancou(g) ? (
-                              <span className="ui-caption ui-clamp1" style={{ display: 'block', color: 'var(--ui-faint)', marginTop: 1 }}>✎ lançado por {nomeQuemLancou(g)}</span>
+                              <span className="ui-caption ui-clamp1" style={{ display: 'block', color: 'var(--ui-faint)', marginTop: 2 }}>✎ lançado por {nomeQuemLancou(g)}</span>
                             ) : null}
                           </span>
                           <span style={{ textAlign: 'right', flex: '0 0 auto', paddingLeft: 6 }}>
-                            <span className="ui-num" style={{ display: 'block', fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap' }}>{g.moeda === 'USD' ? fmtUSD(g.valor) : fmtBRL(g.valor)}</span>
-                            {g.moeda === 'USD' && <span className="ui-num ui-faint" style={{ display: 'block', fontSize: 11, marginTop: 1, whiteSpace: 'nowrap' }}>{fmtBRL(valorEmBRL(g, cambio))}</span>}
+                            <span className="ui-num" style={{ display: 'block', fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap' }}>{mostra(vBRL)}</span>
+                            {podeUSD && (
+                              <span className="ui-num ui-faint" style={{ display: 'block', fontSize: 11, marginTop: 1, whiteSpace: 'nowrap' }}>
+                                {moedaIgual ? (verUSD ? fmtBRL(vBRL) : fmtUSD(vBRL / cambio)) : `pago ${original}`}
+                              </span>
+                            )}
                           </span>
                         </button>
                         {g.recibo_url && (
