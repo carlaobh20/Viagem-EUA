@@ -30,3 +30,11 @@ create policy "reservas_rv_update" on reservas_rv for update to authenticated us
 create policy "reservas_rv_delete" on reservas_rv for delete to authenticated using (e_membro(viagem_id));
 create index if not exists reservas_rv_viagem_idx on reservas_rv (viagem_id, checkin);
 alter publication supabase_realtime add table reservas_rv;
+
+-- ----------------------------------------------------------------------------
+-- 20/09/2026 (migration reservas_rv_gasto_e_roteiro) — JÁ APLICADA, não rode de novo.
+-- A reserva de RV park passa a poder virar (1) parada no roteiro, no dia do
+-- check-in, e (2) gasto lançado, que entra no acerto de contas. Guardamos o id
+-- dos dois pra não duplicar e pra manter em sincronia.
+alter table reservas_rv add column if not exists gasto_id uuid references gastos(id) on delete set null;
+alter table reservas_rv add column if not exists ponto_id uuid references pontos_roteiro(id) on delete set null;

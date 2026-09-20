@@ -362,7 +362,7 @@ export default function Motorhome({ ir, abaInicial }) {
         </Reveal>
       )}
 
-      {aba === 'rvparks' && <Reveal key="rvparks"><ReservasRV /></Reveal>}
+      {aba === 'rvparks' && <Reveal key="rvparks"><ReservasRV ir={ir} /></Reveal>}
 
       {aba === 'mercado' && (
         <Reveal key="mercado">

@@ -424,11 +424,90 @@ export function DataProvider({ session, children }) {
     return { ok: true, aviso };
   }
   async function removerReservaRv(r) {
+    // leva junto o que foi criado a partir dela (gasto lançado e parada do roteiro)
+    if (r.gasto_id) {
+      await supabase.from('gasto_divisao').delete().eq('gasto_id', r.gasto_id);
+      await supabase.from('gastos').delete().eq('id', r.gasto_id);
+    }
+    if (r.ponto_id) await supabase.from('pontos_roteiro').delete().eq('id', r.ponto_id);
     await supabase.from('reservas_rv').delete().eq('id', r.id);
     if (r.documento_id) {
       const doc = (documentos || []).find((d) => d.id === r.documento_id);
       if (doc) await removerDocumento(doc); else await supabase.from('documentos').delete().eq('id', r.documento_id);
     }
+    await carregar();
+  }
+
+  // ----- Reserva de RV park: vira parada no roteiro e/ou gasto lançado -----
+  // Guardamos ponto_id e gasto_id na própria reserva pra não duplicar quando a
+  // pessoa salvar de novo, e pra conseguir atualizar/apagar junto.
+
+  // Cria (ou atualiza) a parada do roteiro no dia do check-in.
+  async function reservaParaRoteiro(reserva) {
+    if (!viagem || !reserva) return { erro: 'Reserva inválida.' };
+    if (!reserva.checkin) return { erro: 'Preencha o check-in pra colocar no roteiro.' };
+    const nota = [reserva.confirmacao ? `Reserva ${reserva.confirmacao}` : '', reserva.telefone ? `Tel ${reserva.telefone}` : '', reserva.obs || ''].filter(Boolean).join(' · ') || null;
+    const campos = {
+      nome: reserva.nome, endereco: reserva.endereco || null, local: reserva.endereco || null,
+      nota, data_inicio: reserva.checkin, tipo: 'hospedagem',
+      status: reserva.status === 'pago' || reserva.status === 'reservado' ? 'Confirmado' : 'A definir',
+    };
+    if (reserva.ponto_id && (pontos || []).some((p) => p.id === reserva.ponto_id)) {
+      await supabase.from('pontos_roteiro').update(campos).eq('id', reserva.ponto_id);
+      await carregar();
+      return { ok: true, atualizado: true };
+    }
+    const { data: novo, error } = await supabase.from('pontos_roteiro').insert({ viagem_id: viagem.id, ordem: 999, ...campos }).select().single();
+    if (error || !novo) return { erro: 'Não consegui colocar no roteiro.' };
+    await supabase.from('reservas_rv').update({ ponto_id: novo.id }).eq('id', reserva.id);
+    await carregar();
+    return { ok: true };
+  }
+  async function tirarReservaDoRoteiro(reserva) {
+    if (!reserva || !reserva.ponto_id) return;
+    await supabase.from('pontos_roteiro').delete().eq('id', reserva.ponto_id);
+    await supabase.from('reservas_rv').update({ ponto_id: null }).eq('id', reserva.id);
+    await carregar();
+  }
+
+  // Lança (ou atualiza) o gasto da reserva. `participantes` = [{ id, partes }].
+  async function reservaParaGasto(reserva, { pagoPor, participantes }) {
+    if (!viagem || !reserva) return { erro: 'Reserva inválida.' };
+    const valor = Number(reserva.valor);
+    if (!(valor > 0)) return { erro: 'Preencha o valor da reserva.' };
+    if (!pagoPor) return { erro: 'Escolha quem pagou.' };
+    const gente = (participantes || []).filter((p) => p && p.id);
+    if (!gente.length) return { erro: 'Marque pelo menos uma pessoa na divisão.' };
+    const campos = {
+      descricao: `RV Park · ${reserva.nome}`,
+      valor, moeda: reserva.moeda === 'BRL' ? 'BRL' : 'USD',
+      categoria: 'camping', pago_por: pagoPor,
+      data: reserva.checkin || hojeLocal(),
+      ponto_id: reserva.ponto_id || null,
+    };
+    const jaExiste = reserva.gasto_id && (gastos || []).some((g) => g.id === reserva.gasto_id);
+    let gastoId = reserva.gasto_id;
+    if (jaExiste) {
+      const { error } = await supabase.from('gastos').update(campos).eq('id', gastoId);
+      if (error) return { erro: 'Não consegui atualizar o gasto.' };
+    } else {
+      const { data: novo, error } = await supabase.from('gastos').insert({ viagem_id: viagem.id, user_id: session.user.id, privado: false, ...campos }).select().single();
+      if (error || !novo) return { erro: 'Não consegui lançar o gasto.' };
+      gastoId = novo.id;
+      await supabase.from('reservas_rv').update({ gasto_id: gastoId }).eq('id', reserva.id);
+    }
+    await supabase.from('gasto_divisao').delete().eq('gasto_id', gastoId);
+    await supabase.from('gasto_divisao').insert(gente.map((p) => ({ gasto_id: gastoId, perfil_id: p.id, partes: p.partes || 1 })));
+    await carregar();
+    return { ok: true, atualizado: jaExiste };
+  }
+  // Desfaz o lançamento (apaga o gasto e a divisão). Usado quando a pessoa
+  // desliga "lançar nos gastos" ou tira o status Pago.
+  async function tirarGastoDaReserva(reserva) {
+    if (!reserva || !reserva.gasto_id) return;
+    await supabase.from('gasto_divisao').delete().eq('gasto_id', reserva.gasto_id);
+    await supabase.from('gastos').delete().eq('id', reserva.gasto_id);
+    await supabase.from('reservas_rv').update({ gasto_id: null }).eq('id', reserva.id);
     await carregar();
   }
 
@@ -617,7 +696,7 @@ export function DataProvider({ session, children }) {
     return { ok: true };
   }
 
-  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, passagens, adicionarPassagem, editarPassagem, removerPassagem, documentos, adicionarDocumento, adicionarArquivosDocumento, editarDocumento, removerDocumento, removerArquivoDocumento, urlArquivoDocumento, reservasRv, adicionarReservaRv, editarReservaRv, removerReservaRv, loginsApp, adicionarLoginApp, editarLoginApp, removerLoginApp, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, ocultarAppSugestao, reexibirAppSugestao, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome, diario, adicionarEntradaDiario, removerEntradaDiario, urlDiario };
+  const value = { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, perfis, pontos, gastos, divisoes, gastoVistoPor, acertos, carregando, gastoEditando, setGastoEditando, salvarGasto, atualizarGasto, registrarAcerto, removerAcerto, adicionarPessoa, atualizarNomePessoa, removerPessoa, atualizarCotacao, atualizarOrcamento, removerGasto, registrosKm, adicionarKm, removerKm, checklist, adicionarChecklist, alternarChecklist, editarChecklist, removerChecklist, semearChecklist, definirValorCompra, definirValorItem, guardados, definirMeta, adicionarGuardado, removerGuardado, lugares, adicionarLugar, editarLugar, removerLugar, lugarParaRoteiro, passagens, adicionarPassagem, editarPassagem, removerPassagem, documentos, adicionarDocumento, adicionarArquivosDocumento, editarDocumento, removerDocumento, removerArquivoDocumento, urlArquivoDocumento, reservasRv, adicionarReservaRv, editarReservaRv, removerReservaRv, reservaParaRoteiro, tirarReservaDoRoteiro, reservaParaGasto, tirarGastoDaReserva, loginsApp, adicionarLoginApp, editarLoginApp, removerLoginApp, appsInstalar, adicionarApp, removerApp, perguntasImigracao, adicionarPergunta, editarPergunta, removerPergunta, appsMarcados, alternarAppInstalado, ocultarAppSugestao, reexibirAppSugestao, urlRecibo, erro, recarregar: carregar, precisaNome, definirMeuNome, diario, adicionarEntradaDiario, removerEntradaDiario, urlDiario };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 function corAleatoria() { const cores = ['#534AB7', '#D4537E', '#0F6E56', '#BA7517', '#185FA5', '#993C1D']; return cores[Math.floor(Math.random() * cores.length)]; }

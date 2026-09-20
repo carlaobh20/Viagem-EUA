@@ -44,7 +44,7 @@ async function copiar(t) { try { await navigator.clipboard.writeText(t); return 
 
 const VAZIO = { nome: '', checkin: '', checkout: '', endereco: '', telefone: '', confirmacao: '', valor: '', moeda: 'USD', status: 'reservado', obs: '', pendentes: [] };
 // Campos que ficam escondidos atrás de "+ mais detalhes" no formulário
-const DETALHES = ['confirmacao', 'endereco', 'telefone', 'obs'];
+const DETALHES = ['confirmacao', 'telefone', 'obs'];
 
 // Link em forma de botão pequeno (GPS, Maps, ligar) — mesma cara do .ui-btn.
 const linkBtn = { textDecoration: 'none' };
@@ -85,8 +85,12 @@ function Arquivos({ arqs, podeRemover, abrindo, onAbrir, onRemover }) {
   );
 }
 
-export default function ReservasRV() {
-  const { viagem, reservasRv, documentos, adicionarReservaRv, editarReservaRv, removerReservaRv, removerArquivoDocumento, urlArquivoDocumento } = useData();
+export default function ReservasRV({ ir }) {
+  const {
+    viagem, reservasRv, documentos, perfis, perfil, gastos, divisoes,
+    adicionarReservaRv, editarReservaRv, removerReservaRv, removerArquivoDocumento, urlArquivoDocumento,
+    reservaParaRoteiro, tirarReservaDoRoteiro, reservaParaGasto, tirarGastoDaReserva,
+  } = useData();
   const inputArq = useRef(null);
   const inputFoto = useRef(null);
   const [form, setForm] = useState(null);
@@ -96,9 +100,16 @@ export default function ReservasRV() {
   const [aviso, setAviso] = useState(null); // { tipo: 'atencao'|'erro', texto } — no lugar de alert()
   const [copiado, setCopiado] = useState('');
   const [abrindo, setAbrindo] = useState('');
+  // No roteiro / nos gastos: as duas pontes que a reserva tem com o resto do app.
+  const [noRoteiro, setNoRoteiro] = useState(true);   // criar/atualizar a parada no dia do check-in
+  const [lancar, setLancar] = useState(true);         // lançar nos gastos (só quando Pago + valor)
+  const [pagoPor, setPagoPor] = useState('');
+  const [divisao, setDivisao] = useState({});         // { perfilId: true }
 
   const lista = (reservasRv || []).slice().sort((a, b) => String(a.checkin || '9') < String(b.checkin || '9') ? -1 : 1);
   const docDe = (r) => (documentos || []).find((x) => x.id === r.documento_id);
+  const divisoesDoGasto = (gid) => (divisoes || []).filter((d) => d.gasto_id === gid);
+  const gastoDe = (r) => (r.gasto_id ? (gastos || []).find((g) => g.id === r.gasto_id) : null);
   const arquivosDe = (r) => (docDe(r) || {}).arquivos || [];
 
   // ---- noites do período do motorhome (ou da viagem) e quais estão cobertas ----
@@ -124,17 +135,47 @@ export default function ReservasRV() {
   const custo = lista.reduce((acc, r) => { if (r.valor != null) acc[r.moeda === 'BRL' ? 'BRL' : 'USD'] += Number(r.valor); return acc; }, { USD: 0, BRL: 0 });
   const txtCusto = [custo.USD > 0 ? fmtUSD(custo.USD) : '', custo.BRL > 0 ? fmtBRL(custo.BRL) : ''].filter(Boolean).join(' + ');
 
-  function abrirNovo(de, ate) { setErro(''); setAviso(null); setMaisDetalhes(false); setForm({ ...VAZIO, checkin: de || '', checkout: ate ? somar(ate, 1) : (de ? somar(de, 1) : '') }); }
+  // Por padrão a conta do camping é dividida entre todo mundo da viagem, e quem
+  // está lançando é quem pagou — os dois dá pra mudar antes de salvar.
+  const todosNaDivisao = () => { const d = {}; (perfis || []).forEach((p) => { d[p.id] = true; }); return d; };
+
+  function abrirNovo(de, ate) {
+    setErro(''); setAviso(null); setMaisDetalhes(false);
+    setNoRoteiro(true); setLancar(true);
+    setPagoPor(perfil?.id || (perfis[0] && perfis[0].id) || '');
+    setDivisao(todosNaDivisao());
+    setForm({ ...VAZIO, checkin: de || '', checkout: ate ? somar(ate, 1) : (de ? somar(de, 1) : '') });
+  }
   function abrirEdicao(r) {
     setErro(''); setAviso(null);
     const f = { id: r.id, pendentes: [] };
     for (const k of Object.keys(VAZIO)) if (k !== 'pendentes') f[k] = r[k] == null ? '' : String(r[k]);
     f.moeda = r.moeda === 'BRL' ? 'BRL' : 'USD'; f.status = r.status || 'reservado';
-    // já tem endereço/telefone/nº/obs? abre os detalhes expandidos
+    // já tem telefone/nº/obs? abre os detalhes expandidos
     setMaisDetalhes(DETALHES.some((k) => f[k] && f[k].trim()));
+    // estado das duas pontes: mantém o que já existe pra essa reserva
+    setNoRoteiro(Boolean(r.ponto_id));
+    const g = r.gasto_id ? (gastos || []).find((x) => x.id === r.gasto_id) : null;
+    setLancar(Boolean(g) || (r.status === 'pago' && r.valor != null && !r.gasto_id));
+    setPagoPor((g && g.pago_por) || perfil?.id || (perfis[0] && perfis[0].id) || '');
+    if (g) {
+      const d = {};
+      (divisoesDoGasto(g.id) || []).forEach((x) => { d[x.perfil_id] = true; });
+      setDivisao(Object.keys(d).length ? d : todosNaDivisao());
+    } else setDivisao(todosNaDivisao());
     setForm(f);
   }
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Derivados do formulário aberto (usados no salvar e na própria tela)
+  const valorNum = form ? parseFloat(String(form.valor || '').replace(',', '.')) : NaN;
+  const podeLancar = Boolean(form && form.status === 'pago' && valorNum > 0 && (perfis || []).length > 0);
+  const marcados = Object.keys(divisao).filter((k) => divisao[k] && (perfis || []).some((p) => p.id === k));
+  const nomeDe = (id) => { const p = (perfis || []).find((x) => x.id === id); return p ? p.nome : '—'; };
+  const alternarPessoa = (id) => setDivisao((d) => ({ ...d, [id]: !d[id] }));
+  const porPessoa = marcados.length > 0 && valorNum > 0 ? valorNum / marcados.length : 0;
+  const reservaEmEdicao = form && form.id ? lista.find((x) => x.id === form.id) : null;
+  const jaTemGasto = Boolean(reservaEmEdicao && gastoDe(reservaEmEdicao));
 
   async function aoEscolher(e) {
     const files = Array.from(e.target.files || []); const input = e.target;
@@ -157,17 +198,41 @@ export default function ReservasRV() {
   async function salvar() {
     if (!form.nome.trim()) { setErro('Dá o nome do RV park.'); return; }
     if (form.checkin && form.checkout && form.checkout <= form.checkin) { setErro('O check-out tem que ser depois do check-in.'); return; }
+    if (noRoteiro && !form.checkin) { setErro('Pra colocar no roteiro, preencha o check-in.'); return; }
+    if (podeLancar && lancar && !pagoPor) { setErro('Escolha quem pagou.'); return; }
+    if (podeLancar && lancar && marcados.length === 0) { setErro('Marque pelo menos uma pessoa na divisão.'); return; }
     setSalvando(true); setErro('');
     const { id, pendentes, ...campos } = form;
     const r = id ? await editarReservaRv(id, campos, pendentes) : await adicionarReservaRv(campos, pendentes);
+    if (r && r.erro) { setSalvando(false); setErro(r.erro); return; }
+
+    // A reserva já está salva; agora as pontes. Recupera a versão gravada (é ela
+    // que tem id, ponto_id e gasto_id) — a recarga já aconteceu dentro do provider.
+    const recarregada = (reservasRv || []).find((x) => x.id === id)
+      || (reservasRv || []).find((x) => x.nome === form.nome.trim() && x.checkin === (form.checkin || null));
+    const atual = { ...(recarregada || {}), ...campos, id: id || (recarregada && recarregada.id) };
+    const recados = [];
+
+    if (atual.id) {
+      if (noRoteiro) { const rr = await reservaParaRoteiro(atual); if (rr && rr.erro) recados.push(rr.erro); }
+      else if (atual.ponto_id) await tirarReservaDoRoteiro(atual);
+
+      if (podeLancar && lancar) {
+        const rg = await reservaParaGasto({ ...atual, ponto_id: noRoteiro ? atual.ponto_id : null }, {
+          pagoPor, participantes: marcados.map((pid) => ({ id: pid, partes: 1 })),
+        });
+        if (rg && rg.erro) recados.push(rg.erro);
+      } else if (atual.gasto_id) await tirarGastoDaReserva(atual);
+    }
+
     setSalvando(false);
-    if (r && r.erro) { setErro(r.erro); return; }
-    // aviso (ex.: reserva salva mas arquivo não subiu) fica na lista, sem alert
-    setAviso(r && r.aviso ? { tipo: 'atencao', texto: r.aviso } : null);
+    const avisos = [r && r.aviso, ...recados].filter(Boolean);
+    setAviso(avisos.length ? { tipo: 'atencao', texto: avisos.join(' · ') } : null);
     setForm(null);
   }
   async function apagar(r) {
-    if (!window.confirm(`Apagar a reserva "${r.nome}"${arquivosDe(r).length ? ' e o documento anexado' : ''}?`)) return;
+    const junto = [arquivosDe(r).length ? 'o documento anexado' : '', r.gasto_id ? 'o gasto lançado' : '', r.ponto_id ? 'a parada do roteiro' : ''].filter(Boolean);
+    if (!window.confirm(`Apagar a reserva "${r.nome}"${junto.length ? ' e ' + junto.join(', ') : ''}?`)) return;
     await removerReservaRv(r); setForm(null);
   }
   async function abrir(a, baixar) {
@@ -194,6 +259,23 @@ export default function ReservasRV() {
           <Field label="Check-in" style={{ flex: 1, minWidth: 0 }}><input className="ui-input" type="date" value={form.checkin} onChange={set('checkin')} /></Field>
           <Field label="Check-out" style={{ flex: 1, minWidth: 0 }} hint={nNoites > 0 ? `${nNoites} noite${nNoites === 1 ? '' : 's'}` : undefined}><input className="ui-input" type="date" value={form.checkout} onChange={set('checkout')} /></Field>
         </div>
+        <Field label="Endereço" hint="Como no Google Maps: rua, número, cidade. É pra onde o GPS vai levar.">
+          <input className="ui-input" value={form.endereco} onChange={set('endereco')} placeholder="Ex.: 2950 Happy Camper Ln, Kissimmee, FL" />
+        </Field>
+
+        {/* ponte 1: o camping vira parada do roteiro no dia do check-in */}
+        <div className="ui-sunken" style={{ padding: '12px 14px', marginBottom: 14 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={noRoteiro} onChange={(e) => setNoRoteiro(e.target.checked)} style={{ width: 20, height: 20, flex: '0 0 auto', accentColor: 'var(--ui-teal)' }} />
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>🗺 Colocar no roteiro</span>
+              <span className="ui-caption ui-wrap" style={{ display: 'block', marginTop: 1 }}>
+                {form.checkin ? `Vira uma parada de hospedagem em ${fmtD(form.checkin)}, com o endereço pro GPS.` : 'Preencha o check-in pra usar.'}
+              </span>
+            </span>
+          </label>
+        </div>
+
         <Field label="Status">
           <Segmented opcoes={STATUS.map((s) => ({ id: s.id, label: s.nome }))} valor={form.status} onChange={(id) => setForm((f) => ({ ...f, status: id }))} />
         </Field>
@@ -203,6 +285,68 @@ export default function ReservasRV() {
             <Segmented opcoes={[{ id: 'USD', label: 'US$' }, { id: 'BRL', label: 'R$' }]} valor={form.moeda} onChange={(id) => setForm((f) => ({ ...f, moeda: id }))} />
           </Field>
         </div>
+
+        {/* ponte 2: pagou? então vira gasto e entra no acerto de contas */}
+        {podeLancar && (
+          <div className="ui-sunken" style={{ padding: '12px 14px', marginBottom: 14 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={lancar} onChange={(e) => setLancar(e.target.checked)} style={{ width: 20, height: 20, flex: '0 0 auto', accentColor: 'var(--ui-teal)' }} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>💳 Lançar nos gastos</span>
+                <span className="ui-caption ui-wrap" style={{ display: 'block', marginTop: 1 }}>
+                  {jaTemGasto ? 'O gasto já lançado é atualizado com esse valor.' : 'Entra em Gastos e no acerto de contas.'}
+                </span>
+              </span>
+            </label>
+
+            <Expand aberto={lancar}>
+              <div style={{ paddingTop: 12 }}>
+                <div className="ui-label">Quem pagou</div>
+                <div className="ui-chips-scroll" role="radiogroup" aria-label="Quem pagou" style={{ paddingBottom: 2 }}>
+                  {(perfis || []).map((p) => (
+                    <button key={p.id} type="button" role="radio" aria-checked={pagoPor === p.id} className={'ui-chipbtn' + (pagoPor === p.id ? ' on' : '')} onClick={() => setPagoPor(p.id)}>
+                      {p.nome}{perfil && p.id === perfil.id ? ' (você)' : ''}
+                    </button>
+                  ))}
+                </div>
+                {perfil && pagoPor && pagoPor !== perfil.id && (
+                  <div className="ui-caption ui-wrap" style={{ marginTop: 6, color: 'var(--ui-teal-ink)' }}>
+                    Entra como pago por <b>{nomeDe(pagoPor)}</b> — quem tem a receber é {nomeDe(pagoPor)}, não você.
+                  </div>
+                )}
+
+                <div className="ui-label" style={{ marginTop: 12 }}>Dividir entre</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 8 }}>
+                  {(perfis || []).map((p) => {
+                    const on = Boolean(divisao[p.id]);
+                    return (
+                      <button key={p.id} type="button" onClick={() => alternarPessoa(p.id)} aria-pressed={on} className="ui-press" style={{
+                        minHeight: 48, borderRadius: 12, padding: '8px 6px', cursor: 'pointer',
+                        background: on ? 'var(--ui-teal-soft)' : 'var(--ui-card)',
+                        border: on ? '1px solid transparent' : '1px solid var(--ui-line-strong)',
+                        color: on ? 'var(--ui-teal-ink)' : 'var(--ui-muted)', fontSize: 13, fontWeight: 700,
+                      }}>
+                        {on ? '✓ ' : ''}{p.nome}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="ui-caption ui-wrap" style={{ marginTop: 6 }}>
+                  {marcados.length === 0
+                    ? 'Marque quem racha essa conta.'
+                    : marcados.length === 1
+                      ? `Só ${nomeDe(marcados[0])} — sem divisão.`
+                      : `${marcados.length} pessoas · ${form.moeda === 'BRL' ? fmtBRL(porPessoa) : fmtUSD(porPessoa)} para cada.`}
+                </div>
+              </div>
+            </Expand>
+          </div>
+        )}
+        {form.status === 'pago' && !(valorNum > 0) && (
+          <div className="ui-caption ui-wrap" style={{ marginTop: -6, marginBottom: 14, color: 'var(--ui-gold)' }}>
+            Preencha o valor pra lançar essa reserva nos gastos.
+          </div>
+        )}
 
         {/* documento da reserva: o que a pessoa mais vai precisar na estrada */}
         <Field label="Documento da reserva" opcional={!arqsEd.length && !form.pendentes.length}>
@@ -224,12 +368,11 @@ export default function ReservasRV() {
 
         {/* detalhes opcionais recolhidos: nº da reserva, endereço, telefone, obs */}
         <button onClick={() => setMaisDetalhes((v) => !v)} className="ui-btn ui-btn-ghost" style={{ padding: 0, minHeight: 40, marginBottom: maisDetalhes ? 6 : 10 }} aria-expanded={maisDetalhes}>
-          {maisDetalhes ? '− menos detalhes' : '+ mais detalhes'}<span className="ui-faint" style={{ fontWeight: 500, fontSize: 12.5 }}>{maisDetalhes ? '' : ' · nº da reserva, endereço, telefone, obs'}</span>
+          {maisDetalhes ? '− menos detalhes' : '+ mais detalhes'}<span className="ui-faint" style={{ fontWeight: 500, fontSize: 12.5 }}>{maisDetalhes ? '' : ' · nº da reserva, telefone, obs'}</span>
         </button>
         <Expand aberto={maisDetalhes}>
           <div style={{ paddingTop: 2 }}>
             <Field label="Nº da reserva / confirmação" opcional><input className="ui-input ui-mono" style={{ fontWeight: 700, letterSpacing: '.5px' }} value={form.confirmacao} onChange={set('confirmacao')} placeholder="Ex.: KOA-4821903" /></Field>
-            <Field label="Endereço (pro GPS)" opcional hint="Como no Google Maps: rua, número, cidade"><input className="ui-input" value={form.endereco} onChange={set('endereco')} placeholder="Rua, número, cidade" /></Field>
             <Field label="Telefone do parque" opcional><input className="ui-input" type="tel" value={form.telefone} onChange={set('telefone')} placeholder="+1 407 …" /></Field>
             <Field label="Observações" opcional><textarea className="ui-input" value={form.obs} onChange={set('obs')} placeholder="Site nº, hookups, horário de chegada, o que levar…" /></Field>
           </div>
@@ -318,6 +461,17 @@ export default function ReservasRV() {
               </button>
             )}
             {r.endereco && <div className="ui-caption ui-wrap" style={{ marginTop: 8, fontSize: 13 }}>📍 {r.endereco}</div>}
+            {/* o que essa reserva já gerou no resto do app */}
+            {(r.ponto_id || r.gasto_id) && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                {r.ponto_id && (
+                  <button type="button" className="ui-pill ui-pill-info ui-press" style={{ border: 'none', cursor: ir ? 'pointer' : 'default' }} onClick={() => ir && ir('roteiro')}>🗺 no roteiro</button>
+                )}
+                {r.gasto_id && (
+                  <button type="button" className="ui-pill ui-pill-success ui-press" style={{ border: 'none', cursor: ir ? 'pointer' : 'default' }} onClick={() => ir && ir('gastos')}>💳 lançado nos gastos</button>
+                )}
+              </div>
+            )}
             {r.obs && <div className="ui-wrap" style={{ fontSize: 13, marginTop: 8, whiteSpace: 'pre-wrap', background: 'var(--ui-sunken)', borderRadius: 12, padding: '8px 12px', lineHeight: 1.4 }}>{r.obs}</div>}
             <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
               {r.endereco && <a className="ui-btn ui-btn-primary ui-btn-sm" style={linkBtn} href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(r.endereco)}&travelmode=driving`} target="_blank" rel="noopener noreferrer">🧭 Ir com GPS</a>}
