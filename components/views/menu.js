@@ -98,10 +98,6 @@ export default function Menu({ ir }) {
           <button onClick={() => setBuscaAberta((v) => !v)} aria-label="Buscar" style={{ width: 42, height: 42, borderRadius: 14, border: 'none', background: 'var(--ui-card)', boxShadow: 'var(--ui-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--ui-ink)' }}>
             <Ic paths={<><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.35-4.35" /></>} />
           </button>
-          <button aria-label="Notificações" style={{ width: 42, height: 42, borderRadius: 14, border: 'none', background: 'var(--ui-card)', boxShadow: 'var(--ui-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'default', color: 'var(--ui-ink)', position: 'relative' }}>
-            <Ic paths={<><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></>} />
-            <span style={{ position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: '50%', background: 'var(--ui-teal, #0E9C8C)', border: '2px solid var(--ui-card)' }} />
-          </button>
         </div>
       </div>
 
@@ -137,14 +133,6 @@ export default function Menu({ ir }) {
         </div>
       )}
 
-      <button onClick={() => ir('roteiro')} style={{ width: '100%', border: 'none', cursor: 'pointer', textAlign: 'left', marginTop: 24, borderRadius: 22, padding: '20px 22px', background: 'linear-gradient(135deg,#0E9C8C 0%,#2D66A8 100%)', color: '#fff', display: 'flex', alignItems: 'center', gap: 14 }}>
-        <span style={{ fontSize: 26, flex: '0 0 auto' }}>🗺️</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 800 }}>Partiu próxima aventura?</div>
-          <div style={{ fontSize: 12.5, opacity: 0.9, marginTop: 2 }}>Organize tudo e aproveite cada momento</div>
-        </div>
-        <span style={{ background: '#fff', color: '#0E9C8C', fontWeight: 700, fontSize: 13, padding: '9px 14px', borderRadius: 20, whiteSpace: 'nowrap', flex: '0 0 auto' }}>Ver roteiro →</span>
-      </button>
     </div>
   );
 }
