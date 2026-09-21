@@ -23,7 +23,9 @@ export default function Pessoas({ ir }) {
   const cambio = Number(viagem.cotacao_usd);
   const comDolar = usaDolar(viagem);
   const cambioOk = comDolar && cambio > 0;
-  const [moeda, setMoeda] = useState('brl');
+  // Abre em dólar; cai pra real só se a viagem não tiver dólar/câmbio.
+  const [moedaSel, setMoeda] = useState('usd');
+  const moeda = moedaSel === 'usd' && cambioOk ? 'usd' : 'brl';
   const [selId, setSelId] = useState(null);
   // adicionar / editar nome inline (no lugar do window.prompt)
   const [novoAberto, setNovoAberto] = useState(false);

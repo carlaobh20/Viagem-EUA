@@ -81,9 +81,12 @@ export default function Motorhome({ ir, abaInicial }) {
   const cambio = Number(viagem.cotacao_usd);
   const comDolar = usaDolar(viagem);
   const [km, setKm] = useState(null); // null = calculando; 0 = sem trecho de carro
-  const [moeda, setMoeda] = useState('brl'); // 'brl' | 'usd'
+  // Abre em dólar (moeda do bolso na estrada); cai pra real só se a viagem não
+  // tiver dólar ou câmbio configurado.
+  const [moedaSel, setMoeda] = useState('usd'); // 'brl' | 'usd'
   const [aba, setAba] = useState(abaInicial || 'custos'); // 'custos' | 'rvparks' | 'mercado' (abaInicial vem do Menu → Reservas RV Park)
   const cambioOk = comDolar && cambio > 0;
+  const moeda = moedaSel === 'usd' && cambioOk ? 'usd' : 'brl';
   const fmtMoeda = (brl) => (moeda === 'usd' && cambioOk) ? fmtUSD(brl / cambio) : fmtBRL(brl);
   const [unKm, setUnKm] = useState('km');
   const [kmForm, setKmForm] = useState(null);

@@ -35,8 +35,8 @@ export default function Acerto({ ir }) {
     } catch (e) { setCotMsg('Sem internet para buscar a cotação. Digite à mão.'); }
     finally { setBuscando(false); }
   }
-  const [moedaView, setMoedaView] = useState('BRL');
-  const temDolar = gastos.some((g) => g.moeda === 'USD');
+  // Abre em dólar (a moeda da viagem); cai pra real só se não houver câmbio.
+  const [moedaView, setMoedaView] = useState('USD');
   const saldos = calcularSaldos(gastos, divisoes, perfis, cambio, acertos);
   const transferencias = quemDeveParaQuem(saldos);
   const nome = (id) => { const p = perfis.find((x) => x.id === id); return p ? p.nome : '—'; };
@@ -92,7 +92,9 @@ export default function Acerto({ ir }) {
   const subtitulo = sozinho
     ? 'Câmbio usado pra converter os gastos em dólar.'
     : transferencias.length === 0 ? 'Tudo quite entre vocês.' : `${mostra(totalPendente)} pendente${transferencias.length > 1 ? ` em ${transferencias.length} pagamentos` : ''}.`;
-  const mostrarCambio = comDolar && (temDolar || emUSD || sozinho);
+  // Com mais gente na viagem, a tela é só dos acertos — o câmbio aparece
+  // apenas quando a pessoa viaja sozinha (aí a tela inteira é o câmbio).
+  const mostrarCambio = comDolar && sozinho;
 
   return (
     <div className="ui-screen">
@@ -100,8 +102,8 @@ export default function Acerto({ ir }) {
 
       {comDolar && !sozinho && (
         <div className="ui-seg" role="tablist" aria-label="Moeda de exibição" style={{ width: 200, marginBottom: 14 }}>
-          <button role="tab" aria-selected={moedaView === 'BRL'} className={moedaView === 'BRL' ? 'on' : ''} onClick={() => setMoedaView('BRL')}>Em real</button>
-          <button role="tab" aria-selected={moedaView === 'USD'} className={moedaView === 'USD' ? 'on' : ''} onClick={() => setMoedaView('USD')} disabled={!cambioOk}>Em dólar</button>
+          <button role="tab" aria-selected={!emUSD} className={!emUSD ? 'on' : ''} onClick={() => setMoedaView('BRL')}>Em real</button>
+          <button role="tab" aria-selected={emUSD} className={emUSD ? 'on' : ''} onClick={() => setMoedaView('USD')} disabled={!cambioOk}>Em dólar</button>
         </div>
       )}
 
