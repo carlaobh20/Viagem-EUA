@@ -3,13 +3,21 @@ import { useState } from 'react';
 import { useData } from '../DataProvider';
 import { PageHeader, Button, Field, EmptyState, Reveal, Expand } from '../ui';
 
-// Logins dos apps da viagem: companhia aérea, locadora, parque, wi-fi do camping.
-// A senha fica guardada no banco (protegida por RLS: item privado só o dono vê).
-// NÃO é cofre de senha de banco — a tela avisa isso de propósito, ver o rodapé.
+// Logins dos apps da viagem: companhia aerea, locadora, parque, casa e wi-fi.
+// A senha fica guardada no banco quando cadastrada pelo app.
+// Nao e cofre de senha de banco; a tela avisa isso de proposito no rodape.
 
 const vazio = { id: null, app: '', usuario: '', senha: '', url: '', obs: '', privado: true };
 
-// Ícone/inicial do app, no lugar de um logo que a gente não tem
+const ACESSOS_MIAMI = [
+  { id: 'miami-east', app: 'Casa Miami - Portao condominio East', usuario: 'Casa Miami', senha: '*24958', obs: 'Entrada pelo lado East do condominio.', privado: false, fixo: true },
+  { id: 'miami-west', app: 'Casa Miami - Portao condominio West', usuario: 'Casa Miami', senha: '24958', obs: 'Entrada pelo lado West do condominio.', privado: false, fixo: true },
+  { id: 'miami-garage-gate', app: 'Casa Miami - Portao garage', usuario: 'Casa Miami', senha: '1515 ENTER', obs: 'Digite 1515 e confirme no ENTER.', privado: false, fixo: true },
+  { id: 'miami-garage-door', app: 'Casa Miami - Porta garagem', usuario: 'Casa Miami', senha: '2277', obs: 'Entra na casa. Ao fechar, confira se a porta ficou bem fechada. Ela e eletronica e, se nao ficar alinhada, a fechadura fica tentando trancar ate acabar a bateria.', privado: false, fixo: true },
+  { id: 'miami-beach-gate', app: 'Casa Miami - Portao acesso a praia', usuario: 'Casa Miami', senha: '4321*', obs: 'Acesso para a praia.', privado: false, fixo: true },
+  { id: 'miami-wifi', app: 'Casa Miami - WI-FI', usuario: 'Beach House', senha: 'letmeout1', obs: 'Rede: Beach House', privado: false, fixo: true },
+];
+
 function Marca({ nome }) {
   const letra = (nome || '?').trim().charAt(0).toUpperCase();
   return (
@@ -17,7 +25,6 @@ function Marca({ nome }) {
   );
 }
 
-// Um login na lista: linha fechada (app + usuário) e, aberto, senha e ações.
 function LinhaLogin({ l, meu, aberto, onAbrirFechar, onEditar, onApagar, copiado, onCopiar }) {
   const dono = l.user_id === meu;
   const [vendo, setVendo] = useState(false);
@@ -29,7 +36,7 @@ function LinhaLogin({ l, meu, aberto, onAbrirFechar, onEditar, onApagar, copiado
         <Marca nome={l.app} />
         <div style={{ minWidth: 0 }}>
           <div className="ui-wrap" style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.25 }}>{l.privado ? '🔒 ' : ''}{l.app}</div>
-          <div className="ui-caption ui-clamp1" style={{ marginTop: 2 }}>{l.usuario || 'sem usuário anotado'}</div>
+          <div className="ui-caption ui-clamp1" style={{ marginTop: 2 }}>{l.usuario || 'sem usuario anotado'}</div>
         </div>
         <span aria-hidden="true" style={{ color: 'var(--ui-faint)', fontSize: 14, width: 20, textAlign: 'center', transform: aberto ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }}>▾</span>
       </div>
@@ -39,7 +46,7 @@ function LinhaLogin({ l, meu, aberto, onAbrirFechar, onEditar, onApagar, copiado
           {l.usuario && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid var(--ui-line)' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="ui-label" style={{ margin: 0 }}>Usuário</div>
+                <div className="ui-label" style={{ margin: 0 }}>Usuario</div>
                 <div className="ui-wrap ui-mono" style={{ fontSize: 13.5, fontWeight: 700 }}>{l.usuario}</div>
               </div>
               <Button variant="soft" size="sm" onClick={() => onCopiar(l.id + 'u', l.usuario)} style={{ flex: '0 0 auto' }}>{copiado === l.id + 'u' ? '✓ copiado' : 'copiar'}</Button>
@@ -70,9 +77,9 @@ function LinhaLogin({ l, meu, aberto, onAbrirFechar, onEditar, onApagar, copiado
           {l.obs && <div className="ui-sunken ui-wrap" style={{ marginTop: 8, padding: '9px 12px', fontSize: 13.5, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{l.obs}</div>}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
-            <Button variant="ghost" size="sm" onClick={() => onEditar(l)} style={{ paddingLeft: 0 }}>✏️ editar</Button>
+            {!l.fixo && <Button variant="ghost" size="sm" onClick={() => onEditar(l)} style={{ paddingLeft: 0 }}>✏️ editar</Button>}
             <span className="ui-caption ui-faint" style={{ flex: 1, textAlign: 'center' }}>{l.privado ? 'só você vê' : 'todos da viagem veem'}</span>
-            {dono && <Button variant="ghost" size="sm" onClick={() => onApagar(l)} style={{ color: 'var(--ui-debit)', paddingRight: 0 }}>apagar</Button>}
+            {!l.fixo && dono && <Button variant="ghost" size="sm" onClick={() => onApagar(l)} style={{ color: 'var(--ui-debit)', paddingRight: 0 }}>apagar</Button>}
           </div>
         </div>
       </Expand>
@@ -83,7 +90,8 @@ function LinhaLogin({ l, meu, aberto, onAbrirFechar, onEditar, onApagar, copiado
 export default function Logins({ ir }) {
   const { perfil, loginsApp, adicionarLoginApp, editarLoginApp, removerLoginApp } = useData();
   const meu = perfil?.user_id;
-  const lista = (loginsApp || []).slice().sort((a, b) => (a.app || '').localeCompare(b.app || '', 'pt-BR'));
+  const loginsSalvos = (loginsApp || []).slice().sort((a, b) => (a.app || '').localeCompare(b.app || '', 'pt-BR'));
+  const lista = [...ACESSOS_MIAMI, ...loginsSalvos];
 
   const [form, setForm] = useState(null);
   const [erro, setErro] = useState('');
@@ -100,6 +108,7 @@ export default function Logins({ ir }) {
 
   function abrirNovo() { setErro(''); setVerSenhaForm(false); setForm({ ...vazio }); }
   function abrirEdicao(l) {
+    if (l.fixo) return;
     setErro(''); setVerSenhaForm(false);
     setForm({ id: l.id, app: l.app || '', usuario: l.usuario || '', senha: l.senha || '', url: l.url || '', obs: l.obs || '', privado: l.privado !== false });
   }
@@ -118,7 +127,7 @@ export default function Logins({ ir }) {
       }
       setForm(null);
     } catch (e) {
-      setErro('Não consegui salvar. Confere a internet e tenta de novo.');
+      setErro('Nao consegui salvar. Confere a internet e tenta de novo.');
     } finally { setSalvando(false); }
   }
 
@@ -132,14 +141,12 @@ export default function Logins({ ir }) {
       await navigator.clipboard.writeText(texto);
       setCopiado(chave);
       setTimeout(() => setCopiado(''), 1800);
-    } catch (e) { /* navegador sem permissão: a pessoa vê e digita */ }
+    } catch (e) { /* navegador sem permissao: a pessoa ve e digita */ }
   }
 
   const n = lista.length;
   const nMeus = lista.filter((l) => l.privado !== false).length;
-  const subtitulo = n === 0
-    ? 'Guarde o acesso dos apps que você vai usar na viagem'
-    : `${n} ${n === 1 ? 'acesso' : 'acessos'}${nMeus > 0 ? ` · ${nMeus} só ${nMeus === 1 ? 'seu' : 'seus'}` : ''}`;
+  const subtitulo = `${n} ${n === 1 ? 'acesso' : 'acessos'}${nMeus > 0 ? ` · ${nMeus} só ${nMeus === 1 ? 'seu' : 'seus'}` : ''}`;
 
   return (
     <div className="ui-screen">
@@ -169,7 +176,7 @@ export default function Logins({ ir }) {
             <Field label="App ou site">
               <input className="ui-input" value={form.app} onChange={(e) => setForm({ ...form, app: e.target.value })} placeholder="Ex.: American Airlines" autoFocus={!form.id} />
             </Field>
-            <Field label="Usuário, e-mail ou número" opcional>
+            <Field label="Usuario, e-mail ou numero" opcional>
               <input className="ui-input" value={form.usuario} onChange={(e) => setForm({ ...form, usuario: e.target.value })} placeholder="Ex.: carlos@email.com" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
             </Field>
             <Field label="Senha" opcional>
@@ -181,12 +188,12 @@ export default function Logins({ ir }) {
             <Field label="Site" opcional hint="Pra abrir direto daqui.">
               <input className="ui-input" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="aa.com" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
             </Field>
-            <Field label="Anotações" opcional hint="Número do programa de milhas, pergunta secreta, qual cartão está cadastrado…">
+            <Field label="Anotacoes" opcional hint="Numero do programa de milhas, pergunta secreta, qual cartao esta cadastrado...">
               <textarea className="ui-input" value={form.obs} onChange={(e) => setForm({ ...form, obs: e.target.value })} placeholder="Ex.: AAdvantage 123456" />
             </Field>
 
             <div className="ui-field">
-              <label className="ui-label">Quem vê esse acesso</label>
+              <label className="ui-label">Quem ve esse acesso</label>
               <div className="ui-seg">
                 <button type="button" className={form.privado !== false ? 'on' : ''} onClick={() => setForm({ ...form, privado: true })}>🔒 Só eu</button>
                 <button type="button" className={form.privado === false ? 'on' : ''} onClick={() => setForm({ ...form, privado: false })}>👥 Todos da viagem</button>
@@ -200,15 +207,7 @@ export default function Logins({ ir }) {
         </Reveal>
       ) : (
         <Reveal>
-          {n === 0 ? (
-            <EmptyState
-              icone="🔑"
-              titulo="Nenhum acesso guardado ainda."
-              texto="Anote aqui o login dos apps que você vai precisar na viagem — companhia aérea, locadora, parque, wi-fi do camping."
-              cta="Guardar o primeiro"
-              onCta={abrirNovo}
-            />
-          ) : filtrada.length === 0 ? (
+          {filtrada.length === 0 ? (
             <EmptyState compacto icone="🔎" titulo={`Nada com “${busca.trim()}”`} texto="Tente outro nome." cta="Limpar busca" onCta={() => setBusca('')} />
           ) : (
             <div className="ui-card ui-list" style={{ padding: '2px 10px' }}>
@@ -231,7 +230,7 @@ export default function Logins({ ir }) {
           <div className="ui-card-tight" style={{ marginTop: 16, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <span aria-hidden="true" style={{ fontSize: 18, flex: '0 0 auto' }}>⚠️</span>
             <p className="ui-caption ui-wrap" style={{ margin: 0, lineHeight: 1.45 }}>
-              Use isso pra apps da viagem (companhia aérea, locadora, parque, wi-fi). <b>Não guarde aqui senha de banco, cartão ou do seu e-mail principal</b> — pra essas, use o cofre do celular. O que está marcado “🔒 Só eu” ninguém mais da viagem vê.
+              Use isso pra apps e acessos da viagem (companhia aerea, locadora, casa, portoes, parque, wi-fi). <b>Nao guarde aqui senha de banco, cartao ou do seu e-mail principal</b> — pra essas, use o cofre do celular. O que esta marcado “🔒 Só eu” ninguem mais da viagem ve.
             </p>
           </div>
         </Reveal>
