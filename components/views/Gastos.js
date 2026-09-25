@@ -53,11 +53,18 @@ export default function Gastos({ ir }) {
   const [aviso, setAviso] = useState('');   // mensagem inline (ex.: comprovante que não abriu)
   const [fechados, setFechados] = useState(null); // grupos recolhidos (null = ainda não mexeu, usa o padrão)
 
-  const lista = gastos.filter((g) =>
-    (moeda === 'todos' || g.moeda === moeda) &&
-    (categoria === 'todas' || g.categoria === categoria) &&
-    (pessoa === 'todas' || g.pago_por === pessoa)
-  );
+  const lista = gastos
+    .filter((g) =>
+      (moeda === 'todos' || g.moeda === moeda) &&
+      (categoria === 'todas' || g.categoria === categoria) &&
+      (pessoa === 'todas' || g.pago_por === pessoa)
+    )
+    // Compra mais recente primeiro. No mesmo dia, o último lançamento fica em cima.
+    .sort((a, b) => {
+      const porData = String(b.data || '').localeCompare(String(a.data || ''));
+      if (porData) return porData;
+      return String(b.criado_em || '').localeCompare(String(a.criado_em || ''));
+    });
   const totalBRL = lista.reduce((s, g) => s + valorEmBRL(g, cambio), 0);
 
   // ----- Antes / Durante / Depois da viagem -----
