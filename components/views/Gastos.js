@@ -113,7 +113,6 @@ export default function Gastos({ ir }) {
     if (!dono || dono.id === g.pago_por) return '';
     return dono.nome;
   }
-  function qtd(gid) { return divisoes.filter((d) => d.gasto_id === gid).length; }
   function corPessoa(id) { const p = perfis.find((x) => x.id === id); return p ? p.cor : null; }
   // quem racha o gasto, na ordem em que as pessoas aparecem na viagem
   function quemRacha(gid) {
@@ -131,7 +130,6 @@ export default function Gastos({ ir }) {
   }
   // A linha de um gasto (usada pelos blocos Antes/Durante e pela lista sem datas).
   function linhaGasto(g) {
-                    const entre = qtd(g.id);
                     const racha = quemRacha(g.id);
                     const vBRL = valorEmBRL(g, cambio);
                     const moedaIgual = (verUSD && g.moeda === 'USD') || (!verUSD && g.moeda !== 'USD');
@@ -146,13 +144,13 @@ export default function Gastos({ ir }) {
                               <PessoaPill nome={nomePagador(g.pago_por)} cor={corPessoa(g.pago_por)} solido />
                               <span className="ui-caption" style={{ whiteSpace: 'nowrap' }}>pagou · {formataData(g.data)}</span>
                             </span>
-                            {entre > 1 ? (
+                            {racha.length > 0 ? (
                               <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 4 }}>
-                                <span className="ui-caption" style={{ whiteSpace: 'nowrap' }}>racha:</span>
+                                <span className="ui-caption" style={{ whiteSpace: 'nowrap' }}>{racha.length > 1 ? 'racha:' : 'para:'}</span>
                                 {racha.map((p) => <PessoaPill key={p.id} nome={p.nome} cor={p.cor} />)}
                               </span>
                             ) : (
-                              <span className="ui-caption ui-faint" style={{ display: 'block', marginTop: 3 }}>sem divisão</span>
+                              <span className="ui-caption ui-faint" style={{ display: 'block', marginTop: 3 }}>divisão não informada</span>
                             )}
                             {nomeQuemLancou(g) ? (
                               <span className="ui-caption ui-clamp1" style={{ display: 'block', color: 'var(--ui-faint)', marginTop: 2 }}>✎ lançado por {nomeQuemLancou(g)}</span>
