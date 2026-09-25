@@ -59,12 +59,9 @@ export default function Gastos({ ir }) {
       (categoria === 'todas' || g.categoria === categoria) &&
       (pessoa === 'todas' || g.pago_por === pessoa)
     )
-    // Compra mais recente primeiro. No mesmo dia, o último lançamento fica em cima.
-    .sort((a, b) => {
-      const porData = String(b.data || '').localeCompare(String(a.data || ''));
-      if (porData) return porData;
-      return String(b.criado_em || '').localeCompare(String(a.criado_em || ''));
-    });
+    // O último gasto cadastrado fica em cima, mesmo quando a data informada nele
+    // é anterior ou posterior à data dos outros lançamentos.
+    .sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')));
   const totalBRL = lista.reduce((s, g) => s + valorEmBRL(g, cambio), 0);
 
   // ----- Antes / Durante / Depois da viagem -----
