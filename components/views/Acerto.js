@@ -1,8 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { useData } from '../DataProvider';
-import { calcularSaldos, quemDeveParaQuem } from '../../lib/settle';
-import { fmtBRL, fmtUSD, usaDolar } from '../../lib/format';
+import { calcularSaldos, detalharGasto, quemDeveParaQuem } from '../../lib/settle';
+import { fmtBRL, fmtUSD, nomeCategoria, usaDolar } from '../../lib/format';
 import { PageHeader, EmptyState, Button, Reveal, SectionHeader, Expand } from '../ui';
 
 // Acerto de contas. O que importa: "quem paga quanto pra quem" (1 bloco de destaque).
@@ -54,6 +54,7 @@ export default function Acerto({ ir }) {
   const [moedaPg, setMoedaPg] = useState('BRL');
   const [erroPg, setErroPg] = useState('');
   const [salvo, setSalvo] = useState('');
+  const [auditoriaAberta, setAuditoriaAberta] = useState(false);
   const chaveT = (t) => `${t.de}_${t.para}`;
   const numeroBR = (n) => n.toFixed(2).replace('.', ',');
 
@@ -95,6 +96,20 @@ export default function Acerto({ ir }) {
   // Com mais gente na viagem, a tela é só dos acertos — o câmbio aparece
   // apenas quando a pessoa viaja sozinha (aí a tela inteira é o câmbio).
   const mostrarCambio = comDolar && sozinho;
+  const fmtOriginal = (valor, moeda) => (moeda === 'USD' ? fmtUSD(valor) : fmtBRL(valor));
+  const gastosAuditados = [...(gastos || [])]
+    .sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')))
+    .map((g) => ({ ...g, auditoria: detalharGasto(g, divisoes) }));
+  const resumoPagadores = perfis.map((p) => {
+    const pagos = gastosAuditados.filter((g) => g.pago_por === p.id);
+    return {
+      ...p,
+      quantidade: pagos.length,
+      usd: pagos.filter((g) => g.moeda === 'USD').reduce((s, g) => s + (Number(g.valor) || 0), 0),
+      brl: pagos.filter((g) => g.moeda !== 'USD').reduce((s, g) => s + (Number(g.valor) || 0), 0),
+    };
+  }).filter((p) => p.quantidade > 0);
+  const qtdCadaUm = gastosAuditados.filter((g) => g.auditoria.cadaUmPagou).length;
 
   return (
     <div className="ui-screen">
@@ -204,6 +219,84 @@ export default function Acerto({ ir }) {
                 );
               })}
             </div>
+          </div>
+        </>
+      )}
+
+      {/* Auditoria: explica de onde saiu cada crédito/dívida sem alterar o cálculo. */}
+      {!sozinho && gastosAuditados.length > 0 && (
+        <>
+          <SectionHeader title="Auditoria" />
+          <div className="ui-card" style={{ padding: '4px 16px' }}>
+            <button
+              type="button"
+              className="ui-rowbtn ui-press"
+              aria-expanded={auditoriaAberta}
+              onClick={() => setAuditoriaAberta((v) => !v)}
+              style={{ width: '100%', minHeight: 58, justifyContent: 'space-between', textAlign: 'left' }}
+            >
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 14.5, fontWeight: 800 }}>Conferir gastos e divisões</span>
+                <span className="ui-caption">Veja quem pagou, a parte de cada pessoa e o impacto no saldo.</span>
+              </span>
+              <span aria-hidden="true" style={{ color: 'var(--ui-faint)', fontSize: 18, transform: auditoriaAberta ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>⌄</span>
+            </button>
+
+            <Expand aberto={auditoriaAberta}>
+              <div style={{ padding: '2px 0 14px' }}>
+                <div className="ui-sunken" style={{ padding: 12, marginBottom: 10 }}>
+                  <div className="ui-label" style={{ marginBottom: 6 }}>Total pago por pessoa</div>
+                  {resumoPagadores.map((p) => {
+                    const valores = [p.usd > 0 ? fmtUSD(p.usd) : null, p.brl > 0 ? fmtBRL(p.brl) : null].filter(Boolean).join(' + ');
+                    return (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                        <Avatar nome={p.nome} cor={p.cor || 'var(--ui-faint)'} tam={26} />
+                        <span className="ui-clamp1" style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700 }}>{p.nome}</span>
+                        <span className="ui-num" style={{ fontSize: 13, fontWeight: 800, textAlign: 'right' }}>{valores}</span>
+                        <span className="ui-caption" style={{ whiteSpace: 'nowrap' }}>· {p.quantidade}</span>
+                      </div>
+                    );
+                  })}
+                  {qtdCadaUm > 0 && (
+                    <div className="ui-caption" style={{ marginTop: 6, color: 'var(--ui-teal-ink)', fontWeight: 700 }}>✓ {qtdCadaUm} {qtdCadaUm === 1 ? 'compra em que cada um pagou' : 'compras em que cada um pagou'} sua parte</div>
+                  )}
+                </div>
+
+                <div className="ui-caption ui-faint" style={{ marginBottom: 6 }}>Cada impacto abaixo é mostrado antes de compensar com os outros gastos.</div>
+                <div className="ui-list">
+                  {gastosAuditados.map((g) => {
+                    const a = g.auditoria;
+                    const cobrancas = a.cotas.filter((c) => c.perfilId !== a.pagoPor && c.valor > 0);
+                    return (
+                      <div key={g.id} style={{ padding: '11px 0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
+                          <span className="ui-clamp1" style={{ minWidth: 0, fontSize: 14, fontWeight: 800 }}>{g.descricao || nomeCategoria(g.categoria)}</span>
+                          <span className="ui-num" style={{ flex: '0 0 auto', fontSize: 14, fontWeight: 800 }}>{fmtOriginal(Number(g.valor) || 0, g.moeda)}</span>
+                        </div>
+                        <div className="ui-caption" style={{ marginTop: 3 }}>
+                          {a.cadaUmPagou ? 'Cada participante pagou a própria parte' : `${nome(a.pagoPor)} pagou tudo`} · {fmtData(g.data)}
+                        </div>
+                        <div className="ui-caption ui-wrap" style={{ marginTop: 4 }}>
+                          Partes: {a.cotas.length > 0
+                            ? a.cotas.map((c) => `${nome(c.perfilId)} ${fmtOriginal(c.valor, g.moeda)}`).join(' · ')
+                            : 'divisão não informada'}
+                        </div>
+                        {a.cadaUmPagou ? (
+                          <div className="ui-caption" style={{ color: 'var(--ui-credit)', fontWeight: 700, marginTop: 4 }}>Sem dívida: todos já pagaram suas partes.</div>
+                        ) : cobrancas.length > 0 ? (
+                          <div className="ui-caption ui-wrap" style={{ color: 'var(--ui-debit)', fontWeight: 700, marginTop: 4 }}>
+                            Impacto: {cobrancas.map((c) => `${nome(c.perfilId)} deve ${fmtOriginal(c.valor, g.moeda)} a ${nome(a.pagoPor)}`).join(' · ')}
+                          </div>
+                        ) : (
+                          <div className="ui-caption ui-faint" style={{ marginTop: 4 }}>Sem valor pendente para outras pessoas.</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="ui-caption ui-faint" style={{ marginTop: 8 }}>Os pagamentos registrados abaixo também são abatidos do saldo final.</div>
+              </div>
+            </Expand>
           </div>
         </>
       )}
