@@ -81,6 +81,13 @@ export default function Novo({ ir }) {
   }, [ed && ed.recibo_url]);
 
   function togglePessoa(id) { setPartes((prev) => ({ ...prev, [id]: prev[id] > 0 ? 0 : 1 })); }
+  function escolherPagador(id) {
+    setPagoPor(id);
+    // Na situação normal, quem pagou também consumiu uma parte. Incluímos a
+    // pessoa automaticamente para evitar que o valor integral caia sobre os
+    // demais por engano; ainda é possível removê-la manualmente depois.
+    setPartes((prev) => (prev[id] > 0 ? prev : { ...prev, [id]: 1 }));
+  }
   function toggleVeQuem(id) { setCompartilhadoCom((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]); }
   const outrasPessoas = perfis.filter((p) => p.id !== (perfil && perfil.id));
   const participantes = perfis.filter((p) => (partes[p.id] || 0) > 0).map((p) => ({ id: p.id, partes: partes[p.id] }));
@@ -91,6 +98,7 @@ export default function Novo({ ir }) {
   const fmt = (v, m) => (m === 'USD' ? fmtUSD(v) : fmtBRL(v));
   const minhasPartes = perfil ? Number(partes[perfil.id]) || 0 : 0;
   const minhaCota = valorNum > 0 && totalPartes > 0 ? (valorNum * minhasPartes) / totalPartes : 0;
+  const pagadorForaDivisao = formaPagamento === 'uma_pessoa' && pagoPor && !(partes[pagoPor] > 0);
   // conversão aproximada, só informativa (mesmo câmbio da viagem)
   const conversao = comDolar && cambio > 0 && valorNum > 0 ? (moeda === 'USD' ? `≈ ${fmtBRL(valorNum * cambio)}` : `≈ ${fmtUSD(valorNum / cambio)}`) : '';
 
@@ -248,12 +256,17 @@ export default function Novo({ ir }) {
         <label className="ui-label">Quem pagou</label>
         <div className="ui-chips-scroll" role="radiogroup" aria-label="Quem pagou" style={{ paddingBottom: 2 }}>
           {perfis.map((p) => (
-            <button key={p.id} role="radio" aria-checked={pagoPor === p.id} className={'ui-chipbtn' + (pagoPor === p.id ? ' on' : '')} onClick={() => setPagoPor(p.id)}>
+            <button key={p.id} role="radio" aria-checked={pagoPor === p.id} className={'ui-chipbtn' + (pagoPor === p.id ? ' on' : '')} onClick={() => escolherPagador(p.id)}>
               {p.nome}{perfil && p.id === perfil.id ? ' (você)' : ''}
             </button>
           ))}
         </div>
-        {perfil && pagoPor && pagoPor !== perfil.id && (
+        {pagadorForaDivisao && (
+          <div className="ui-error" style={{ marginTop: 8, marginBottom: 0 }}>
+            <b>{nomeDoPerfil(pagoPor)} ainda não está na divisão.</b> Assim, o valor integral fica para as outras pessoas. Inclua {nomeDoPerfil(pagoPor)} abaixo para dividir também a parte de quem pagou.
+          </div>
+        )}
+        {perfil && pagoPor && pagoPor !== perfil.id && !pagadorForaDivisao && (
           <div className="ui-caption ui-wrap" style={{ marginTop: 6, color: 'var(--ui-teal-ink)' }}>
             <b>{nomeDoPerfil(pagoPor)}</b> pagou a despesa.
             {minhaCota > 0
@@ -266,8 +279,8 @@ export default function Novo({ ir }) {
             (a divisão começa marcando só quem está lançando), oferecemos o atalho
             em vez de decidir sozinho. */}
         {pagoPor && !(partes[pagoPor] > 0) && (
-          <button type="button" onClick={() => setPartes((prev) => ({ ...prev, [pagoPor]: 1 }))} className="ui-btn ui-btn-soft ui-btn-sm" style={{ marginTop: 8 }}>
-            + incluir {nomeDoPerfil(pagoPor)} na divisão
+          <button type="button" onClick={() => setPartes((prev) => ({ ...prev, [pagoPor]: 1 }))} className="ui-btn ui-btn-soft" style={{ marginTop: 8, width: '100%' }}>
+            + incluir {nomeDoPerfil(pagoPor)} na divisão e recalcular
           </button>
         )}
         {ed && quemLancou && (
