@@ -114,7 +114,7 @@ export default function Acerto({ ir }) {
         <Reveal>
           <div className="ui-card" style={{ padding: '14px 16px 6px' }}>
             <div className="ui-h2" style={{ marginBottom: 4 }}>Quem paga quem</div>
-            <div className="ui-caption" style={{ marginBottom: 6 }}>Já com tudo abatido: uma compra compensa a outra e os pagamentos registrados descontam da dívida.</div>
+            <div className="ui-caption" style={{ marginBottom: 6 }}>Saldo líquido: créditos e dívidas opostos já foram compensados, e os pagamentos registrados também já foram abatidos.</div>
             {salvo && <div className="ui-success">{salvo}</div>}
             <div className="ui-list">
               {transferencias.map((t, i) => (

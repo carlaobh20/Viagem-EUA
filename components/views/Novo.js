@@ -47,6 +47,7 @@ export default function Novo({ ir }) {
   const [moeda, setMoeda] = useState(ed ? ed.moeda : (comDolar ? 'USD' : 'BRL'));
   const [categoria, setCategoria] = useState(ed ? ed.categoria : 'comida');
   const [pagoPor, setPagoPor] = useState(ed ? ed.pago_por : (perfil?.id || (perfis[0] && perfis[0].id)));
+  const [formaPagamento, setFormaPagamento] = useState(ed && !ed.pago_por ? 'cada_um' : 'uma_pessoa');
   const [pontoId, setPontoId] = useState(ed ? (ed.ponto_id || '') : '');
   const [data, setData] = useState(ed ? ed.data : hoje());
   const [privado, setPrivado] = useState(ed ? !!ed.privado : false);
@@ -85,9 +86,11 @@ export default function Novo({ ir }) {
   const participantes = perfis.filter((p) => (partes[p.id] || 0) > 0).map((p) => ({ id: p.id, partes: partes[p.id] }));
   const totalPartes = participantes.reduce((s, p) => s + p.partes, 0);
   const valorNum = parseFloat((valor || '').replace(',', '.'));
-  const valido = valorNum > 0 && pagoPor && participantes.length > 0;
-  const falta = !(valorNum > 0) ? 'Falta o valor.' : !pagoPor ? 'Escolhe quem pagou.' : participantes.length === 0 ? 'Marca pelo menos uma pessoa em "Dividir entre".' : '';
+  const valido = valorNum > 0 && (formaPagamento === 'cada_um' || pagoPor) && participantes.length > 0;
+  const falta = !(valorNum > 0) ? 'Falta o valor.' : formaPagamento !== 'cada_um' && !pagoPor ? 'Escolhe quem pagou.' : participantes.length === 0 ? 'Marca pelo menos uma pessoa em "Dividir entre".' : '';
   const fmt = (v, m) => (m === 'USD' ? fmtUSD(v) : fmtBRL(v));
+  const minhasPartes = perfil ? Number(partes[perfil.id]) || 0 : 0;
+  const minhaCota = valorNum > 0 && totalPartes > 0 ? (valorNum * minhasPartes) / totalPartes : 0;
   // conversão aproximada, só informativa (mesmo câmbio da viagem)
   const conversao = comDolar && cambio > 0 && valorNum > 0 ? (moeda === 'USD' ? `≈ ${fmtBRL(valorNum * cambio)}` : `≈ ${fmtUSD(valorNum / cambio)}`) : '';
 
@@ -140,7 +143,7 @@ export default function Novo({ ir }) {
     if (!valido || salvando || salvo) return;
     setSalvando(true); setErro('');
     try {
-      const payload = { descricao: descricao.trim() || nomeDe(categoria), valor: valorNum, moeda, categoria, pagoPor, pontoId, data, participantes, reciboFile: reciboBlob, privado, compartilhadoCom };
+      const payload = { descricao: descricao.trim() || nomeDe(categoria), valor: valorNum, moeda, categoria, pagoPor: formaPagamento === 'cada_um' ? null : pagoPor, pontoId, data, participantes, reciboFile: reciboBlob, privado, compartilhadoCom };
       if (ed) await atualizarGasto({ id: ed.id, ...payload, reciboUrlAtual: ed.recibo_url, removerRecibo, userIdAtual: ed.user_id });
       else await salvarGasto(payload);
       // feedback rápido de sucesso antes de trocar de tela
@@ -227,8 +230,20 @@ export default function Novo({ ir }) {
         </select>
       </Field>
 
+      <div className="ui-field">
+        <label className="ui-label">Como foi pago</label>
+        <div className="ui-seg" role="tablist" aria-label="Como foi pago">
+          <button role="tab" aria-selected={formaPagamento === 'uma_pessoa'} className={formaPagamento === 'uma_pessoa' ? 'on' : ''} onClick={() => setFormaPagamento('uma_pessoa')}>Uma pessoa pagou</button>
+          <button role="tab" aria-selected={formaPagamento === 'cada_um'} className={formaPagamento === 'cada_um' ? 'on' : ''} onClick={() => setFormaPagamento('cada_um')}>Cada um pagou sua parte</button>
+        </div>
+        {formaPagamento === 'cada_um' && (
+          <div className="ui-hint">Use quando todos já acertaram na hora. A compra entra no histórico e no consumo, sem criar dívida no “Acertar contas”.</div>
+        )}
+      </div>
+
       {/* 4. Quem pagou (default: eu) — pode ser outra pessoa: quem lança não é
            necessariamente quem pagou (a Elza registra a compra do Wilson). */}
+      {formaPagamento === 'uma_pessoa' && (
       <div className="ui-field">
         <label className="ui-label">Quem pagou</label>
         <div className="ui-chips-scroll" role="radiogroup" aria-label="Quem pagou" style={{ paddingBottom: 2 }}>
@@ -240,7 +255,11 @@ export default function Novo({ ir }) {
         </div>
         {perfil && pagoPor && pagoPor !== perfil.id && (
           <div className="ui-caption ui-wrap" style={{ marginTop: 6, color: 'var(--ui-teal-ink)' }}>
-            O gasto entra como pago por <b>{nomeDoPerfil(pagoPor)}</b> — quem tem a receber é {nomeDoPerfil(pagoPor)}, não você. Fica registrado que quem lançou foi você.
+            <b>{nomeDoPerfil(pagoPor)}</b> pagou a despesa.
+            {minhaCota > 0
+              ? ` Sua parte é ${fmt(minhaCota, moeda)} e será compensada no saldo entre vocês.`
+              : ' O saldo será calculado entre as pessoas marcadas na divisão.'}
+            {' '}Se já houver uma dívida no sentido contrário, este valor será abatido automaticamente. Fica registrado que quem lançou foi você.
           </div>
         )}
         {/* Quem pagou quase sempre também participa da divisão. Se ficou de fora
@@ -255,6 +274,7 @@ export default function Novo({ ir }) {
           <div className="ui-caption ui-wrap" style={{ marginTop: 6, color: 'var(--ui-faint)' }}>✎ lançado por {quemLancou}</div>
         )}
       </div>
+      )}
 
       {/* 5. Dividir entre (default: eu) */}
       <div className="ui-field">

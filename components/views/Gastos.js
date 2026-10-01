@@ -144,10 +144,14 @@ export default function Gastos({ ir }) {
                           <span className="ui-sunken" aria-hidden="true" style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flex: '0 0 auto' }}>{emojiCategoria(g.categoria)}</span>
                           <span style={{ minWidth: 0, flex: 1 }}>
                             <span className="ui-clamp1" style={{ display: 'block', fontSize: 14.5, fontWeight: 700 }}>{g.privado ? '🔒 ' : ''}{g.descricao || nomeCategoria(g.categoria)}</span>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                              <PessoaPill nome={nomePagador(g.pago_por)} cor={corPessoa(g.pago_por)} solido />
-                              <span className="ui-caption" style={{ whiteSpace: 'nowrap' }}>pagou · {formataData(g.data)}</span>
-                            </span>
+                            {!g.pago_por ? (
+                              <span className="ui-caption" style={{ display: 'block', marginTop: 4, color: 'var(--ui-teal-ink)', fontWeight: 700 }}>✓ cada um pagou sua parte · {formataData(g.data)}</span>
+                            ) : (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                                <PessoaPill nome={nomePagador(g.pago_por)} cor={corPessoa(g.pago_por)} solido />
+                                <span className="ui-caption" style={{ whiteSpace: 'nowrap' }}>pagou · {formataData(g.data)}</span>
+                              </span>
+                            )}
                             {racha.length > 0 ? (
                               <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 4 }}>
                                 <span className="ui-caption" style={{ whiteSpace: 'nowrap' }}>{racha.length > 1 ? 'racha:' : 'para:'}</span>
