@@ -245,11 +245,11 @@ export default function Roteiro({ ir }) {
     setGeoMsg(''); setFormErro(''); setMaisDetalhes(false);
     setForm({ id: null, nome: '', data: dataPadrao || ultimaData(), hora: '', tipo: 'passeio', status: '', nota: '', endereco: '', local: '', lat: null, lng: null, inserirApos: inserirApos || null });
   }
-  function abrirEdicao(p) {
+  function abrirEdicao(p, mudarDia = false) {
     setGeoMsg(p.lat != null ? '📍 local salvo (pra clima e distância)' : ''); setFormErro('');
     // se a parada já tem comentário ou local, mostra esses campos de cara
     setMaisDetalhes(Boolean(p.nota || p.local || p.lat != null));
-    setForm({ id: p.id, nome: p.nome, data: p.data_inicio || '', hora: p.hora || '', tipo: p.tipo || 'outro', status: p.status || '', nota: p.nota || '', endereco: p.endereco || '', local: p.local || '', lat: p.lat ?? null, lng: p.lng ?? null, inserirApos: null });
+    setForm({ id: p.id, nome: p.nome, data: p.data_inicio || '', dataOriginal: p.data_inicio || '', hora: p.hora || '', tipo: p.tipo || 'outro', status: p.status || '', nota: p.nota || '', endereco: p.endereco || '', local: p.local || '', lat: p.lat ?? null, lng: p.lng ?? null, inserirApos: null, mudarDia });
   }
 
   async function salvarForm() {
@@ -258,7 +258,15 @@ export default function Roteiro({ ir }) {
     setFormErro('');
     const campos = { nome: f.nome.trim(), data_inicio: f.data || null, hora: f.hora || null, tipo: f.tipo, status: f.status || null, nota: f.nota.trim() || null, endereco: (f.endereco || '').trim() || null, local: f.local ? f.local.trim() : null, lat: f.lat ?? null, lng: f.lng ?? null };
     if (f.id) {
-      await supabase.from('pontos_roteiro').update(campos).eq('id', f.id);
+      // Ao trocar de dia, coloca a parada no fim do novo dia e já abre esse dia.
+      // Isso evita reaproveitar uma posição antiga que poderia deixá-la fora de ordem.
+      if ((f.data || '') !== (f.dataOriginal || '')) {
+        const doNovoDia = ordenados.filter((p) => p.id !== f.id && (p.data_inicio || '') === (f.data || ''));
+        campos.ordem = doNovoDia.reduce((m, p) => Math.max(m, p.ordem || 0), -1) + 1;
+      }
+      const { error } = await supabase.from('pontos_roteiro').update(campos).eq('id', f.id);
+      if (error) { setFormErro(`Não foi possível salvar: ${error.message}`); return; }
+      if ((f.data || '') !== (f.dataOriginal || '') && f.data) setDiaSel(f.data);
     } else {
       const doDia = ordenados.filter((p) => (p.data_inicio || '') === (f.data || ''));
       const maxOrdem = doDia.reduce((m, p) => Math.max(m, p.ordem || 0), -1);
@@ -457,11 +465,12 @@ export default function Roteiro({ ir }) {
       {form ? (
         <Reveal>
           <div className="ui-card" style={{ padding: 16, marginBottom: 16 }}>
-            <div className="ui-h2" style={{ marginBottom: 14 }}>{form.id ? 'Editar parada' : 'Nova parada'}</div>
+            <div className="ui-h2" style={{ marginBottom: 14 }}>{form.mudarDia ? `Mudar “${form.nome}” de dia` : form.id ? 'Editar parada' : 'Nova parada'}</div>
+            {form.mudarDia && <div className="ui-caption ui-wrap" style={{ margin: '-6px 0 12px' }}>Escolha a nova data abaixo. Os outros dados continuam iguais.</div>}
 
             <Field label="Nome"><input className="ui-input" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Ex.: Magic Kingdom" autoFocus={!form.id} /></Field>
             <div style={{ display: 'flex', gap: 10 }}>
-              <Field label="Dia" style={{ flex: 1, minWidth: 0 }}><input className="ui-input" type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} /></Field>
+              <Field label={form.id ? 'Dia do roteiro (pode mudar)' : 'Dia'} hint={form.id ? 'Escolha outra data para mover esta parada.' : undefined} style={{ flex: 1, minWidth: 0 }}><input className="ui-input" type="date" value={form.data} min={hoje()} onChange={(e) => setForm({ ...form, data: e.target.value })} /></Field>
               <Field label="Hora" style={{ flex: 1, minWidth: 0 }}><input className="ui-input" type="time" value={form.hora} onChange={(e) => setForm({ ...form, hora: e.target.value })} /></Field>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
@@ -487,7 +496,7 @@ export default function Roteiro({ ir }) {
             </Expand>
 
             {formErro && <div className="ui-error">{formErro}</div>}
-            <Button size="lg" full onClick={salvarForm}>{form.id ? 'Salvar alterações' : 'Adicionar parada'}</Button>
+            <Button size="lg" full onClick={salvarForm}>{form.mudarDia ? 'Mover para este dia' : form.id ? 'Salvar alterações' : 'Adicionar parada'}</Button>
             <Button variant="ghost" full style={{ marginTop: 6 }} onClick={() => setForm(null)}>Cancelar</Button>
           </div>
         </Reveal>
@@ -611,6 +620,7 @@ export default function Roteiro({ ir }) {
                     const jaPassou = ehHoje && m != null && m < agoraMin;
                     const ehProxima = p.id === proximaId;
                     const temLocal = Boolean((p.endereco || '').trim() || (p.local || '').trim());
+                    const podeGerenciar = !p.data_inicio || p.data_inicio >= hojeS;
                     // meta da linha: só o que existe (tipo · lugar curto · clima)
                     const meta = [nomeTipo(p.tipo), (p.endereco || '').trim() ? p.endereco.split(',')[0] : (p.local || '').trim(), cl ? `${iconeClima(cl.code)} ${cl.max}°` : ''].filter(Boolean).join(' · ');
                     return (
@@ -650,6 +660,14 @@ export default function Roteiro({ ir }) {
                             </div>
                             <span aria-hidden="true" style={{ color: 'var(--ui-faint)', fontSize: 18, flex: '0 0 auto', transform: abertaP ? 'rotate(90deg)' : 'none', transition: 'transform .18s var(--ease)' }}>›</span>
                           </button>
+
+                          {podeGerenciar && !abertaP && (
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', padding: '0 0 8px 48px' }}>
+                              <button style={acaoTxt} onClick={() => abrirEdicao(p)}>✏️ Editar</button>
+                              <button style={acaoTxt} onClick={() => abrirEdicao(p, true)}>📅 Mudar dia</button>
+                              <button style={{ ...acaoTxt, color: 'var(--ui-debit)' }} onClick={() => excluir(p)}>Excluir</button>
+                            </div>
+                          )}
 
                           <Expand aberto={abertaP}>
                             <div style={{ padding: '0 0 14px 50px' }}>
