@@ -292,6 +292,20 @@ export default function Roteiro({ ir }) {
     await recarregar();
   }
 
+  async function excluirDia(grupo) {
+    const ids = grupo.stops.map((p) => p.id);
+    if (ids.length === 0) return;
+    const ligados = gastos.filter((gasto) => ids.includes(gasto.ponto_id)).length;
+    const avisoGastos = ligados > 0
+      ? `\n\n${ligados} gasto(s) continuarão registrados, mas deixarão de estar ligados às paradas apagadas.`
+      : '';
+    if (!window.confirm(`Apagar as ${ids.length} paradas de ${fmtDiaData(grupo.data)}?` + avisoGastos)) return;
+    const { error } = await supabase.from('pontos_roteiro').delete().in('id', ids);
+    if (error) { window.alert(`Não foi possível apagar o dia: ${error.message}`); return; }
+    setParadaAberta(null);
+    await recarregar();
+  }
+
   async function mover(grupo, i, dir) {
     const arr = grupo.stops.slice();
     const j = i + dir;
@@ -585,6 +599,15 @@ export default function Roteiro({ ir }) {
                       )}
                     </div>
                   </div>
+
+                  {nStops > 0 && !passado && (
+                    <button
+                      onClick={() => excluirDia(g)}
+                      style={{ ...acaoTxt, color: 'var(--ui-debit)', padding: 0, marginTop: 8 }}
+                    >
+                      🗑 Excluir tudo deste dia
+                    </button>
+                  )}
 
                   {/* próximo momento do dia de hoje */}
                   {proxima && (
