@@ -131,10 +131,13 @@ const FAQS = [
 export default function Welcome({ onComecar, onEntrar }) {
   useEffect(() => {
     const nav = document.getElementById('lp-nav');
-    if (!nav) return;
     const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 40);
     window.addEventListener('scroll', onScroll);
-    return () => window.removeEventListener('scroll', onScroll);
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => { if (entry.isIntersecting) entry.target.classList.add('shown'); });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.lp-reveal').forEach((el) => observer.observe(el));
+    return () => { window.removeEventListener('scroll', onScroll); observer.disconnect(); };
   }, []);
 
   return (
@@ -312,6 +315,30 @@ export default function Welcome({ onComecar, onEntrar }) {
         .lp-root .faq details[open] summary::after{ content:'−'; }
         .lp-root .faq p{ color:var(--muted); font-size:13.5px; line-height:1.65; padding:0 30px 18px 0; }
         .lp-root .mobile-cta{ display:none; }
+        .lp-root .lp-reveal{ opacity:0; transform:translateY(24px); transition:opacity .7s ease,transform .7s cubic-bezier(.22,.61,.36,1); }
+        .lp-root .lp-reveal.shown{ opacity:1; transform:none; }
+
+        .lp-root .journey-showcase{ display:grid; grid-template-columns:1.35fr .65fr; grid-template-rows:300px 300px; gap:18px; }
+        .lp-root .journey-card{ position:relative; border-radius:30px; overflow:hidden; isolation:isolate; color:#fff; box-shadow:0 28px 60px -34px rgba(6,30,26,.42); }
+        .lp-root .journey-card img{ width:100%; height:100%; object-fit:cover; transition:transform .8s cubic-bezier(.22,.61,.36,1),filter .5s ease; }
+        .lp-root .journey-card::after{ content:''; position:absolute; inset:0; background:linear-gradient(180deg,transparent 25%,rgba(4,20,17,.82)); z-index:1; pointer-events:none; }
+        .lp-root .journey-card:hover img{ transform:scale(1.045); filter:saturate(1.08); }
+        .lp-root .journey-card.desert{ grid-row:1 / 3; }
+        .lp-root .journey-card.friends{ grid-column:2; }
+        .lp-root .journey-copy{ position:absolute; z-index:2; left:30px; right:30px; bottom:28px; }
+        .lp-root .journey-copy .over{ font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#88F4E5; margin-bottom:7px; }
+        .lp-root .journey-copy h3{ font-size:27px; max-width:440px; }
+        .lp-root .journey-copy p{ color:rgba(255,255,255,.78); font-size:13.5px; line-height:1.55; margin-top:8px; max-width:450px; }
+        .lp-root .journey-tags{ display:flex; gap:8px; flex-wrap:wrap; margin-top:15px; }
+        .lp-root .journey-tags span{ font-size:11px; font-weight:700; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.18); backdrop-filter:blur(8px); }
+        .lp-root .journey-action{ grid-column:2; background:linear-gradient(145deg,#E2FAF5,#F8F7F1); color:var(--ink); padding:30px; display:flex; flex-direction:column; justify-content:space-between; }
+        .lp-root .journey-action::after{ display:none; }
+        .lp-root .journey-action .route{ display:flex; align-items:center; gap:8px; color:var(--teal-d); font-size:12px; font-weight:800; }
+        .lp-root .journey-action .route i{ flex:1; height:2px; background:repeating-linear-gradient(90deg,var(--teal) 0 6px,transparent 6px 11px); animation:lpRoute 1.6s linear infinite; background-size:22px 2px; }
+        .lp-root .journey-action h3{ font-size:23px; margin:16px 0 8px; }
+        .lp-root .journey-action p{ color:var(--muted); font-size:13.5px; line-height:1.55; }
+        .lp-root .journey-action button{ align-self:flex-start; border:none; background:var(--navy); color:#fff; border-radius:999px; min-height:44px; padding:0 18px; font-weight:800; margin-top:18px; }
+        @keyframes lpRoute{ to{ background-position:22px 0; } }
 
         .lp-root .cta-final{ background:linear-gradient(120deg,var(--navy-2),var(--navy) 60%,#0a3730); border-radius:32px; padding:20px 60px; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:space-between; gap:30px; flex-wrap:wrap; }
         .lp-root .cta-final::before{ content:''; position:absolute; width:420px; height:420px; border-radius:50%; background:radial-gradient(circle, rgba(0,199,177,.25), transparent 70%); top:-160px; right:0; }
@@ -340,6 +367,8 @@ export default function Welcome({ onComecar, onEntrar }) {
           .lp-root .screens-row{ grid-template-columns:repeat(2,1fr); }
           .lp-root .stats{ grid-template-columns:repeat(2,1fr); gap:22px 0; }
           .lp-root .pain-grid,.lp-root .steps{ grid-template-columns:1fr; }
+          .lp-root .journey-showcase{ grid-template-columns:1fr; grid-template-rows:520px 360px auto; }
+          .lp-root .journey-card.desert,.lp-root .journey-card.friends,.lp-root .journey-action{ grid-column:1; grid-row:auto; }
           .lp-root .stat{ border-right:none; border-bottom:1px solid var(--line); padding-bottom:16px; }
           .lp-root .cta-final{ flex-direction:column; text-align:center; padding:40px 26px; }
           .lp-root .cta-final .txt{ padding:0; max-width:100%; }
@@ -362,6 +391,9 @@ export default function Welcome({ onComecar, onEntrar }) {
           .lp-root .float-note.two{ right:10px; bottom:18px; }
           .lp-root .trust-line{ justify-content:center; }
           .lp-root .pain-card{ padding:30px 24px; }
+          .lp-root .journey-showcase{ grid-template-rows:470px 330px auto; }
+          .lp-root .journey-copy{ left:22px; right:22px; bottom:22px; }
+          .lp-root .journey-copy h3{ font-size:23px; }
           .lp-root .mobile-cta{ position:fixed; display:flex; left:12px; right:12px; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:120; background:rgba(6,40,36,.94); backdrop-filter:blur(16px); color:#fff; border-radius:18px; padding:8px 8px 8px 16px; align-items:center; justify-content:space-between; box-shadow:0 18px 50px rgba(6,30,26,.35); }
           .lp-root .mobile-cta span{ font-size:12px; font-weight:700; }
           .lp-root .mobile-cta button{ border:none; background:var(--teal); color:#fff; font-weight:800; border-radius:13px; min-height:42px; padding:0 16px; }
@@ -416,7 +448,7 @@ export default function Welcome({ onComecar, onEntrar }) {
         </div>
       </section>
 
-      <section style={{ paddingTop: 10 }}>
+      <section className="lp-reveal" style={{ paddingTop: 10 }}>
         <div className="wrap">
           <div className="sec-head">
             <div className="eyebrow">Viajar já dá trabalho demais</div>
@@ -445,7 +477,42 @@ export default function Welcome({ onComecar, onEntrar }) {
         </div>
       </section>
 
-      <section style={{ paddingTop: 0 }}>
+      <section className="lp-reveal" style={{ paddingTop: 0 }}>
+        <div className="wrap">
+          <div className="sec-head">
+            <div className="eyebrow">Toda viagem tem seu ritmo</div>
+            <h2>Da estrada aberta aos melhores amigos</h2>
+          </div>
+          <div className="journey-showcase">
+            <article className="journey-card desert">
+              <img src="/landing-desert-motorhome.jpg" alt="Motorhome viajando por uma estrada entre formações rochosas no deserto" />
+              <div className="journey-copy">
+                <div className="over">Motorhome · Road trip</div>
+                <h3>A liberdade da estrada com tudo planejado</h3>
+                <p>Paradas, quilometragem, gastos, reservas e o diário da viagem reunidos para você aproveitar o caminho.</p>
+                <div className="journey-tags"><span>Rota completa</span><span>Custo por km</span><span>Diário de bordo</span></div>
+              </div>
+            </article>
+            <article className="journey-card friends">
+              <img src="/landing-friends-trip.jpg" alt="Grupo de amigos reunido durante uma viagem de carro" />
+              <div className="journey-copy">
+                <div className="over">Amigos · Em grupo</div>
+                <h3>Memórias compartilhadas. Contas resolvidas.</h3>
+              </div>
+            </article>
+            <article className="journey-card journey-action">
+              <div>
+                <div className="route"><span>PARTIDA</span><i /><span>DESTINO</span></div>
+                <h3>Uma central para qualquer aventura</h3>
+                <p>Escolha o destino. Convide quem vai junto. O app cuida da organização.</p>
+              </div>
+              <button onClick={onComecar}>Planejar minha viagem →</button>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section className="lp-reveal" style={{ paddingTop: 0 }}>
         <div className="wrap split">
           <div className="panel panel-dark">
             <div className="txt">
@@ -476,7 +543,7 @@ export default function Welcome({ onComecar, onEntrar }) {
         </div>
       </section>
 
-      <section id="como-funciona">
+      <section id="como-funciona" className="lp-reveal">
         <div className="wrap">
           <div className="sec-head">
             <div className="eyebrow">Simples desde o começo</div>
@@ -490,7 +557,7 @@ export default function Welcome({ onComecar, onEntrar }) {
         </div>
       </section>
 
-      <section>
+      <section className="lp-reveal">
         <div className="wrap">
           <div className="sec-head">
             <div className="eyebrow">Tudo que você precisa</div>
@@ -507,7 +574,7 @@ export default function Welcome({ onComecar, onEntrar }) {
         </div>
       </section>
 
-      <section style={{ paddingTop: 0 }}>
+      <section className="lp-reveal" style={{ paddingTop: 0 }}>
         <div className="wrap">
           <div className="tag-strip">
             <h3>Ideal para a viagem que você está planejando</h3>
@@ -528,7 +595,7 @@ export default function Welcome({ onComecar, onEntrar }) {
         </div>
       </section>
 
-      <section>
+      <section className="lp-reveal">
         <div className="wrap">
           <div className="cta-final">
             <div className="txt">
@@ -545,7 +612,7 @@ export default function Welcome({ onComecar, onEntrar }) {
         </div>
       </section>
 
-      <section id="duvidas" style={{ paddingTop: 20 }}>
+      <section id="duvidas" className="lp-reveal" style={{ paddingTop: 20 }}>
         <div className="wrap">
           <div className="sec-head">
             <div className="eyebrow">Perguntas frequentes</div>
