@@ -105,7 +105,7 @@ const SCREENS = [
   ['Acertos', 'Quem deve pra quem, sem climão', <path d="M17 8V6a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v2M4 10h5l2 3h2l2-3h5v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Z" />],
 ];
 
-const TAGS = ['Disney', 'Costa Oeste', 'Costa Leste', 'Motorhome', 'Parques Nacionais', 'Compras / Outlets', 'Família', 'Casal'];
+const TAGS = ['Internacional', 'Disney', 'Road trip', 'Motorhome', 'Parques nacionais', 'Praia', 'Família', 'Casal'];
 
 const STATS = [
   ['12', 'funções em um só app'],
@@ -113,6 +113,19 @@ const STATS = [
   ['∞', 'gastos, checklist e roteiro'],
   ['100%', 'em tempo real pra família toda'],
   ['0', 'planilhas e grupos lotados'],
+];
+
+const STEPS = [
+  ['01', 'Crie a viagem', 'Defina destino, datas, orçamento e quem vai com você.'],
+  ['02', 'Monte tudo junto', 'Roteiro, reservas, checklist, lugares e gastos ficam sincronizados.'],
+  ['03', 'Viaje sem fazer conta', 'O app acompanha cada despesa e mostra o saldo final de cada pessoa.'],
+];
+
+const FAQS = [
+  ['Serve apenas para viagens aos Estados Unidos?', 'Não. O app nasceu em uma viagem aos EUA, mas pode organizar viagens para qualquer destino.'],
+  ['Consigo dividir os gastos com outras pessoas?', 'Sim. Você registra quem pagou, escolhe quem participou e o app consolida o saldo de cada pessoa.'],
+  ['Todo mundo consegue acompanhar a mesma viagem?', 'Sim. Os participantes convidados acompanham as informações compartilhadas da viagem no mesmo lugar.'],
+  ['Funciona com real e dólar?', 'Sim. As despesas podem ser registradas em real ou dólar, com conversão e totais organizados.'],
 ];
 
 export default function Welcome({ onComecar, onEntrar }) {
@@ -147,6 +160,7 @@ export default function Welcome({ onComecar, onEntrar }) {
         .lp-root nav.scrolled{ background:rgba(250,249,245,.85); backdrop-filter:blur(10px); padding:13px 0; box-shadow:0 1px 0 var(--line); }
         .lp-root nav .row{ display:flex; align-items:center; justify-content:space-between; }
         .lp-root .logo{ display:flex; align-items:center; gap:10px; color:var(--ink); font-weight:800; font-size:17px; }
+        .lp-root .logo-name{ white-space:nowrap; }
         .lp-root .logo .mark{ width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,var(--teal),var(--teal-d)); display:flex; align-items:center; justify-content:center; }
         .lp-root .nav-links{ display:flex; align-items:center; gap:6px; }
         .lp-root .nav-links a.link{ color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; padding:10px 15px; border-radius:10px; opacity:.75; }
@@ -210,6 +224,16 @@ export default function Welcome({ onComecar, onEntrar }) {
         .lp-root .hero p.lead{ font-size:17px; color:var(--muted); max-width:470px; margin-top:20px; line-height:1.6; }
         .lp-root .hero-ctas{ display:flex; gap:14px; margin-top:34px; flex-wrap:wrap; }
         .lp-root .hero-visual{ position:relative; display:flex; justify-content:center; }
+        .lp-root .travel-stage{ width:min(100%,540px); min-height:590px; position:relative; display:flex; justify-content:center; align-items:center; border-radius:40px; background:linear-gradient(180deg,rgba(6,40,36,.02),rgba(6,40,36,.12)),url('/hero-eua.jpg') center/cover; box-shadow:0 38px 80px -34px rgba(6,40,36,.48); overflow:hidden; isolation:isolate; }
+        .lp-root .travel-stage::after{ content:''; position:absolute; inset:0; background:linear-gradient(180deg,transparent 35%,rgba(6,24,21,.58)); z-index:-1; }
+        .lp-root .travel-stage .phone{ transform:translateY(28px) rotate(2deg); }
+        .lp-root .float-note{ position:absolute; z-index:4; background:rgba(255,255,255,.92); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.75); box-shadow:0 18px 40px -18px rgba(6,30,26,.42); border-radius:16px; padding:11px 14px; font-size:12px; font-weight:800; color:var(--ink); }
+        .lp-root .float-note span{ display:block; color:var(--teal-d); font-size:10px; font-weight:700; margin-bottom:2px; }
+        .lp-root .float-note.one{ top:56px; left:22px; transform:rotate(-3deg); }
+        .lp-root .float-note.two{ right:18px; bottom:38px; transform:rotate(3deg); }
+        .lp-root .trust-line{ display:flex; align-items:center; gap:14px; margin-top:22px; color:var(--muted); font-size:12.5px; font-weight:600; flex-wrap:wrap; }
+        .lp-root .trust-line span{ display:inline-flex; align-items:center; gap:6px; }
+        .lp-root .trust-line i{ width:6px; height:6px; border-radius:50%; background:var(--teal); display:inline-block; }
 
         .lp-root .icon-strip{ background:var(--card); border:1px solid var(--line); border-radius:24px; padding:30px 20px; display:grid; grid-template-columns:repeat(8,1fr); gap:8px; box-shadow:0 30px 60px -30px rgba(6,20,18,.15); }
         .lp-root .icon-strip .it{ text-align:center; padding:8px 4px; }
@@ -260,6 +284,34 @@ export default function Welcome({ onComecar, onEntrar }) {
         .lp-root .stat b{ font-size:26px; font-weight:800; color:var(--teal-d); display:block; }
         .lp-root .stat span{ font-size:12px; color:var(--muted); margin-top:4px; display:block; }
 
+        .lp-root .pain-grid{ display:grid; grid-template-columns:.9fr 1.1fr; gap:18px; align-items:stretch; }
+        .lp-root .pain-card{ border-radius:28px; padding:42px; border:1px solid var(--line); }
+        .lp-root .pain-card.before{ background:#F1EFE8; }
+        .lp-root .pain-card.after{ background:linear-gradient(140deg,#062824,#0B423A); color:#fff; position:relative; overflow:hidden; }
+        .lp-root .pain-card.after::after{ content:'✈'; position:absolute; right:-18px; bottom:-40px; font-size:180px; opacity:.045; transform:rotate(-15deg); }
+        .lp-root .pain-card h3{ font-size:24px; margin:8px 0 22px; }
+        .lp-root .pain-list{ display:flex; flex-direction:column; gap:14px; }
+        .lp-root .pain-item{ display:flex; gap:11px; align-items:flex-start; font-size:14px; line-height:1.5; color:var(--muted); }
+        .lp-root .after .pain-item{ color:rgba(255,255,255,.82); }
+        .lp-root .pain-item b{ width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:0 0 auto; background:rgba(15,27,25,.08); color:var(--muted); font-size:12px; }
+        .lp-root .after .pain-item b{ background:rgba(0,199,177,.16); color:#72E9DA; }
+
+        .lp-root .steps{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+        .lp-root .step{ background:#fff; border:1px solid var(--line); border-radius:24px; padding:30px; position:relative; overflow:hidden; }
+        .lp-root .step .num{ font-size:12px; font-weight:800; color:var(--teal-d); background:#EAF6F2; width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:34px; }
+        .lp-root .step h3{ font-size:19px; }
+        .lp-root .step p{ color:var(--muted); font-size:13.5px; line-height:1.6; margin-top:8px; }
+        .lp-root .step::after{ content:''; position:absolute; width:90px; height:90px; border-radius:50%; border:18px solid rgba(0,199,177,.055); right:-34px; top:-34px; }
+
+        .lp-root .faq{ max-width:820px; margin:0 auto; display:flex; flex-direction:column; gap:10px; }
+        .lp-root .faq details{ background:#fff; border:1px solid var(--line); border-radius:18px; padding:0 20px; }
+        .lp-root .faq summary{ list-style:none; cursor:pointer; min-height:64px; display:flex; align-items:center; justify-content:space-between; gap:18px; font-size:14.5px; font-weight:800; }
+        .lp-root .faq summary::-webkit-details-marker{ display:none; }
+        .lp-root .faq summary::after{ content:'+'; color:var(--teal-d); font-size:22px; font-weight:500; }
+        .lp-root .faq details[open] summary::after{ content:'−'; }
+        .lp-root .faq p{ color:var(--muted); font-size:13.5px; line-height:1.65; padding:0 30px 18px 0; }
+        .lp-root .mobile-cta{ display:none; }
+
         .lp-root .cta-final{ background:linear-gradient(120deg,var(--navy-2),var(--navy) 60%,#0a3730); border-radius:32px; padding:20px 60px; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:space-between; gap:30px; flex-wrap:wrap; }
         .lp-root .cta-final::before{ content:''; position:absolute; width:420px; height:420px; border-radius:50%; background:radial-gradient(circle, rgba(0,199,177,.25), transparent 70%); top:-160px; right:0; }
         .lp-root .cta-final .txt{ position:relative; max-width:440px; padding:40px 0; }
@@ -279,11 +331,13 @@ export default function Welcome({ onComecar, onEntrar }) {
           .lp-root .hero p.lead{ margin:18px auto 0; }
           .lp-root .hero-ctas{ justify-content:center; }
           .lp-root .hero-visual{ margin-top:40px; }
+          .lp-root .travel-stage{ min-height:540px; }
           .lp-root .icon-strip{ grid-template-columns:repeat(4,1fr); }
           .lp-root .split{ grid-template-columns:1fr; }
           .lp-root .mini-grid{ grid-template-columns:1fr 1fr; }
           .lp-root .screens-row{ grid-template-columns:repeat(2,1fr); }
           .lp-root .stats{ grid-template-columns:repeat(2,1fr); gap:22px 0; }
+          .lp-root .pain-grid,.lp-root .steps{ grid-template-columns:1fr; }
           .lp-root .stat{ border-right:none; border-bottom:1px solid var(--line); padding-bottom:16px; }
           .lp-root .cta-final{ flex-direction:column; text-align:center; padding:40px 26px; }
           .lp-root .cta-final .txt{ padding:0; max-width:100%; }
@@ -293,14 +347,33 @@ export default function Welcome({ onComecar, onEntrar }) {
           .lp-root .sec-head h2{ font-size:26px; }
           .lp-root .wrap{ padding:0 20px; }
         }
+        @media (max-width:600px){
+          .lp-root nav .wrap{ padding:0 12px; }
+          .lp-root .logo{ gap:7px; }
+          .lp-root .logo-tail{ display:none; }
+          .lp-root .hero{ padding-top:24px; }
+          .lp-root .hero h1{ font-size:34px; }
+          .lp-root .hero p.lead{ font-size:15px; }
+          .lp-root .travel-stage{ min-height:500px; border-radius:28px; }
+          .lp-root .travel-stage .phone{ transform:translateY(34px) scale(.84); }
+          .lp-root .float-note.one{ top:24px; left:12px; }
+          .lp-root .float-note.two{ right:10px; bottom:18px; }
+          .lp-root .trust-line{ justify-content:center; }
+          .lp-root .pain-card{ padding:30px 24px; }
+          .lp-root .mobile-cta{ position:fixed; display:flex; left:12px; right:12px; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:120; background:rgba(6,40,36,.94); backdrop-filter:blur(16px); color:#fff; border-radius:18px; padding:8px 8px 8px 16px; align-items:center; justify-content:space-between; box-shadow:0 18px 50px rgba(6,30,26,.35); }
+          .lp-root .mobile-cta span{ font-size:12px; font-weight:700; }
+          .lp-root .mobile-cta button{ border:none; background:var(--teal); color:#fff; font-weight:800; border-radius:13px; min-height:42px; padding:0 16px; }
+          .lp-root footer{ padding-bottom:96px; }
+        }
       `}</style>
 
       <nav id="lp-nav">
         <div className="wrap row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div className="logo"><span className="mark"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 3 3 10l7 3 3 7 8-17Z" /></svg></span>Encorpei <span style={{ fontWeight: 500, opacity: .7 }}>na Trip</span></div>
+          <div className="logo"><span className="mark"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 3 3 10l7 3 3 7 8-17Z" /></svg></span><span className="logo-name">Encorpei <span className="logo-tail" style={{ fontWeight: 500, opacity: .7 }}>na Trip</span></span></div>
           <div className="nav-links">
             <a className="link" href="#funcionalidades">Funcionalidades</a>
             <a className="link" href="#como-funciona">Como funciona</a>
+            <a className="link" href="#duvidas">Dúvidas</a>
             <button className="btn btn-outline" onClick={onEntrar}>Entrar</button>
             <button className="btn btn-primary" onClick={onComecar}>Criar conta</button>
           </div>
@@ -310,16 +383,21 @@ export default function Welcome({ onComecar, onEntrar }) {
       <header className="hero">
         <div className="wrap hero-grid">
           <div>
-            <div className="badge-pill"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 13l4 4L19 7" /></svg>Planeje. Organize. Aproveite.</div>
-            <h1>Planeje toda a viagem da família aos <span>EUA</span> em um único app</h1>
-            <p className="lead">Controle gastos em dólar e real, roteiro, checklist, motorhome e mapas — e acompanhe tudo em tempo real com quem for junto, sem planilha e sem grupo de WhatsApp lotado.</p>
+            <div className="badge-pill"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 13l4 4L19 7" /></svg>Sua viagem inteira, no mesmo lugar</div>
+            <h1>Menos tempo organizando. <span>Mais viagem acontecendo.</span></h1>
+            <p className="lead">Do primeiro plano ao último acerto de contas: roteiro, gastos, documentos, checklist e pessoas viajando juntas em um único app.</p>
             <div className="hero-ctas">
-              <button className="btn btn-primary" onClick={onComecar}>Criar minha conta <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg></button>
+              <button className="btn btn-primary" onClick={onComecar}>Começar minha viagem <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg></button>
               <a href="#funcionalidades" className="btn btn-outline">Ver funcionalidades</a>
             </div>
+            <div className="trust-line"><span><i /> Real e dólar</span><span><i /> Grupo sincronizado</span><span><i /> Acerto automático</span></div>
           </div>
           <div className="hero-visual">
-            <Phone />
+            <div className="travel-stage">
+              <div className="float-note one"><span>PRÓXIMO PASSEIO</span>Magic Kingdom · 9h</div>
+              <Phone />
+              <div className="float-note two"><span>CONTAS DO GRUPO</span>Tudo certo ✓</div>
+            </div>
           </div>
         </div>
       </header>
@@ -333,6 +411,35 @@ export default function Welcome({ onComecar, onEntrar }) {
                 <b>{label}</b>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section style={{ paddingTop: 10 }}>
+        <div className="wrap">
+          <div className="sec-head">
+            <div className="eyebrow">Viajar já dá trabalho demais</div>
+            <h2>A organização não precisa dar</h2>
+          </div>
+          <div className="pain-grid">
+            <div className="pain-card before">
+              <div className="eyebrow" style={{ color: '#7C6C58' }}>Sem o app</div>
+              <h3>Cada informação em um lugar</h3>
+              <div className="pain-list">
+                <div className="pain-item"><b>×</b><span>Roteiro perdido entre mensagens e prints</span></div>
+                <div className="pain-item"><b>×</b><span>Planilha que ninguém atualiza durante a viagem</span></div>
+                <div className="pain-item"><b>×</b><span>Contas confusas quando várias pessoas pagam</span></div>
+              </div>
+            </div>
+            <div className="pain-card after">
+              <div className="eyebrow" style={{ color: '#72E9DA' }}>Com Encorpei na Trip</div>
+              <h3>Todo mundo viaja com a mesma informação</h3>
+              <div className="pain-list">
+                <div className="pain-item"><b>✓</b><span>Roteiro do dia, horários, lugares e mapa sempre à mão</span></div>
+                <div className="pain-item"><b>✓</b><span>Orçamento e gastos atualizados em real e dólar</span></div>
+                <div className="pain-item"><b>✓</b><span>Saldo líquido mostra quem deve para quem, sem confusão</span></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -371,6 +478,20 @@ export default function Welcome({ onComecar, onEntrar }) {
       <section id="como-funciona">
         <div className="wrap">
           <div className="sec-head">
+            <div className="eyebrow">Simples desde o começo</div>
+            <h2>Três passos até a viagem organizada</h2>
+          </div>
+          <div className="steps">
+            {STEPS.map(([n, t, d]) => (
+              <div className="step" key={n}><div className="num">{n}</div><h3>{t}</h3><p>{d}</p></div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div className="wrap">
+          <div className="sec-head">
             <div className="eyebrow">Tudo que você precisa</div>
             <h2>Em um só lugar</h2>
           </div>
@@ -388,7 +509,7 @@ export default function Welcome({ onComecar, onEntrar }) {
       <section style={{ paddingTop: 0 }}>
         <div className="wrap">
           <div className="tag-strip">
-            <h3>Ideal pra qualquer tipo de viagem aos EUA</h3>
+            <h3>Ideal para a viagem que você está planejando</h3>
             <div className="tags">
               {TAGS.map((t, i) => <span className="tag" key={i}>{t}</span>)}
             </div>
@@ -423,12 +544,27 @@ export default function Welcome({ onComecar, onEntrar }) {
         </div>
       </section>
 
+      <section id="duvidas" style={{ paddingTop: 20 }}>
+        <div className="wrap">
+          <div className="sec-head">
+            <div className="eyebrow">Perguntas frequentes</div>
+            <h2>Antes de fazer as malas</h2>
+          </div>
+          <div className="faq">
+            {FAQS.map(([pergunta, resposta]) => (
+              <details key={pergunta}><summary>{pergunta}</summary><p>{resposta}</p></details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <footer>
         <div className="wrap">
           <div className="logo"><span className="mark"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 3 3 10l7 3 3 7 8-17Z" /></svg></span>Encorpei na Trip</div>
           <p>Feito por quem viaja, pra quem viaja em família.</p>
         </div>
       </footer>
+      <div className="mobile-cta"><span>Sua viagem em um só app</span><button onClick={onComecar}>Começar agora</button></div>
     </div>
   );
 }

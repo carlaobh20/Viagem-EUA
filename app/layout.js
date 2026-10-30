@@ -1,5 +1,5 @@
 import './globals.css';
-export const metadata = { title: 'Encorpei na Trip · Viagem em família', description: 'Organize, acompanhe e compartilhe suas viagens em família — gastos, roteiro, motorhome e muito mais.', manifest: '/manifest.json' };
+export const metadata = { title: 'Encorpei na Trip · Sua viagem inteira em um só app', description: 'Organize roteiro, gastos, documentos, checklist e pessoas viajando juntas em um único aplicativo.', manifest: '/manifest.json' };
 export const viewport = { themeColor: '#00C7B1', width: 'device-width', initialScale: 1, maximumScale: 1, userScalable: false };
 export default function RootLayout({ children }) {
   return (
