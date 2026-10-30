@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { calcularConsumoPorMoeda } from '../../lib/settle';
 import { valorEmBRL, fmtBRL, fmtUSD, emojiCategoria, nomeCategoria, usaDolar } from '../../lib/format';
 import { PageHeader, EmptyState, Button, Field, Reveal, Expand, SectionHeader } from '../ui';
+import { normalizarPlano } from '../../lib/plans';
 
 // Pessoas da viagem: quem está junto e quanto cada um consumiu. Lista limpa,
 // adicionar pessoa com campo inline (sem prompt), detalhamento de quem foi tocado.
@@ -45,6 +46,7 @@ export default function Pessoas({ ir }) {
   const maxP = pessoas.reduce((m, p) => Math.max(m, p.totalBRL), 0) || 1;
   const sel = pessoas.find((p) => p.id === selId) || pessoas.find((p) => p.ehVoce) || pessoas[0];
   const sozinho = perfis.length <= 1;
+  const plano = normalizarPlano(viagem.plano);
 
   // gasto da pessoa selecionada quebrado por categoria (parte dela em cada gasto)
   function catsDe(pid) {
@@ -117,8 +119,8 @@ export default function Pessoas({ ir }) {
           </div>
           {ir && (
             <div className="ui-caption" style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-              <span>Quem já usa o app entra pelo link de convite.</span>
-              <button className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => ir('viagens')}>Ver convite →</button>
+              <span>{plano.id === 'familia' ? 'No plano Família, até 5 pessoas podem entrar pelo link.' : 'Esta pessoa entra nas divisões, mas somente você acessa o app no plano Individual.'}</span>
+              {plano.id === 'familia' && <button className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => ir('viagens')}>Ver convite →</button>}
             </div>
           )}
         </div>

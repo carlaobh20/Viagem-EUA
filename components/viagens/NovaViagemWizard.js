@@ -58,6 +58,7 @@ export default function NovaViagemWizard({ onCancelar, onCriar }) {
   const [tipoViagem, setTipoViagem] = useState(null);
   const [destino, setDestino] = useState('');
   const [transporte, setTransporte] = useState([]);
+  const [vaiMotorhome, setVaiMotorhome] = useState(null);
   const [motivo, setMotivo] = useState(null);
   const [dataIda, setDataIda] = useState('');
   const [dataVolta, setDataVolta] = useState('');
@@ -66,6 +67,12 @@ export default function NovaViagemWizard({ onCancelar, onCriar }) {
 
   function toggleTransporte(id) {
     setTransporte((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+  function escolherMotorhome(sim) {
+    setVaiMotorhome(sim);
+    setTransporte((prev) => sim
+      ? (prev.includes('motorhome') ? prev : [...prev, 'motorhome'])
+      : prev.filter((x) => x !== 'motorhome'));
   }
 
   // quantidade de dias, só pra mostrar feedback ao usuário no passo de datas —
@@ -78,7 +85,7 @@ export default function NovaViagemWizard({ onCancelar, onCriar }) {
   const validoPorPasso = [
     nome.trim().length > 0 && !!tipoViagem,
     destino.trim().length > 0,
-    transporte.length > 0,
+    vaiMotorhome !== null && transporte.length > 0,
     true, // datas são opcionais — pode não saber ainda
     !!motivo,
   ];
@@ -197,10 +204,15 @@ export default function NovaViagemWizard({ onCancelar, onCriar }) {
 
               {passo === 2 && (
                 <>
-                  <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.4px', marginBottom: 4 }}>Como vocês vão se deslocar?</div>
-                  <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginBottom: 18 }}>Pode escolher mais de um. Isso ajusta o que aparece no app — por exemplo, só mostramos a aba de Motorhome se ela fizer sentido.</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.4px', marginBottom: 4 }}>Vai viajar de motorhome?</div>
+                  <div style={{ fontSize: 13, color: 'var(--ui-muted)', marginBottom: 14 }}>A área de Motorhome só aparece quando fizer sentido para a viagem.</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 16 }}>
+                    <button onClick={() => escolherMotorhome(true)} className="v3-press" style={{ border: vaiMotorhome === true ? '1.5px solid var(--ui-teal)' : '1px solid var(--ui-line)', background: vaiMotorhome === true ? 'var(--ui-teal-soft)' : 'var(--ui-card)', borderRadius: radius.md, padding: '14px 10px', fontWeight: 800, color: vaiMotorhome === true ? 'var(--ui-teal-ink)' : 'var(--ui-ink)' }}>🚐 Sim</button>
+                    <button onClick={() => escolherMotorhome(false)} className="v3-press" style={{ border: vaiMotorhome === false ? '1.5px solid var(--ui-teal)' : '1px solid var(--ui-line)', background: vaiMotorhome === false ? 'var(--ui-teal-soft)' : 'var(--ui-card)', borderRadius: radius.md, padding: '14px 10px', fontWeight: 800, color: vaiMotorhome === false ? 'var(--ui-teal-ink)' : 'var(--ui-ink)' }}>Não</button>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ui-muted)', marginBottom: 9 }}>{vaiMotorhome ? 'OUTROS TRANSPORTES (OPCIONAL)' : 'COMO VOCÊS VÃO VIAJAR?'}</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
-                    {TRANSPORTES.map((t) => (
+                    {TRANSPORTES.filter((t) => t.id !== 'motorhome').map((t) => (
                       <Chip key={t.id} ativo={transporte.includes(t.id)} onClick={() => toggleTransporte(t.id)} emoji={t.emoji} label={t.label} />
                     ))}
                   </div>

@@ -27,9 +27,10 @@ const INDIVIDUAL = [IT.checklist, IT.compras];
 const COMPARTILHADO = [IT.diario, IT.documentos, IT.logins, IT.passagens, IT.gastos, IT.acerto, IT.lugares, IT.frases, IT.appsinstalar, IT.pessoas];
 
 export default function Menu({ ir }) {
-  const { viagem, perfis } = useData();
+  const { viagem, perfis, atualizarTransporteViagem } = useData();
   const [buscaAberta, setBuscaAberta] = useState(false);
   const [busca, setBusca] = useState('');
+  const [salvandoMotorhome, setSalvandoMotorhome] = useState(false);
 
   // Card "Conversar em inglês" só some se a viagem tiver perfil definido como
   // nacional (ver NovaViagemWizard). Viagem sem perfil ainda (tipo_viagem
@@ -48,6 +49,15 @@ export default function Menu({ ir }) {
   // sem perfil de transporte (as antigas) continua vendo — mesma regra do Checklist.
   const transporte = Array.isArray(viagem?.transporte) ? viagem.transporte : [];
   const mostrarPassagens = transporte.length === 0 || transporte.includes('aviao');
+  const temMotorhome = transporte.includes('motorhome');
+  async function alternarMotorhome() {
+    setSalvandoMotorhome(true);
+    const novaLista = temMotorhome
+      ? transporte.filter((id) => id !== 'motorhome')
+      : [...transporte.filter((id) => id !== 'outro'), 'motorhome'];
+    await atualizarTransporteViagem(novaLista.length ? novaLista : ['outro']);
+    setSalvandoMotorhome(false);
+  }
 
   const bate = (it) => {
     const q = busca.trim().toLowerCase();
@@ -129,6 +139,23 @@ export default function Menu({ ir }) {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {compartilhadoFiltrado.map((it) => <CardPequeno key={it.id} it={it} cheio={it.id === 'viagens' || it.id === 'diario'} />)}
+          </div>
+        </div>
+      )}
+
+      {!busca.trim() && (
+        <div style={{ marginTop: 26 }}>
+          <div style={{ margin: '0 4px 10px', fontSize: 12, fontWeight: 800, letterSpacing: '1px', color: 'var(--ui-muted)' }}>AJUSTES DA VIAGEM</div>
+          <div className="ui-card" style={{ padding: 15 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ width: 44, height: 44, borderRadius: 14, background: temMotorhome ? 'var(--ui-teal-soft)' : 'var(--ui-sunken)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🚐</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14.5, fontWeight: 800 }}>Modo Motorhome</div>
+                <div style={{ fontSize: 11.5, color: 'var(--ui-muted)', marginTop: 2 }}>{temMotorhome ? 'Reservas, km e custos estão disponíveis.' : 'Ative somente se esta viagem usar RV.'}</div>
+              </div>
+              <button onClick={alternarMotorhome} disabled={salvandoMotorhome} aria-pressed={temMotorhome} style={{ width: 50, height: 30, border: 'none', borderRadius: 999, background: temMotorhome ? 'var(--ui-teal)' : 'var(--ui-line-strong)', padding: 3, display: 'flex', justifyContent: temMotorhome ? 'flex-end' : 'flex-start', alignItems: 'center' }}><span style={{ width: 24, height: 24, borderRadius: '50%', background: '#fff', boxShadow: '0 2px 6px rgba(0,0,0,.18)' }} /></button>
+            </div>
+            {temMotorhome && <button onClick={() => ir('motorhome')} className="ui-btn ui-btn-soft" style={{ width: '100%', marginTop: 12 }}>Abrir área de Motorhome</button>}
           </div>
         </div>
       )}

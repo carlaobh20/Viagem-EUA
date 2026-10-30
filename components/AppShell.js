@@ -28,14 +28,18 @@ const Logins = lazy(() => import('./views/Logins'));
 const Carregando = () => <div className="center-msg">Carregando…</div>;
 
 export default function AppShell() {
-  const { carregando, viagem, erro, recarregar, entrarPorConvite, precisaNome } = useData();
+  const { carregando, viagem, erro, recarregar, entrarPorConvite, precisaNome, atualizarTransporteViagem } = useData();
   const [view, setView] = useState('viagens');
   const [viewParam, setViewParam] = useState(null);
+  const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const cod = new URLSearchParams(window.location.search).get('convite');
     if (cod && entrarPorConvite) {
-      entrarPorConvite(cod).then((r) => { if (r && r.ok) setView('resumo'); }).finally(() => window.history.replaceState({}, '', window.location.pathname));
+      entrarPorConvite(cod).then((r) => {
+        if (r && r.ok) setView('resumo');
+        else if (r && r.erro) window.alert(r.erro);
+      }).finally(() => window.history.replaceState({}, '', window.location.pathname));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -52,6 +56,12 @@ export default function AppShell() {
   const irPara = (v, param = null) => { setView(v); setViewParam(param); };
   // ainda sem nenhuma viagem: abre direto no lobby pra criar/entrar na primeira
   if (!viagem) return <div className="app ui-theme"><Suspense fallback={<Carregando />}><Viagens ir={irPara} /></Suspense></div>;
+  const precisaPerguntarMotorhome = !Array.isArray(viagem.transporte) || viagem.transporte.length === 0;
+  async function responderMotorhome(sim) {
+    setSalvandoPerfil(true);
+    await atualizarTransporteViagem(sim ? ['motorhome'] : ['outro']);
+    setSalvandoPerfil(false);
+  }
   return (
     <div className="app ui-theme">
       <Suspense fallback={<Carregando />}>
@@ -77,6 +87,17 @@ export default function AppShell() {
         {view === 'conta' && <Conta ir={irPara} />}
       </Suspense>
       {view !== 'novo' && view !== 'viagens' && view !== 'conta' && <Nav view={view} setView={(v) => irPara(v)} />}
+      {precisaPerguntarMotorhome && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(3,22,28,.62)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 22 }}>
+          <div className="ui-card" style={{ width: '100%', maxWidth: 390, padding: 22, textAlign: 'center', boxShadow: '0 24px 70px rgba(0,0,0,.28)' }}>
+            <div style={{ width: 64, height: 64, borderRadius: 20, background: 'var(--ui-teal-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 31, margin: '0 auto 14px' }}>🚐</div>
+            <div className="ui-h2" style={{ fontSize: 21 }}>Esta viagem terá motorhome?</div>
+            <div className="ui-caption" style={{ fontSize: 13.5, margin: '7px auto 18px', maxWidth: 310 }}>Se tiver, mostramos uma área especial para reservas, quilometragem, custos e diário do RV. Você pode mudar isso depois em Menu.</div>
+            <button disabled={salvandoPerfil} onClick={() => responderMotorhome(true)} className="ui-btn ui-btn-primary lg" style={{ width: '100%' }}>Sim, vamos de motorhome</button>
+            <button disabled={salvandoPerfil} onClick={() => responderMotorhome(false)} className="ui-btn ui-btn-secondary" style={{ width: '100%', marginTop: 8 }}>Não nesta viagem</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

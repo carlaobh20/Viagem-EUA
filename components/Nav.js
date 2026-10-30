@@ -17,12 +17,9 @@ const NO_MENU = ['menu', 'gastos', 'checklist', 'compras', 'pessoas', 'acerto', 
 
 export default function Nav({ view, setView }) {
   const { viagem } = useData();
-  // Aba Motorhome só aparece se a viagem tiver "Motorhome / RV" marcado no
-  // perfil (definido na criação, ver NovaViagemWizard). Viagem sem perfil
-  // definido ainda (transporte vazio/ausente) mostra por padrão — não some
-  // aba de viagem já em uso antes dessa personalização existir.
-  const semPerfilTransporte = !viagem || !Array.isArray(viagem.transporte) || viagem.transporte.length === 0;
-  const mostrarMotorhome = semPerfilTransporte || viagem.transporte.includes('motorhome');
+  // A aba só ocupa espaço quando a viagem realmente usa motorhome. Viagens
+  // antigas sem resposta recebem a pergunta no AppShell antes desta barra.
+  const mostrarMotorhome = Array.isArray(viagem?.transporte) && viagem.transporte.includes('motorhome');
   // Quando não sobra aba de Motorhome, o espaço na barra vira acesso direto ao
   // Checklist em vez de ficar vazio.
   const mostrarChecklistNaBarra = !mostrarMotorhome;

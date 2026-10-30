@@ -126,9 +126,19 @@ const FAQS = [
   ['Consigo dividir os gastos com outras pessoas?', 'Sim. Você registra quem pagou, escolhe quem participou e o app consolida o saldo de cada pessoa.'],
   ['Todo mundo consegue acompanhar a mesma viagem?', 'Sim. Os participantes convidados acompanham as informações compartilhadas da viagem no mesmo lugar.'],
   ['Funciona com real e dólar?', 'Sim. As despesas podem ser registradas em real ou dólar, com conversão e totais organizados.'],
+  ['Preciso baixar pela App Store ou Google Play?', 'Não. O Encorpei na Trip é um PWA: você abre o link no navegador e adiciona o app à tela inicial do celular.'],
+  ['Qual é a diferença entre Individual e Família?', 'No Individual, somente o comprador acessa e organiza a viagem. No Família, até 5 pessoas têm login e acompanham juntas o mesmo roteiro, gastos e acertos.'],
+  ['O pagamento é mensal?', 'Não. Os dois planos têm pagamento único e dão 12 meses de acesso, sem mensalidade.'],
+];
+
+// O checkout será ativado quando o proprietário informar o link de pagamento.
+const PLANOS_VENDA = [
+  { id: 'individual', nome: 'Individual', preco: 'R$ 69,90', destaque: false, descricao: 'Para quem vai organizar tudo sozinho.', itens: ['1 acesso', 'Roteiro, gastos e checklist', 'Acerto de contas com participantes', '12 meses de uso'], link: '' },
+  { id: 'familia', nome: 'Família', preco: 'R$ 99,90', destaque: true, descricao: 'Para todos acompanharem a mesma viagem.', itens: ['Até 5 acessos', 'Mesmo roteiro em todos os celulares', 'Gastos e acertos sincronizados', '12 meses de uso'], link: '' },
 ];
 
 export default function Welcome({ onComecar, onEntrar }) {
+  const irParaCompra = () => document.getElementById('comprar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   useEffect(() => {
     const nav = document.getElementById('lp-nav');
     const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 40);
@@ -143,7 +153,7 @@ export default function Welcome({ onComecar, onEntrar }) {
   return (
     <div className="lp-root">
       <style>{`
-        .lp-root{ --ink:#0F1B19; --muted:#5B6B68; --faint:#8B9C99; --teal:#00C7B1; --teal-d:#049182; --navy:#062824; --navy-2:#0B1614; --line:rgba(15,27,25,.09); --paper:#FAF9F5; --card:#FFFFFF; --glow:rgba(0,199,177,.35); }
+        .lp-root{ --ink:#0F1B19; --muted:#5B6B68; --faint:#8B9C99; --teal:#00C7B1; --teal-d:#049182; --navy:#062824; --navy-2:#0B1614; --line:rgba(15,27,25,.09); --paper:#F4F1E9; --card:#FFFDF8; --glow:rgba(0,199,177,.35); }
         .lp-root{ font-family:'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:var(--ink); background:var(--paper); -webkit-font-smoothing:antialiased; overflow-x:hidden; }
         .lp-root img{ max-width:100%; display:block; }
         .lp-root .wrap{ max-width:1220px; margin:0 auto; padding:0 32px; }
@@ -340,6 +350,62 @@ export default function Welcome({ onComecar, onEntrar }) {
         .lp-root .journey-action button{ align-self:flex-start; border:none; background:var(--navy); color:#fff; border-radius:999px; min-height:44px; padding:0 18px; font-weight:800; margin-top:18px; }
         @keyframes lpRoute{ to{ background-position:22px 0; } }
 
+        .lp-root .settle-story{ position:relative; min-height:650px; border-radius:36px; overflow:hidden; background:url('/landing-friends-trip.jpg') center/cover; display:flex; align-items:center; padding:56px; isolation:isolate; }
+        .lp-root .settle-story::before{ content:''; position:absolute; inset:0; background:linear-gradient(90deg,rgba(4,25,22,.95) 0%,rgba(4,25,22,.78) 48%,rgba(4,25,22,.30) 100%); z-index:-1; }
+        .lp-root .settle-content{ max-width:520px; color:#fff; }
+        .lp-root .settle-content h2{ font-size:38px; margin-top:10px; }
+        .lp-root .settle-content>p{ color:rgba(255,255,255,.72); font-size:15px; line-height:1.65; margin-top:14px; max-width:470px; }
+        .lp-root .balance-demo{ margin-top:28px; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; max-width:520px; }
+        .lp-root .balance-card{ background:rgba(255,255,255,.94); color:var(--ink); border-radius:18px; padding:16px; box-shadow:0 20px 48px -24px rgba(0,0,0,.55); }
+        .lp-root .balance-card .small{ color:var(--muted); font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+        .lp-root .balance-card strong{ font-size:24px; display:block; margin-top:4px; }
+        .lp-root .balance-card.final{ border:2px solid var(--teal); }
+        .lp-root .balance-arrow{ width:38px; height:38px; border-radius:50%; background:var(--teal); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:900; }
+        .lp-root .compensation{ margin-top:12px; background:rgba(0,199,177,.16); border:1px solid rgba(114,233,218,.28); border-radius:14px; padding:11px 13px; font-size:12.5px; line-height:1.45; color:#CFFCF5; }
+
+        .lp-root .pwa-stage{ border-radius:34px; background:linear-gradient(145deg,#071A17,#073A33); color:#fff; overflow:hidden; display:grid; grid-template-columns:.9fr 1.1fr; min-height:580px; }
+        .lp-root .pwa-photo{ min-height:580px; background:url('/landing-phone-airport.jpg') center 45%/cover; position:relative; }
+        .lp-root .pwa-photo::after{ content:'PWA'; position:absolute; left:24px; bottom:24px; width:64px; height:64px; border-radius:20px; background:var(--teal); display:flex; align-items:center; justify-content:center; font-weight:900; letter-spacing:.05em; box-shadow:0 16px 36px rgba(0,0,0,.25); }
+        .lp-root .pwa-copy{ padding:54px; display:flex; flex-direction:column; justify-content:center; }
+        .lp-root .pwa-copy h2{ font-size:34px; margin:10px 0 12px; }
+        .lp-root .pwa-copy>p{ color:rgba(255,255,255,.68); font-size:14.5px; line-height:1.65; }
+        .lp-root .install-steps{ display:flex; flex-direction:column; gap:12px; margin-top:25px; }
+        .lp-root .install-step{ display:flex; align-items:flex-start; gap:12px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.10); border-radius:16px; padding:13px; }
+        .lp-root .install-step b{ width:30px; height:30px; border-radius:10px; background:var(--teal); display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+        .lp-root .install-step strong{ display:block; font-size:13.5px; }
+        .lp-root .install-step span{ display:block; color:rgba(255,255,255,.6); font-size:11.5px; margin-top:2px; line-height:1.4; }
+
+        .lp-root .price-stage{ background:linear-gradient(145deg,#E1F8F2,#FFFDF8); border:1px solid rgba(0,199,177,.20); border-radius:34px; display:grid; grid-template-columns:.72fr 1.28fr; overflow:hidden; }
+        .lp-root .price-copy{ padding:54px; }
+        .lp-root .price-copy h2{ font-size:34px; margin:10px 0 12px; }
+        .lp-root .price-copy p{ color:var(--muted); font-size:14px; line-height:1.6; max-width:530px; }
+        .lp-root .included{ display:grid; grid-template-columns:1fr 1fr; gap:10px 18px; margin-top:24px; }
+        .lp-root .included span{ font-size:12.5px; font-weight:700; display:flex; gap:8px; align-items:center; }
+        .lp-root .included span::before{ content:'✓'; color:var(--teal-d); }
+        .lp-root .price-box{ background:var(--navy); color:#fff; padding:42px; display:flex; flex-direction:column; justify-content:center; }
+        .lp-root .price-box .label{ font-size:11px; color:#8FF3E4; font-weight:800; letter-spacing:.1em; }
+        .lp-root .price-box .price{ font-size:42px; font-weight:800; letter-spacing:-.04em; margin:8px 0 4px; }
+        .lp-root .price-box .once{ color:rgba(255,255,255,.62); font-size:12.5px; }
+        .lp-root .buy-btn{ width:100%; min-height:54px; border:none; border-radius:16px; background:var(--teal); color:#fff; font-size:15px; font-weight:800; margin-top:24px; }
+        .lp-root .buy-btn:disabled{ opacity:.55; cursor:not-allowed; }
+        .lp-root .secure-note{ font-size:10.5px; color:rgba(255,255,255,.5); text-align:center; margin-top:10px; }
+        .lp-root .plans-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; padding:20px; background:rgba(255,255,255,.54); }
+        .lp-root .plan-card{ position:relative; border-radius:24px; padding:28px 24px; background:#fff; border:1px solid var(--line); display:flex; flex-direction:column; min-width:0; }
+        .lp-root .plan-card.featured{ background:var(--navy); color:#fff; border-color:transparent; box-shadow:0 18px 44px rgba(6,40,36,.20); }
+        .lp-root .plan-card .popular{ position:absolute; top:14px; right:14px; background:var(--teal); color:#fff; font-size:9px; letter-spacing:.08em; font-weight:900; padding:6px 9px; border-radius:999px; }
+        .lp-root .plan-card h3{ font-size:22px; margin:0 0 7px; }
+        .lp-root .plan-card .plan-desc{ font-size:12.5px; color:var(--muted); line-height:1.5; min-height:38px; }
+        .lp-root .plan-card.featured .plan-desc{ color:rgba(255,255,255,.64); }
+        .lp-root .plan-price{ font-size:34px; font-weight:900; letter-spacing:-.04em; margin:19px 0 1px; }
+        .lp-root .plan-once{ font-size:11px; color:var(--faint); margin-bottom:18px; }
+        .lp-root .plan-card.featured .plan-once{ color:rgba(255,255,255,.5); }
+        .lp-root .plan-items{ display:grid; gap:9px; margin-bottom:22px; font-size:12px; font-weight:700; }
+        .lp-root .plan-items span::before{ content:'✓'; color:var(--teal-d); margin-right:7px; }
+        .lp-root .plan-card.featured .plan-items span::before{ color:#8FF3E4; }
+        .lp-root .plan-card .buy-btn{ margin-top:auto; }
+        .lp-root .plan-card:not(.featured) .buy-btn{ background:var(--teal-d); }
+        .lp-root .plan-card:not(.featured) .secure-note{ color:var(--faint); }
+
         .lp-root .cta-final{ background:linear-gradient(120deg,var(--navy-2),var(--navy) 60%,#0a3730); border-radius:32px; padding:20px 60px; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:space-between; gap:30px; flex-wrap:wrap; }
         .lp-root .cta-final::before{ content:''; position:absolute; width:420px; height:420px; border-radius:50%; background:radial-gradient(circle, rgba(0,199,177,.25), transparent 70%); top:-160px; right:0; }
         .lp-root .cta-final .txt{ position:relative; max-width:440px; padding:40px 0; }
@@ -369,6 +435,10 @@ export default function Welcome({ onComecar, onEntrar }) {
           .lp-root .pain-grid,.lp-root .steps{ grid-template-columns:1fr; }
           .lp-root .journey-showcase{ grid-template-columns:1fr; grid-template-rows:520px 360px auto; }
           .lp-root .journey-card.desert,.lp-root .journey-card.friends,.lp-root .journey-action{ grid-column:1; grid-row:auto; }
+          .lp-root .pwa-stage,.lp-root .price-stage{ grid-template-columns:1fr; }
+          .lp-root .plans-grid{ grid-template-columns:1fr 1fr; }
+          .lp-root .pwa-photo{ min-height:440px; }
+          .lp-root .price-box{ min-height:330px; }
           .lp-root .stat{ border-right:none; border-bottom:1px solid var(--line); padding-bottom:16px; }
           .lp-root .cta-final{ flex-direction:column; text-align:center; padding:40px 26px; }
           .lp-root .cta-final .txt{ padding:0; max-width:100%; }
@@ -394,6 +464,15 @@ export default function Welcome({ onComecar, onEntrar }) {
           .lp-root .journey-showcase{ grid-template-rows:470px 330px auto; }
           .lp-root .journey-copy{ left:22px; right:22px; bottom:22px; }
           .lp-root .journey-copy h3{ font-size:23px; }
+          .lp-root .settle-story{ min-height:680px; padding:32px 22px; align-items:flex-end; background-position:58% center; }
+          .lp-root .settle-story::before{ background:linear-gradient(180deg,rgba(4,25,22,.20),rgba(4,25,22,.95) 58%); }
+          .lp-root .settle-content h2{ font-size:29px; }
+          .lp-root .balance-demo{ grid-template-columns:1fr; }
+          .lp-root .balance-arrow{ transform:rotate(90deg); margin:0 auto; }
+          .lp-root .pwa-copy,.lp-root .price-copy,.lp-root .price-box{ padding:32px 24px; }
+          .lp-root .pwa-copy h2,.lp-root .price-copy h2{ font-size:28px; }
+          .lp-root .included{ grid-template-columns:1fr; }
+          .lp-root .plans-grid{ grid-template-columns:1fr; padding:14px; }
           .lp-root .mobile-cta{ position:fixed; display:flex; left:12px; right:12px; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:120; background:rgba(6,40,36,.94); backdrop-filter:blur(16px); color:#fff; border-radius:18px; padding:8px 8px 8px 16px; align-items:center; justify-content:space-between; box-shadow:0 18px 50px rgba(6,30,26,.35); }
           .lp-root .mobile-cta span{ font-size:12px; font-weight:700; }
           .lp-root .mobile-cta button{ border:none; background:var(--teal); color:#fff; font-weight:800; border-radius:13px; min-height:42px; padding:0 16px; }
@@ -407,9 +486,9 @@ export default function Welcome({ onComecar, onEntrar }) {
           <div className="nav-links">
             <a className="link" href="#funcionalidades">Funcionalidades</a>
             <a className="link" href="#como-funciona">Como funciona</a>
-            <a className="link" href="#duvidas">Dúvidas</a>
+            <a className="link" href="#comprar">Preço</a>
             <button className="btn btn-outline" onClick={onEntrar}>Entrar</button>
-            <button className="btn btn-primary" onClick={onComecar}>Criar conta</button>
+            <button className="btn btn-primary" onClick={irParaCompra}>Quero o app</button>
           </div>
         </div>
       </nav>
@@ -421,7 +500,7 @@ export default function Welcome({ onComecar, onEntrar }) {
             <h1>Menos tempo organizando. <span>Mais viagem acontecendo.</span></h1>
             <p className="lead">Do primeiro plano ao último acerto de contas: roteiro, gastos, documentos, checklist e pessoas viajando juntas em um único app.</p>
             <div className="hero-ctas">
-              <button className="btn btn-primary" onClick={onComecar}>Começar minha viagem <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg></button>
+              <button className="btn btn-primary" onClick={irParaCompra}>Quero organizar minha viagem <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg></button>
               <a href="#funcionalidades" className="btn btn-outline">Ver funcionalidades</a>
             </div>
             <div className="trust-line"><span><i /> Real e dólar</span><span><i /> Grupo sincronizado</span><span><i /> Acerto automático</span></div>
@@ -506,8 +585,26 @@ export default function Welcome({ onComecar, onEntrar }) {
                 <h3>Uma central para qualquer aventura</h3>
                 <p>Escolha o destino. Convide quem vai junto. O app cuida da organização.</p>
               </div>
-              <button onClick={onComecar}>Planejar minha viagem →</button>
+              <button onClick={irParaCompra}>Quero organizar minha viagem →</button>
             </article>
+          </div>
+        </div>
+      </section>
+
+      <section className="lp-reveal" style={{ paddingTop: 0 }}>
+        <div className="wrap">
+          <div className="settle-story">
+            <div className="settle-content">
+              <div className="eyebrow" style={{ color: '#8FF3E4' }}>Acerto de contas inteligente</div>
+              <h2>O app faz as contas. A amizade continua leve.</h2>
+              <p>Cada pessoa registra o que pagou. O Encorpei na Trip cruza todas as despesas, compensa créditos e dívidas opostas e mostra somente o saldo líquido final.</p>
+              <div className="balance-demo">
+                <div className="balance-card"><div className="small">Antes da compra</div><strong>Wilson deve US$ 100</strong></div>
+                <div className="balance-arrow">→</div>
+                <div className="balance-card final"><div className="small">Saldo compensado</div><strong>Wilson deve US$ 75</strong></div>
+              </div>
+              <div className="compensation">Wilson pagou US$ 50 dividido com Carlos. A parte de Carlos, US$ 25, foi abatida automaticamente do saldo anterior.</div>
+            </div>
           </div>
         </div>
       </section>
@@ -595,6 +692,52 @@ export default function Welcome({ onComecar, onEntrar }) {
         </div>
       </section>
 
+      <section className="lp-reveal" style={{ paddingTop: 18 }}>
+        <div className="wrap">
+          <div className="pwa-stage">
+            <div className="pwa-photo" />
+            <div className="pwa-copy">
+              <div className="eyebrow" style={{ color: '#8FF3E4' }}>Aplicativo PWA</div>
+              <h2>Instala como app. Atualiza sozinho.</h2>
+              <p>Você recebe o link, cria seu login e instala direto pelo navegador. O ícone fica na tela inicial e o app abre em tela cheia, sem depender da loja.</p>
+              <div className="install-steps">
+                <div className="install-step"><b>1</b><div><strong>Depois da compra</strong><span>Você recebe o link de acesso e as orientações.</span></div></div>
+                <div className="install-step"><b>2</b><div><strong>Crie seu login</strong><span>Use seu e-mail e escolha uma senha segura.</span></div></div>
+                <div className="install-step"><b>3</b><div><strong>Instale na tela inicial</strong><span>iPhone: Compartilhar → Adicionar à Tela de Início. Android: menu do navegador → Instalar app.</span></div></div>
+                <div className="install-step"><b>4</b><div><strong>Comece a viagem</strong><span>Crie o roteiro e convide as outras pessoas pelo link.</span></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="comprar" className="lp-reveal" style={{ paddingTop: 0 }}>
+        <div className="wrap">
+          <div className="price-stage">
+            <div className="price-copy">
+              <div className="eyebrow">Escolha seu plano</div>
+              <h2>Do seu jeito. Sozinho ou com a família.</h2>
+              <p>Os dois planos incluem todas as ferramentas do aplicativo por 12 meses. O que muda é quantas pessoas podem entrar e acompanhar a viagem.</p>
+              <div className="included"><span>Roteiro completo</span><span>Gastos em real e dólar</span><span>Acerto automático</span><span>Checklist e documentos</span><span>Mapa e lugares</span><span>Modo Motorhome opcional</span></div>
+            </div>
+            <div className="plans-grid">
+              {PLANOS_VENDA.map((plano) => (
+                <article className={`plan-card${plano.destaque ? ' featured' : ''}`} key={plano.id}>
+                  {plano.destaque && <div className="popular">MAIS ESCOLHIDO</div>}
+                  <h3>{plano.nome}</h3>
+                  <div className="plan-desc">{plano.descricao}</div>
+                  <div className="plan-price">{plano.preco}</div>
+                  <div className="plan-once">pagamento único · 12 meses</div>
+                  <div className="plan-items">{plano.itens.map((item) => <span key={item}>{item}</span>)}</div>
+                  <button className="buy-btn" disabled={!plano.link} onClick={() => { if (plano.link) window.location.href = plano.link; }}>Escolher {plano.nome}</button>
+                  <div className="secure-note">Sem mensalidade · acesso após a compra</div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="lp-reveal">
         <div className="wrap">
           <div className="cta-final">
@@ -603,7 +746,7 @@ export default function Welcome({ onComecar, onEntrar }) {
               <h2>Sua próxima viagem começa aqui</h2>
               <p>Crie a viagem, convide a família, e organizem tudo juntos — em menos de um minuto.</p>
               <div className="hero-ctas">
-                <button className="btn btn-primary" onClick={onComecar}>Criar minha conta</button>
+                <button className="btn btn-primary" onClick={irParaCompra}>Ver preço e comprar</button>
                 <button className="btn btn-outline on-dark" onClick={onEntrar}>Já tenho conta · Entrar</button>
               </div>
             </div>
@@ -632,7 +775,7 @@ export default function Welcome({ onComecar, onEntrar }) {
           <p>Feito por quem viaja, pra quem viaja em família.</p>
         </div>
       </footer>
-      <div className="mobile-cta"><span>Sua viagem em um só app</span><button onClick={onComecar}>Começar agora</button></div>
+      <div className="mobile-cta"><span>Sua viagem em um só app</span><button onClick={irParaCompra}>Ver preço</button></div>
     </div>
   );
 }

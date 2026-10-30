@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { fmtBRL, hojeLocal } from '../../lib/format';
 import NovaViagemWizard from '../viagens/NovaViagemWizard';
 import { Button, EmptyState, Expand, SectionHeader, ProgressBar } from '../ui';
+import { normalizarPlano, resumoAcessos } from '../../lib/plans';
 
 const MS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const fmtDia = (d) => { if (!d) return ''; const [, m, dia] = d.split('-'); return `${Number(dia)} ${MS[Number(m) - 1]}`; };
@@ -18,7 +19,7 @@ const GRADS = [
 ];
 
 export default function Viagens({ ir }) {
-  const { perfil, viagem, viagens, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, guardados, definirMeta, adicionarGuardado, removerGuardado } = useData();
+  const { perfil, viagem, viagens, membrosAcesso, trocarViagem, criarViagem, gerarConvite, entrarPorConvite, apagarViagem, definirFotoViagem, guardados, definirMeta, adicionarGuardado, removerGuardado } = useData();
   const [totais, setTotais] = useState({});
   const [msg, setMsg] = useState(null); // { tipo: 'ok'|'erro', texto }
   const [metaForm, setMetaForm] = useState(null); // string do valor da meta em edição
@@ -86,8 +87,9 @@ export default function Viagens({ ir }) {
   async function trocarFoto(v, e) { e.stopPropagation(); const url = window.prompt('Cole o link de uma foto (URL de imagem) para a capa da viagem. Deixe em branco para remover.', v.foto || ''); if (url === null) return; await definirFotoViagem(v.id, url.trim()); }
   async function convidarCard(v, e) {
     e.stopPropagation(); setMsg(null);
-    const cod = await gerarConvite(v.id);
-    if (!cod) { setMsg({ tipo: 'erro', texto: 'Não consegui gerar o convite.' }); return; }
+    const resultado = await gerarConvite(v.id);
+    if (!resultado || resultado.erro || !resultado.codigo) { setMsg({ tipo: 'erro', texto: (resultado && resultado.erro) || 'Não consegui gerar o convite.' }); return; }
+    const cod = resultado.codigo;
     const base = typeof window !== 'undefined' ? window.location.origin : '';
     const url = `${base}/?convite=${cod}`;
     if (navigator.clipboard) { try { await navigator.clipboard.writeText(url); setMsg({ tipo: 'ok', texto: `Link de "${v.nome}" copiado! Cole no WhatsApp pra convidar.` }); return; } catch (er) {} }
@@ -177,6 +179,16 @@ export default function Viagens({ ir }) {
               <Button size="lg" variant="secondary" style={{ flex: 1 }} onClick={() => setConviteAberto((v) => !v)}>Tenho um convite</Button>
             </div>
             {blocoConvite}
+          </div>
+        )}
+
+        {viagem && (
+          <div className="ui-card" style={{ margin: '22px 0 0', padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ width: 44, height: 44, borderRadius: 14, background: 'var(--ui-teal-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21 }}>{normalizarPlano(viagem.plano).id === 'familia' ? '👨‍👩‍👧‍👦' : '👤'}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14.5, fontWeight: 800 }}>Plano {normalizarPlano(viagem.plano).nome}</div>
+              <div className="ui-caption" style={{ marginTop: 2 }}>{resumoAcessos({ plano: viagem.plano, totalAcessos: membrosAcesso.length || 1 })} · acesso por 12 meses</div>
+            </div>
           </div>
         )}
 
@@ -286,7 +298,7 @@ function Card({ v, idx, info, ativa, dono, total, onAbrir, onConvidar, onFoto, o
       {v.foto && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(150deg, rgba(8,28,38,.32) 0%, rgba(8,28,38,.62) 100%)', zIndex: 1 }} />}
       {!v.foto && <Sky />}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2, gap: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, background: 'rgba(0,0,0,.22)', backdropFilter: 'blur(3px)', padding: '6px 13px', borderRadius: 20, whiteSpace: 'nowrap', alignSelf: 'center' }}>{ativa ? '● ' : ''}{info.tag}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, background: 'rgba(0,0,0,.22)', backdropFilter: 'blur(3px)', padding: '6px 13px', borderRadius: 20, whiteSpace: 'nowrap', alignSelf: 'center' }}>{ativa ? '● ' : ''}{info.tag} · {normalizarPlano(v.plano).nome}</span>
         {dono && (
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={onConvidar} aria-label="Convidar" title="Copiar link de convite" style={rb}>🔗</button>
