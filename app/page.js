@@ -9,8 +9,11 @@ export default function Home() {
   const [session, setSession] = useState(null);
   const [pronto, setPronto] = useState(false);
   const [authView, setAuthView] = useState('welcome');
+  const [modoApp, setModoApp] = useState(false);
   const [recuperandoSenha, setRecuperandoSenha] = useState(false);
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setModoApp(params.get('app') === '1' || params.has('convite'));
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setPronto(true); });
     const { data: sub } = supabase.auth.onAuthStateChange((evento, s) => {
       if (evento === 'PASSWORD_RECOVERY') setRecuperandoSenha(true);
@@ -18,11 +21,19 @@ export default function Home() {
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+  function abrirApp(view = 'login') {
+    setAuthView(view);
+    setModoApp(true);
+    window.history.replaceState({}, '', '/?app=1');
+  }
+  function voltarLanding() {
+    setAuthView('welcome');
+    setModoApp(false);
+    window.history.replaceState({}, '', '/');
+  }
   if (!pronto) return <div className="center-msg">Carregando…</div>;
   if (session && recuperandoSenha) return <Login modo="recovery" onRecuperado={() => setRecuperandoSenha(false)} />;
-  if (!session) {
-    if (authView === 'welcome') return <Welcome onComecar={() => setAuthView('signup')} onEntrar={() => setAuthView('login')} />;
-    return <Login modo={authView} onVoltar={() => setAuthView('welcome')} />;
-  }
+  if (!modoApp) return <Welcome onComecar={() => abrirApp('signup')} onEntrar={() => abrirApp('login')} />;
+  if (!session) return <Login modo={authView === 'welcome' ? 'login' : authView} onVoltar={voltarLanding} />;
   return (<DataProvider session={session}><AppShell /></DataProvider>);
 }

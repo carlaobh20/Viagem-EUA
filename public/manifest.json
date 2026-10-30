@@ -1,5 +1,5 @@
 {
   "name": "Encorpei na Trip", "short_name": "Encorpei", "description": "Organize, acompanhe e compartilhe suas viagens",
-  "start_url": "/", "display": "standalone", "background_color": "#E6F4FB", "theme_color": "#00C7B1", "orientation": "portrait",
+  "start_url": "/?app=1", "display": "standalone", "background_color": "#E6F4FB", "theme_color": "#00C7B1", "orientation": "portrait",
   "icons": [ { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" }, { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" } ]
 }

@@ -39,7 +39,7 @@ export default function AppShell() {
       entrarPorConvite(cod).then((r) => {
         if (r && r.ok) setView('resumo');
         else if (r && r.erro) window.alert(r.erro);
-      }).finally(() => window.history.replaceState({}, '', window.location.pathname));
+      }).finally(() => window.history.replaceState({}, '', '/?app=1'));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
