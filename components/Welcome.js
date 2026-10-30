@@ -224,9 +224,8 @@ export default function Welcome({ onComecar, onEntrar }) {
         .lp-root .hero p.lead{ font-size:17px; color:var(--muted); max-width:470px; margin-top:20px; line-height:1.6; }
         .lp-root .hero-ctas{ display:flex; gap:14px; margin-top:34px; flex-wrap:wrap; }
         .lp-root .hero-visual{ position:relative; display:flex; justify-content:center; }
-        .lp-root .travel-stage{ width:min(100%,540px); min-height:590px; position:relative; display:flex; justify-content:center; align-items:center; border-radius:40px; background:linear-gradient(180deg,rgba(6,40,36,.02),rgba(6,40,36,.12)),url('/hero-eua.jpg') center/cover; box-shadow:0 38px 80px -34px rgba(6,40,36,.48); overflow:hidden; isolation:isolate; }
+        .lp-root .travel-stage{ width:min(100%,540px); min-height:590px; position:relative; display:flex; justify-content:center; align-items:center; border-radius:40px; background:url('/landing-phone-airport.jpg') center 43%/cover; box-shadow:0 38px 80px -34px rgba(6,40,36,.48); overflow:hidden; isolation:isolate; }
         .lp-root .travel-stage::after{ content:''; position:absolute; inset:0; background:linear-gradient(180deg,transparent 35%,rgba(6,24,21,.58)); z-index:-1; }
-        .lp-root .travel-stage .phone{ transform:translateY(28px) rotate(2deg); }
         .lp-root .float-note{ position:absolute; z-index:4; background:rgba(255,255,255,.92); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.75); box-shadow:0 18px 40px -18px rgba(6,30,26,.42); border-radius:16px; padding:11px 14px; font-size:12px; font-weight:800; color:var(--ink); }
         .lp-root .float-note span{ display:block; color:var(--teal-d); font-size:10px; font-weight:700; margin-bottom:2px; }
         .lp-root .float-note.one{ top:56px; left:22px; transform:rotate(-3deg); }
@@ -252,6 +251,8 @@ export default function Welcome({ onComecar, onEntrar }) {
         .lp-root .panel-dark p{ color:rgba(255,255,255,.68); font-size:14px; margin-top:10px; line-height:1.6; }
         .lp-root .panel-dark .tilt-wrap{ flex:0 0 auto; width:190px; display:flex; justify-content:center; perspective:1400px; }
         .lp-root .panel-dark .tilt-wrap .phone{ transform:rotateY(-20deg) rotateX(4deg) scale(.82); transform-style:preserve-3d; box-shadow:34px 40px 60px -20px rgba(0,0,0,.55); }
+        .lp-root .held-photo{ display:block; object-fit:cover; border-radius:24px; box-shadow:0 26px 54px -22px rgba(0,0,0,.5); }
+        .lp-root .panel-dark .held-photo{ width:190px; height:380px; transform:rotate(2deg); object-position:center 48%; }
         .lp-root .check-list{ margin-top:20px; display:flex; flex-direction:column; gap:11px; }
         .lp-root .check-list .c{ display:flex; align-items:center; gap:10px; color:rgba(255,255,255,.9); font-size:13.5px; font-weight:600; }
         .lp-root .check-list svg{ width:18px; height:18px; color:var(--teal); flex:0 0 auto; }
@@ -319,6 +320,7 @@ export default function Welcome({ onComecar, onEntrar }) {
         .lp-root .cta-final p{ color:rgba(255,255,255,.7); margin-top:12px; font-size:14.5px; }
         .lp-root .cta-final .hero-ctas{ margin-top:26px; }
         .lp-root .cta-final .phone{ margin-top:-40px; transform:scale(.85); }
+        .lp-root .cta-final .held-photo{ width:300px; height:390px; margin:-56px 0 -56px; object-position:center 45%; transform:rotate(2deg); position:relative; }
 
         .lp-root footer{ padding:48px 0 34px; text-align:center; }
         .lp-root footer .logo{ justify-content:center; }
@@ -342,6 +344,7 @@ export default function Welcome({ onComecar, onEntrar }) {
           .lp-root .cta-final{ flex-direction:column; text-align:center; padding:40px 26px; }
           .lp-root .cta-final .txt{ padding:0; max-width:100%; }
           .lp-root .cta-final .phone{ display:none; }
+          .lp-root .cta-final .held-photo{ display:none; }
           .lp-root .nav-links a.link{ display:none; }
           .lp-root section{ padding:64px 0; }
           .lp-root .sec-head h2{ font-size:26px; }
@@ -355,7 +358,6 @@ export default function Welcome({ onComecar, onEntrar }) {
           .lp-root .hero h1{ font-size:34px; }
           .lp-root .hero p.lead{ font-size:15px; }
           .lp-root .travel-stage{ min-height:500px; border-radius:28px; }
-          .lp-root .travel-stage .phone{ transform:translateY(34px) scale(.84); }
           .lp-root .float-note.one{ top:24px; left:12px; }
           .lp-root .float-note.two{ right:10px; bottom:18px; }
           .lp-root .trust-line{ justify-content:center; }
@@ -395,7 +397,6 @@ export default function Welcome({ onComecar, onEntrar }) {
           <div className="hero-visual">
             <div className="travel-stage">
               <div className="float-note one"><span>PRÓXIMO PASSEIO</span>Magic Kingdom · 9h</div>
-              <Phone />
               <div className="float-note two"><span>CONTAS DO GRUPO</span>Tudo certo ✓</div>
             </div>
           </div>
@@ -457,7 +458,7 @@ export default function Welcome({ onComecar, onEntrar }) {
               </div>
             </div>
             <div className="tilt-wrap">
-              <Phone />
+              <img className="held-photo" src="/landing-phone-roadtrip.jpg" alt="Viajante usando o aplicativo durante uma viagem de motorhome" />
             </div>
           </div>
           <div className="panel panel-light">
@@ -539,7 +540,7 @@ export default function Welcome({ onComecar, onEntrar }) {
                 <button className="btn btn-outline on-dark" onClick={onEntrar}>Já tenho conta · Entrar</button>
               </div>
             </div>
-            <Phone compact />
+            <img className="held-photo" src="/landing-phone-airport.jpg" alt="Viajante segurando o aplicativo no aeroporto" />
           </div>
         </div>
       </section>
